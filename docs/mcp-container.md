@@ -110,6 +110,72 @@ Container release configuration is described in
 The target is complete, concise definitions across every tool; a 5.0 official
 score is only confirmed after Glama's independent rubric/coherence evaluation.
 
+## Glama administrator build settings
+
+Glama generates its own Dockerfile from the administrator build spec. Updating
+`Dockerfile.mcp` in GitHub does not change those administrator settings.
+Open the listing's [Dockerfile administration page](https://glama.ai/mcp/servers/lsh235/FalutDebugMCP/admin/dockerfile)
+and set these fields:
+
+```json
+{
+  "baseImage": "debian:trixie-slim",
+  "buildSteps": [
+    "uv sync --python 3.12",
+    "mkdir -p /app/artifacts"
+  ],
+  "cmdArguments": [
+    "mcp-proxy", "--", ".venv/bin/fault-debug",
+    "mcp", "--root", "/app/artifacts"
+  ],
+  "nodeVersion": "24",
+  "pinnedCommit": "255395c86809cce886ce58cdc5736b2a4c0f8aaa",
+  "placeholderArguments": {},
+  "pythonVersion": "3.12"
+}
+```
+
+The pinned revision contains the 25-tool metadata update. For a later release,
+replace it with the full SHA of the revision you intend to publish, and check
+the generated Dockerfile's `git checkout` before deploying. A null pin alone
+does not prove that the generated checkout contains your latest changes.
+
+Python 3.12 matches `requires-python = ">=3.12,<3.13"` in `pyproject.toml`.
+Specifying it in both the runtime selection and `uv sync` avoids relying on
+automatic interpreter selection. `uv sync` installs the project's
+`fault-debug` entry point. Keep the Glama-provided `mcp-proxy` wrapper: it exposes
+the application's stdio transport through HTTP for Glama's inspection.
+
+Use the literal `/app/artifacts` directory without a placeholder substitution.
+It starts empty so the inspector can list tools; actual fault analysis requires
+readable captures, bundles or stores provisioned there. An empty inspection
+directory does not contain sample captures or expose the checkout as evidence.
+
+Click **Deploy** to test the image. After a successful test, select **Make
+Release** or **Create Release**, then **Create & Publish Release**, as described
+in [Glama's release guide](https://glama.ai/blog/2026-03-15-how-to-make-a-release).
+Check that inspection sees 25 tools, including `get_fault_flow`, before checking
+the new TDQS scan. A successful image build is separate from an official score.
+
+The settings above were validated locally with Glama's generated Dockerfile
+template and `mcp-proxy@6.7.16`: image build, HTTP MCP initialization, 25-tool
+listing, all 76 parameter descriptions and `get_capabilities` passed. This does
+not confirm a remote Glama deployment or TDQS result.
+
+### A build fails immediately with HTTP 502
+
+If the error is `DockerBuildError` with nginx `502 Bad Gateway`, an empty
+`extra.logs` array, and a duration of less than a second, the available evidence
+points to Glama's Docker build service or its gateway. There is no build-step
+output establishing a failure in `uv sync` or in the application. Correct any
+independent spec problems, save the settings and retry **Deploy** once.
+
+If the same immediate 502 remains, contact `support@glama.ai` with the listing
+URL, failed build ID, timestamp, duration and the error log. Glama's release guide
+provides this support contact. Repository changes cannot repair a remote Docker
+API gateway. If a later attempt instead includes package-installation or startup
+logs, diagnose that new failure from its first concrete error.
+
 ## 한국어 안내
 
 이 이미지는 Python MCP 조회기만 포함하며 C/C++ 프로그램을 빌드하거나
@@ -118,3 +184,9 @@ score is only confirmed after Glama's independent rubric/coherence evaluation.
 마운트하지 않습니다. 호스트 파일 권한에 따라 UID 65532가 파일을 읽지 못할
 수 있습니다. 이 경우 설정의 `docker run` 인수에 `--user "$(id -u):$(id -g)"`를
 추가하고 접근 가능한 artifact 디렉터리를 지정하세요.
+
+Glama 관리자 빌드는 위의 **Glama administrator build settings** 설정을
+사용하세요. Python은 `3.12`, 빌드 단계는 `uv sync --python 3.12`와
+`mkdir -p /app/artifacts`, 실행 경로는 `/app/artifacts`입니다. 빌드 시작 직후
+`502 Bad Gateway`와 빈 `logs`가 반복되면 빌드 ID와 로그를 Glama 지원팀에
+전달하세요. 컨테이너 빌드 성공과 TDQS 재평가 완료는 별도로 확인해야 합니다.

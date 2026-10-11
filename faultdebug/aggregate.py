@@ -57,8 +57,12 @@ def build_timeline(reports: list[dict]) -> dict:
 
 class ArtifactIndex:
     """Restartable SQLite index of artifact metadata; payloads remain in .fault files."""
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, *, readonly: bool = False):
         self.path = path
+        if readonly:
+            self.db = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)
+            self.db.execute("PRAGMA query_only=ON")
+            return
         self.db = sqlite3.connect(path)
         self.db.execute("CREATE TABLE IF NOT EXISTS artifacts (path TEXT PRIMARY KEY, sha256 TEXT NOT NULL, pid INTEGER, trace_id TEXT, correlation_id TEXT, parent_pid INTEGER, start_ns INTEGER, payload TEXT NOT NULL, updated_ns INTEGER NOT NULL)")
         self.db.commit()

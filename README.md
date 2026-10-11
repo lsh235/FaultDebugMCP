@@ -239,9 +239,105 @@ docker build -f test/shop/Dockerfile -t faultdebug-shop:dev .
 
 ![Observed payment crash and HTTP failure propagation across shopping services](docs/assets/shopping-fault-report.png)
 
-The MCP server uses stdio and restricts artifact access to the configured root.
-For MCP clients that accept the common `mcpServers` configuration shape, use
-absolute paths for the installed CLI and artifact directory:
+### Use FaultDebug from an AI session
+
+FaultDebug does not run an AI model or send data to an AI provider. Codex CLI,
+Claude Code, or another MCP client runs the model conversation. When you ask it
+to investigate a captured failure, the client can start this local stdio MCP
+server, expose its read-only tools to the model, and pass tool results back into
+the same conversation. The model decides which available tools to call and
+explains the returned evidence.
+
+The AI client can send these tool results to its configured model provider;
+local MCP transport does not imply local AI inference.
+
+The target program must already have been run with FaultDebug instrumentation,
+and its `.fault` captures or evidence store must be available on disk. Connecting
+an AI session does not start tracing or create those runtime captures. “AI
+session” means the Codex/Claude conversation; a FaultDebug runtime session is a
+separate group of captured process evidence.
+
+```mermaid
+flowchart LR
+    A[Run instrumented program] --> B[.fault captures / evidence store]
+    C[Codex CLI or Claude Code session] --> D[Model selects a FaultDebug tool]
+    D --> E[Local stdio MCP server]
+    E --> F[Read-only artifact inspection]
+    F --> G[Structured evidence and limits]
+    G --> C
+    C --> H[AI explanation in the conversation]
+    B --> E
+    B --> I[Optional fault-debug CLI report]
+```
+
+#### Codex CLI
+
+After installing the project with `pip install -e .`, register the server with
+absolute paths to the installed CLI and the directory containing the captures:
+
+```sh
+codex mcp add faultdebug -- \
+  /absolute/path/to/FaultDebugMCP/.venv/bin/python \
+  -m faultdebug.cli mcp --root /absolute/path/to/artifacts
+codex mcp list
+```
+
+Restart or open a Codex session in a trusted project, then use `/mcp` in the
+Codex TUI to inspect connected servers. Codex CLI and its supported desktop/IDE
+surfaces share MCP configuration. Alternatively, add the server to
+`~/.codex/config.toml`:
+
+```toml
+[mcp_servers.faultdebug]
+command = "/absolute/path/to/FaultDebugMCP/.venv/bin/python"
+args = ["-m", "faultdebug.cli", "mcp", "--root", "/absolute/path/to/artifacts"]
+```
+
+#### Claude Code
+
+Claude Code can register the same local stdio command. Project scope stores the
+entry in the project configuration; Claude Code may ask you to approve it when
+you open the project.
+
+```sh
+claude mcp add --scope project faultdebug -- \
+  /absolute/path/to/FaultDebugMCP/.venv/bin/python \
+  -m faultdebug.cli mcp --root /absolute/path/to/artifacts
+claude mcp list
+```
+
+In Claude Code, run `/mcp` to check the connection and available tools. To keep
+the server only in your user configuration, replace `--scope project` with
+`--scope user`.
+
+#### Ask about a captured failure
+
+Once connected, ask the AI to inspect a concrete artifact. For example:
+
+> Inspect `fault-1234.fault`. Show the recorded execution flow to the fault,
+> identify which observations are direct evidence versus static candidates,
+> and state what cannot be established from this capture.
+
+For a single-process capture, the model can call `open_fault` and
+`get_fault_flow`; for recorded RPC observations it can call `get_rpc_trace`.
+For multiple process captures, it can use `get_session_manifest`,
+`get_process_relations`, or `get_incident_report`. To inspect indexed source it
+can use `get_function_source` with a verified bundle. Tool results include
+evidence categories and known gaps so the model can explain the actual recorded
+flow without treating a static candidate or inferred grouping as proven
+causality.
+
+The MCP tools only return data to the conversation; they do not write report
+files. To create a durable Markdown, JSON, and interactive HTML report, run the
+CLI separately:
+
+```sh
+.venv/bin/fault-debug fault-report artifacts/fault-1234.fault \
+  --output reports/incident-001
+```
+
+For other MCP clients that accept the common `mcpServers` configuration shape,
+use absolute paths:
 
 ```json
 {
@@ -258,6 +354,17 @@ The server is read-only. It does not upload artifacts or contact a remote
 service. Do not expose sensitive fault artifacts, bundles, or source paths in
 public issues. To run the MCP inspector in a container with a read-only artifact
 mount, see the [Docker MCP guide](docs/mcp-container.md).
+
+This CLI registration pattern follows the client-specific MCP commands in the
+[Codex MCP guide](https://developers.openai.com/codex/mcp) and
+[Claude Code MCP guide](https://code.claude.com/docs/en/mcp). The separate
+manual-start note and explicit tool workflow follow common local-stdio MCP
+project documentation such as [denysvitali/codex-mcp](https://github.com/denysvitali/codex-mcp).
+
+The 25 MCP tools publish parameter descriptions, validated limits/enums and
+read-only annotations. Their stdio definitions and non-mutating behavior are
+checked in CI. See [MCP definition verification and Glama](docs/mcp-container.md#tool-definitions-and-glama)
+for the local audit command and registry re-evaluation steps.
 
 ## Evidence rules
 

@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+- Documented all MCP tool selection boundaries, return/error contracts and
+  parameter semantics in the live stdio definitions; added read-only annotations,
+  schema validation constraints and a protocol/immutable-evidence CI audit.
+- Fixed legacy artifact-index inspection to use SQLite read-only/query-only mode
+  without initializing tables, and reject absolute/parent-traversal MCP paths.
+- Added Glama maintainer metadata and registry re-evaluation instructions.
+
 - Added an N-process Docker shopping fault laboratory (8..32 application
   processes), real HTTP orders, replay protection, compensation, concurrent
   workloads and five controlled failure scenarios including native SIGILL.

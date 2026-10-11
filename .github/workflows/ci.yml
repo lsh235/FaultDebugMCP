@@ -28,8 +28,14 @@ jobs:
           python test/index_linkage.py
       - name: Test fault-flow reports and read-only MCP
         run: python test/fault_report_test.py
-      - name: Check MCP tool descriptions
-        run: python test/mcp_tool_metadata.py
+      - name: Verify MCP stdio definitions and read-only calls
+        run: python test/mcp_tool_metadata.py --output build/mcp-definition-audit.json
+      - name: Upload inspected MCP definitions
+        uses: actions/upload-artifact@v4
+        with:
+          name: mcp-definition-audit
+          path: build/mcp-definition-audit.json
+          if-no-files-found: error
       - name: Test cross-service report and container PID identities
         run: python test/service_report_test.py
 

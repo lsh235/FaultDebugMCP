@@ -128,15 +128,15 @@ and set these fields:
     "mcp", "--root", "/app/artifacts"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "ALPHA16_CODE_COMMIT",
+  "pinnedCommit": "3ab501011374250181143a3e3c45e74558f09c49",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }
 ```
 
-Replace `ALPHA16_CODE_COMMIT` with the full implementation commit from the
-[alpha16 release record](releases/v1.3.0-alpha.16.md). This pin selects the
-bundle-discovery schema and behavior. The previously documented
+This pin selects the alpha16 bundle-discovery schema and behavior. Repository
+documentation does not update the external Glama administrator setting. The
+previously documented
 `255395c86809cce886ce58cdc5736b2a4c0f8aaa` revision predates it and exposed 25
 tools with 76 described parameters. Alpha15 exposed 26 tools and 83 described
 parameters, with `bundle` required for the two source tools. Alpha16 adds the

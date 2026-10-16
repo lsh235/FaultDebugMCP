@@ -2,6 +2,16 @@
 
 This roadmap describes work beyond v0.1.0. It is not a promise of delivery dates.
 
+## REA-informed evidence foundation
+
+The [implementation plan](docs/rea-improvement-plan.ko.md) maps REA lessons to
+existing v1.3 work. The current change strengthens full trace/process-generation
+joins, bounds aggregate input costs, and adds snapshot-checked read-only service
+queries shared by CLI and MCP. See the [query contract](docs/service-query.md)
+and [validation report](docs/rea-implementation-results.ko.md). These additions
+do not declare stable v1.2/v1.3 acceptance or complete the later transport,
+Kubernetes, scale or soak gates.
+
 ## Active next version: v1.2.0
 
 The next version focuses on evidence correctness and reproducible adoption.

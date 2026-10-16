@@ -128,3 +128,11 @@ artifact만 읽는 Docker MCP 구성은 [컨테이너 안내](docs/mcp-container
 - [v1.2 계획과 수락 기준](docs/next-version-v1.2.md)
 - [빌드 및 CTest](test/README.md)
 - [기여 안내](CONTRIBUTING.md) · [보안 정책](SECURITY.md)
+
+### 읽기 전용 서비스 증거 조회
+
+`faultdebug service-query EVIDENCE`와 MCP `get_service_flow`로 요약과 증거
+페이지를 조회할 수 있습니다. 후속 페이지에는 처음 받은 `snapshot_id`를
+전달해 입력 변경을 감지합니다. [조회 계약](docs/service-query.md)과
+[REA 기반 개선 계획](docs/rea-improvement-plan.ko.md),
+[구현 및 검증 결과](docs/rea-implementation-results.ko.md)를 참고하세요.

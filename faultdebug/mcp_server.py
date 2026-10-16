@@ -4,6 +4,7 @@ from typing import Annotated, Literal
 
 from mcp.types import ToolAnnotations
 from pydantic import Field
+from .service_query import ServiceSection, query_service_flow
 from .format import collect_file
 from .bundle import BundleError, load_bundle
 from .inspect import (resolve_addresses as resolve_address_records, thread_trace,
@@ -87,6 +88,28 @@ def make_server(root: Path):
         "Paths are relative to --root. Keep observed, derived, static_candidates, unresolved and hypotheses "
         "distinct. Source citations need a verified bundle; shared IDs/time order do not prove causality."
     ))
+    @app.tool(annotations=_read_only("Get service flow"))
+    def get_service_flow(
+        evidence: Annotated[str, Field(min_length=1, description="Root-relative frozen evidence directory containing native .fault captures and optional events.jsonl files. No symlinks; 64 MiB total input budget.")],
+        section: Annotated[ServiceSection, Field(description="Summary returns counts; select one evidence collection to retrieve a page without mixing native observations and application explanations.")] = "summary",
+        page: Page = 0,
+        page_size: Annotated[int, Field(ge=1, le=200, description="Records per page, 1–200, default 100. Reduce if the 1 MiB response byte budget is exceeded.")] = 100,
+        snapshot_id: Annotated[str | None, Field(description="SHA-256 fingerprint from a previous query. Supply on subsequent pages to reject changed inputs; null starts a new snapshot check.")] = None,
+    ) -> dict:
+        """Inspect cross-service evidence as a summary or one bounded collection page.
+
+        Start with summary, then request calls, causes, events, services,
+        native_relations, unresolved or evidence_files. Reuse snapshot_id for
+        subsequent pages. Returns counts and limitations; collection pages add
+        items, total, returned and next_page. Every call rereads bounded frozen
+        inputs; this is not a retained live snapshot. Application reasons remain
+        self-reported. No cross-process global clock or causal order is inferred.
+        Invalid paths, budgets, corrupt inputs or a stale snapshot produce tool
+        errors. Reads only; source enrichment uses existing verified bundle tools.
+        """
+        path = _relative(root, evidence)
+        return query_service_flow(path, section=section, page=page,
+                                  page_size=page_size, snapshot_id=snapshot_id)
     @app.tool(annotations=_read_only("Get capabilities"))
     def get_capabilities() -> dict:
         """Describe supported capture/store versions, evidence classes, platform and query limits.

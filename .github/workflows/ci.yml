@@ -36,6 +36,10 @@ jobs:
           name: mcp-definition-audit
           path: build/mcp-definition-audit.json
           if-no-files-found: error
+      - name: Test service identity, budgets, snapshot pagination and real MCP parity
+        run: |
+          python test/service_identity_contract.py
+          python test/service_query_contract.py
       - name: Test cross-service report and container PID identities
         run: python test/service_report_test.py
 

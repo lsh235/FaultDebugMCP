@@ -54,7 +54,7 @@ sensitive; do not expose them to untrusted MCP clients.
 ## Tool definitions and Glama
 
 The MCP `tools/list` response contains descriptions and per-parameter JSON Schema
-metadata for all 25 tools. Each tool declares `readOnlyHint=true`,
+metadata for all 26 tools. Each tool declares `readOnlyHint=true`,
 `destructiveHint=false`, `idempotentHint=true`, and `openWorldHint=false`.
 Capture and bundle paths are relative to the configured root; absolute paths,
 parent traversal and escaping symlinks are rejected. Address resolution may read
@@ -154,7 +154,7 @@ directory does not contain sample captures or expose the checkout as evidence.
 Click **Deploy** to test the image. After a successful test, select **Make
 Release** or **Create Release**, then **Create & Publish Release**, as described
 in [Glama's release guide](https://glama.ai/blog/2026-03-15-how-to-make-a-release).
-Check that inspection sees 25 tools, including `get_fault_flow`, before checking
+Check that inspection sees 26 tools, including `get_fault_flow`, before checking
 the new TDQS scan. A successful image build is separate from an official score.
 
 The settings above were validated locally with Glama's generated Dockerfile

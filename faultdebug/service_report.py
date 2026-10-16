@@ -6,6 +6,7 @@ is shown as corroborated; injection configuration is never a report input.
 """
 from __future__ import annotations
 
+from collections import defaultdict
 import hashlib
 import json
 import os
@@ -18,34 +19,48 @@ from .bundle import load_bundle
 from .fault_report import write_fault_report
 from .rpc import process_relations, rpc_trace
 from .service_report_view import render_html
-
-MAX_FILE_BYTES = 16 * 1024 * 1024
-MAX_EVENTS = 100_000
+from .service_evidence import EvidenceReader, MAX_EVENTS, discover_inputs
 
 
-def _bounded(path: Path) -> bytes:
-    if path.is_symlink() or path.stat().st_size > MAX_FILE_BYTES:
-        raise ValueError(f"Evidence must be a regular bounded file: {path}")
-    with path.open("rb") as stream:
-        data = stream.read(MAX_FILE_BYTES + 1)
-    if len(data) > MAX_FILE_BYTES:
-        raise ValueError(f"Evidence byte budget exceeded: {path}")
-    return data
+def _identity(row: dict) -> tuple:
+    return (row.get("session_id"), row.get("process_id"), row.get("process_generation"))
+
+
+def _trace(row: dict, *, application: bool = False) -> tuple:
+    return (row.get("trace_id_hi", 0), row.get("trace_id" if application else "trace_id_lo", 0),
+            row.get("rpc_id"))
+
+
+def _validate_application(row: dict) -> None:
+    for name in ("session_id", "process_id", "service", "kind"):
+        if not isinstance(row.get(name), str) or not row[name] or len(row[name]) > 2000:
+            raise ValueError(f"Invalid application {name}")
+    for name, maximum in (("process_generation", 0xFFFFFFFF), ("pid", 0x7FFFFFFF)):
+        value = row.get(name)
+        if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= maximum:
+            raise ValueError(f"Invalid application {name}")
+    for name in ("trace_id", "trace_id_hi", "rpc_id", "parent_rpc_id", "monotonic_ns"):
+        value = row.get(name, 0 if name in ("trace_id_hi", "parent_rpc_id") else None)
+        if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < 2**64:
+            raise ValueError(f"Invalid application {name}")
+    if "status" in row and (isinstance(row["status"], bool) or not isinstance(row["status"], int)):
+        raise ValueError("Invalid application status")
+    if any(isinstance(value, str) and len(value) > 2000 for value in row.values()):
+        raise ValueError("Application string budget exceeded")
 
 
 def build_service_report(evidence: Path, *, bundle: Path | None = None) -> dict:
     evidence = evidence.resolve()
-    artifacts = sorted(evidence.rglob("*.fault"))
-    if not 1 <= len(artifacts) <= 64:
-        raise ValueError("Expected 1..64 native captures")
+    artifacts, application_logs = discover_inputs(evidence)
+    reader = EvidenceReader()
     source_bundle = load_bundle(bundle) if bundle else None
     reports, services, evidence_files = [], [], []
     native_gaps = []
     identities = {}
     spans = {}
-    native_rows = {}
+    native_index = defaultdict(list)
     for index, path in enumerate(artifacts):
-        data = _bounded(path)
+        data = reader.read(path)
         report = decode_artifact(data)
         if not isinstance(report, dict) or not isinstance(report.get("process"), dict):
             raise ValueError("Native service capture must contain a process object")
@@ -60,9 +75,17 @@ def build_service_report(evidence: Path, *, bundle: Path | None = None) -> dict:
             raise ValueError("Service captures require unique explicit session/process/generation identities")
         role = identity.get("role", key[1])
         decoded = rpc_trace(report)
+        matching = []
+        for event in decoded["observed"]:
+            if event.get("process_generation", key[2]) != key[2]:
+                native_gaps.append({"reason": "rpc_event_process_generation_conflict", "service": role})
+            else:
+                matching.append(event)
+        decoded["observed"] = matching
         identities[key] = index
-        spans[key] = {(event.get("trace_id_lo"), event.get("rpc_id")) for event in decoded["observed"]}
-        native_rows[key] = decoded["observed"]
+        spans[key] = {_trace(event) for event in decoded["observed"]}
+        for event in decoded["observed"]:
+            native_index[(key, _trace(event), event.get("direction"), event.get("phase"))].append(event)
         reports.append(report)
         services.append({"index": index, "role": role, "process_id": key[1], "generation": key[2],
                          "session_id": key[0], "pid": process.get("pid"), "artifact": path.relative_to(evidence).as_posix(),
@@ -79,36 +102,36 @@ def build_service_report(evidence: Path, *, bundle: Path | None = None) -> dict:
     if len({service["session_id"] for service in services}) != 1:
         raise ValueError("One service report must contain exactly one session")
     events, unresolved, causes = [], list(native_gaps), []
-    for path in sorted(evidence.rglob("events.jsonl")):
-        data = _bounded(path)
+    app_index = defaultdict(list)
+    line_count = 0
+    for path in application_logs:
+        data = reader.read(path)
         if data and not data.endswith(b"\n"):
             unresolved.append({"reason": "application_log_truncated", "path": path.relative_to(evidence).as_posix()})
         evidence_files.append({"path": path.relative_to(evidence).as_posix(), "sha256": hashlib.sha256(data).hexdigest(),
                                "kind": "application_self_report", "bytes": len(data)})
         for line_number, line in enumerate(data.splitlines(), 1):
-            if len(events) >= MAX_EVENTS:
+            line_count += 1
+            if line_count > MAX_EVENTS:
                 raise ValueError("Application event budget exceeded")
             try:
                 row = json.loads(line)
             except (ValueError, UnicodeError):
                 unresolved.append({"reason": "application_line_invalid", "line": line_number, "path": str(path.name)})
                 continue
-            if not isinstance(row, dict) or row.get("schema") != 1:
+            if not isinstance(row, dict) or type(row.get("schema")) is not int or row["schema"] != 1:
                 raise ValueError("Unsupported application event schema")
-            key = (row.get("session_id"), row.get("process_id"), row.get("process_generation"))
+            _validate_application(row)
+            key = _identity(row)
             if (key not in identities or row.get("service") != services[identities[key]]["role"]
                     or row.get("pid") != services[identities[key]]["pid"]):
                 unresolved.append({"reason": "application_identity_unmatched", "line": line_number})
                 continue
-            for name in ("trace_id", "rpc_id", "parent_rpc_id", "monotonic_ns"):
-                value = row.get(name, 0)
-                if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < 2**64:
-                    raise ValueError(f"Invalid application {name}")
-            if any(isinstance(value, str) and len(value) > 2000 for value in row.values()):
-                raise ValueError("Application string budget exceeded")
             row = {**row, "log_path": path.relative_to(evidence).as_posix(), "log_line": line_number,
-                   "native_rpc_matched": (row.get("trace_id"), row.get("rpc_id")) in spans[key]}
+                   "trace_id_hi": row.get("trace_id_hi", 0),
+                   "native_rpc_matched": _trace(row, application=True) in spans[key]}
             events.append(row)
+            app_index[(key, _trace(row, application=True), row["kind"])].append(row)
             if row.get("kind") in {"failure", "fault_triggered"}:
                 cause = {**row, "evidence_class": "application_self_report",
                          "assessment": "corroborated_rpc" if row["native_rpc_matched"] else "unresolved"}
@@ -131,54 +154,51 @@ def build_service_report(evidence: Path, *, bundle: Path | None = None) -> dict:
     for relation in relations["observed"]:
         if relation.get("kind") != "rpc":
             continue
-        candidates = [event for event in events if event.get("kind") == "client_begin"
-                      and event.get("process_id") == relation.get("from_process_id")
-                      and event.get("trace_id") == relation.get("trace_id_lo")
-                      and event.get("rpc_id") == relation["rpc_id"]]
+        endpoint = (relation.get("session_id"), relation.get("from_process_id"),
+                    relation.get("from_process_generation"))
+        trace = _trace(relation)
+        candidates = app_index[(endpoint, trace, "client_begin")]
         if len(candidates) != 1:
             unresolved.append({"reason": "application_call_label_unmatched", "rpc_id": relation["rpc_id"]})
             continue
         begin = candidates[0]
-        ends = [event for event in events if event.get("kind") == "client_end"
-                and event.get("process_id") == begin["process_id"] and event.get("trace_id") == begin["trace_id"]
-                and event.get("rpc_id") == begin["rpc_id"]]
+        ends = app_index[(endpoint, trace, "client_end")]
         call = {**relation, "from_service": begin["service"],
-                "to_service": next(service["role"] for service in services if service["process_id"] == relation["to_process_id"]
-                                   and service["generation"] == relation["to_process_generation"]),
+                "to_service": services[identities[(relation["session_id"], relation["to_process_id"],
+                                                     relation["to_process_generation"])]]['role'],
                 "path": begin.get("path"), "request_id": begin.get("request_id"),
                 "parent_rpc_id": begin.get("parent_rpc_id"), "started_ns": begin["monotonic_ns"],
                 "timeout_ms": begin.get("timeout_ms")}
-        receiver = next(key for key in native_rows if key[1] == relation["to_process_id"]
-                        and key[2] == relation["to_process_generation"])
-        receiver_rows = [event for event in native_rows[receiver] if event.get("trace_id_lo") == begin["trace_id"]
-                         and event.get("rpc_id") == begin["rpc_id"] and event.get("direction") == 1]
-        receiver_ends = [event for event in receiver_rows if event.get("phase") == "end"]
-        call["receiver_begin_observed"] = any(event.get("phase") == "begin" for event in receiver_rows)
+        receiver = (relation["session_id"], relation["to_process_id"], relation["to_process_generation"])
+        receiver_ends = native_index[(receiver, trace, 1, "end")]
+        call["receiver_begin_observed"] = bool(native_index[(receiver, trace, 1, "begin")])
         call["receiver_end_observed"] = len(receiver_ends) == 1
         if len(receiver_ends) == 1 and "status" in receiver_ends[0]:
             call["receiver_status"] = receiver_ends[0]["status"]
         call["symptoms"] = [{key: event[key] for key in ("code", "reason", "status", "log_path", "log_line") if key in event}
-                            for event in events if event.get("kind") == "symptom" and event.get("rpc_id") == begin["rpc_id"]
-                            and event.get("trace_id") == begin["trace_id"] and event.get("process_id") == begin["process_id"]]
+                            for event in app_index[(endpoint, trace, "symptom")]]
         if len(ends) == 1:
             # Status must also be present in the native outbound endpoint.
-            endpoint = (begin["session_id"], begin["process_id"], begin["process_generation"])
-            native_ends = [event for event in native_rows[endpoint]
-                           if (event.get("trace_id_lo") == begin["trace_id"] and event.get("rpc_id") == begin["rpc_id"]
-                               and event.get("direction") == 2 and event.get("phase") == "end")]
-            if len(native_ends) == 1 and native_ends[0].get("status") == ends[0].get("status"):
-                call.update(status=ends[0]["status"], duration_ms=round((ends[0]["monotonic_ns"] - begin["monotonic_ns"]) / 1e6, 2))
+            native_ends = native_index[(endpoint, trace, 2, "end")]
+            if (len(native_ends) == 1 and "status" in native_ends[0] and "status" in ends[0]
+                    and native_ends[0]["status"] == ends[0]["status"]):
+                call["status"] = ends[0]["status"]
+                if ends[0]["monotonic_ns"] >= begin["monotonic_ns"]:
+                    call["duration_ms"] = round((ends[0]["monotonic_ns"] - begin["monotonic_ns"]) / 1e6, 2)
+                else:
+                    unresolved.append({"reason": "application_time_order_invalid", "rpc_id": begin["rpc_id"]})
             else:
                 unresolved.append({"reason": "application_status_not_corroborated", "rpc_id": begin["rpc_id"]})
+        else:
+            unresolved.append({"reason": "application_call_end_not_unique", "rpc_id": begin["rpc_id"], "count": len(ends)})
         calls.append(call)
     calls.sort(key=lambda call: call["started_ns"])
     for cause in causes:
         if cause["assessment"] != "unresolved" and cause.get("kind") == "failure":
             key = (cause["session_id"], cause["process_id"], cause["process_generation"])
-            ends = [event for event in native_rows[key] if event.get("trace_id_lo") == cause.get("trace_id")
-                    and event.get("rpc_id") == cause.get("rpc_id") and event.get("direction") == 1
-                    and event.get("phase") == "end" and event.get("status") == cause.get("status")]
-            cause["assessment"] = "corroborated_rpc_status" if len(ends) == 1 else "unresolved_native_status_absent"
+            ends = native_index[(key, _trace(cause, application=True), 1, "end")]
+            cause["assessment"] = ("corroborated_rpc_status" if len(ends) == 1 and "status" in ends[0]
+                                   and ends[0]["status"] == cause.get("status") else "unresolved_native_status_absent")
         if cause["assessment"] != "unresolved" and cause.get("code") == "payment_native_trap":
             index = identities[(cause["session_id"], cause["process_id"], cause["process_generation"])]
             crashes = [crash for crash in reports[index].get("crashes", [])
@@ -194,6 +214,7 @@ def build_service_report(evidence: Path, *, bundle: Path | None = None) -> dict:
             "limitations": ["Application reasons are self-reported; hashes identify frozen evidence, not authenticity.",
                             "Native function traces cover the C++ boundary module, not Python call stacks.",
                             "Parent RPC IDs come from application propagation; shared trace IDs alone do not establish causality.",
+                            "Monotonic timestamps across processes do not establish a global clock or causal order.",
                             "A receiver may finish after the caller times out; caller and receiver statuses are distinct."]}
 
 

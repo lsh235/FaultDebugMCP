@@ -16,6 +16,7 @@ artifact root and pass its root-relative name as `debug_directory`.
 
 ```sh
 faultdebug debug-package build/my-service --output dist/my-service-debug
+faultdebug debug-verify dist/my-service-debug
 faultdebug inspect capture.fault --address 0x401126 \
   --debug-directory dist/my-service-debug/debug
 ```
@@ -33,6 +34,16 @@ not package shared-library dependencies, source files, split-DWARF companions,
 or runtime configuration. A Build ID establishes the binary-side identity
 contract, while source citations still require a verified source bundle.
 
+`debug-verify` is a read-only check for a generated package. It verifies the
+runtime/debug file hashes recorded in `manifest.json`, requires safe package-
+relative paths without symlink escapes, checks the ELF debug sections, and
+confirms that both Build IDs equal the manifest value. The source SHA-256 is
+recorded but cannot be recomputed because the source ELF is not included.
+GNU Build IDs identify the linked file but are not content checksums; the
+manifest is unsigned, so these checks establish internal consistency rather
+than authenticity or publisher identity.
+
 The flow follows the official [GNU objcopy split-debug procedure](https://sourceware.org/binutils/docs/binutils/objcopy.html)
 and produces the [GDB GNU Build-ID directory layout](https://www.sourceware.org/gdb/current/onlinedocs/gdb.html/Separate-Debug-Files.html)
-used by FaultDebug's offline resolver.
+used by FaultDebug's offline resolver. File hashes use Python's documented
+[SHA-256 interface](https://docs.python.org/3/library/hashlib.html).

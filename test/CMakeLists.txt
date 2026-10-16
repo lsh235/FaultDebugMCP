@@ -59,6 +59,8 @@ if(UNIX AND NOT APPLE)
     COMMAND ${FAULTDEBUG_VALIDATION_PYTHON} "${CMAKE_CURRENT_SOURCE_DIR}/separate_debug_files.py")
   add_test(NAME fd_python_debug_package
     COMMAND ${FAULTDEBUG_VALIDATION_PYTHON} "${CMAKE_CURRENT_SOURCE_DIR}/debug_package.py")
+  add_test(NAME fd_python_debug_package_verify
+    COMMAND ${FAULTDEBUG_VALIDATION_PYTHON} "${CMAKE_CURRENT_SOURCE_DIR}/debug_package_verify.py")
   add_test(NAME fd_python_service_identity
     COMMAND ${FAULTDEBUG_VALIDATION_PYTHON} "${CMAKE_CURRENT_SOURCE_DIR}/service_identity_contract.py")
   add_test(NAME fd_python_http_context

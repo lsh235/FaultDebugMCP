@@ -26,6 +26,15 @@ def get_capabilities() -> dict[str, Any]:
             "tracestate": False,
             "clock_provenance": "optional_application_local_boot_and_time_namespace",
             "cross_clock_deadlines": False,
+            "retry_attempt_mapping": "explicit_application_operation_and_attempt",
+            "retry_identity_is_native_causality": False,
+        },
+        "retry_ledger": {
+            "schema": 1,
+            "storage": "local_sqlite",
+            "atomic_scope": "callback_database_mutation_and_recorded_result",
+            "external_side_effects_exactly_once": False,
+            "automatic_retries": False,
         },
         "store_versions": {"base_schema": 2, "incident_tables": "additive-1"},
         "required_tools": [

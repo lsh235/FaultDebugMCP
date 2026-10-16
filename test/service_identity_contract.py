@@ -106,5 +106,51 @@ class IdentityContractTests(unittest.TestCase):
             self.assertNotIn('status', model['calls'][0])
             self.assertTrue(any(row['reason'] == 'application_call_end_not_unique' for row in model['unresolved']))
 
+    def test_retry_labels_preserve_self_report_class_after_native_join(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); self.fixture(root)
+            self.rewrite_logs(root, lambda row: {**row, 'operation_id': 'reserve:order', 'attempt': 2})
+            call, = build_service_report(root)['calls']
+            self.assertEqual((call['operation_id'], call['attempt']), ('reserve:order', 2))
+            self.assertEqual(call['attempt_evidence_class'], 'application_self_report')
+            self.rewrite_logs(root, lambda row: {**row, 'trace_id_hi': 999})
+            self.assertEqual(build_service_report(root)['calls'], [])
+
+    def test_invalid_or_partial_retry_labels_are_rejected(self):
+        for fields in ({'operation_id': 'reserve'}, {'attempt': 1},
+                       {'operation_id': 'reserve', 'attempt': True},
+                       {'operation_id': 'reserve', 'attempt': 4},
+                       {'operation_id': 'has space', 'attempt': 1}):
+            with self.subTest(fields=fields), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp); self.fixture(root)
+                self.rewrite_logs(root, lambda row: {**row, **fields})
+                with self.assertRaises(ValueError):
+                    build_service_report(root)
+
+    def test_absent_retry_identity_stays_unknown(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); self.fixture(root)
+            self.rewrite_logs(root, lambda row: {**row, 'operation_id': None, 'attempt': None})
+            call, = build_service_report(root)['calls']
+            self.assertNotIn('operation_id', call)
+            self.assertNotIn('attempt', call)
+
+    def test_process_lifecycle_without_rpc_is_preserved_without_corroboration(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); self.fixture(root)
+            log = root / 'checkout/events.jsonl'
+            lifecycle = {'schema': 1, 'session_id': 'session', 'process_id': 'checkout',
+                         'process_generation': 1, 'service': 'checkout', 'pid': 8,
+                         'kind': 'process_started', 'monotonic_ns': 1}
+            log.write_text(json.dumps(lifecycle) + '\n' + log.read_text())
+            model = build_service_report(root)
+            event, = [row for row in model['events'] if row['kind'] == 'process_started']
+            self.assertFalse(event['native_rpc_matched'])
+            self.assertEqual(len(model['calls']), 1)
+            lifecycle['kind'] = 'client_begin'
+            log.write_text(json.dumps(lifecycle) + '\n')
+            with self.assertRaises(ValueError):
+                build_service_report(root)
+
 
 if __name__ == '__main__': unittest.main()

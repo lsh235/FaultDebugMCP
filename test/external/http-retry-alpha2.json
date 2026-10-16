@@ -1,0 +1,360 @@
+{
+  "schema": 1,
+  "status": "PASS",
+  "native": "REAL_BOUNDARY_AND_RUNTIME",
+  "http": "real_cross_process_loopback",
+  "application_executions": 3,
+  "application_pids": [
+    108548,
+    108551,
+    108555
+  ],
+  "checks": [
+    "healthy_control",
+    "commit_then_real_http_response_loss",
+    "restart_generation_7_to_8_same_database_one_mutation",
+    "conflicting_payload_rejected",
+    "release_and_old_result_replay_without_resurrection",
+    "receiver_budget_expires_before_mutation",
+    "fixed_8_fresh_and_8_replay_task_completion",
+    "real_native_cross_process_full128_and_fresh_attempt_identities",
+    "service_report_distinguishes_transport_failure_from_receiver_commit",
+    "decoded_fixture_high_word_and_generation_negatives"
+  ],
+  "task_completion": {
+    "completed": 10,
+    "total": 10
+  },
+  "attempts": [
+    {
+      "operation_id": "control-reserve",
+      "attempt": 1,
+      "path": "/reserve",
+      "status": 200,
+      "result": {
+        "reserved": 2,
+        "replayed": false
+      },
+      "latency_ms": 4.044,
+      "json_request_body_bytes": 67
+    },
+    {
+      "operation_id": "lost-reserve",
+      "attempt": 1,
+      "path": "/reserve",
+      "status": 502,
+      "result": {
+        "code": "upstream_transport",
+        "peer": "inventory"
+      },
+      "latency_ms": 4.845,
+      "json_request_body_bytes": 80
+    },
+    {
+      "operation_id": "lost-reserve",
+      "attempt": 2,
+      "path": "/reserve",
+      "status": 200,
+      "result": {
+        "reserved": 3,
+        "replayed": true
+      },
+      "latency_ms": 1.806,
+      "json_request_body_bytes": 80
+    },
+    {
+      "operation_id": "lost-reserve",
+      "attempt": 3,
+      "path": "/reserve",
+      "status": 409,
+      "result": {
+        "code": "inventory_operation_conflict",
+        "service": "inventory"
+      },
+      "latency_ms": 4.301,
+      "json_request_body_bytes": 64
+    },
+    {
+      "operation_id": "lost-release",
+      "attempt": 1,
+      "path": "/release",
+      "status": 200,
+      "result": {
+        "released": true,
+        "replayed": false
+      },
+      "latency_ms": 3.209,
+      "json_request_body_bytes": 64
+    },
+    {
+      "operation_id": "lost-reserve",
+      "attempt": 3,
+      "path": "/reserve",
+      "status": 200,
+      "result": {
+        "reserved": 3,
+        "replayed": true
+      },
+      "latency_ms": 1.234,
+      "json_request_body_bytes": 64
+    },
+    {
+      "operation_id": "expired-reserve",
+      "attempt": 1,
+      "path": "/reserve",
+      "status": 504,
+      "result": {
+        "code": "upstream_deadline",
+        "peer": "inventory"
+      },
+      "latency_ms": 31.02,
+      "json_request_body_bytes": 77
+    },
+    {
+      "operation_id": "workload-0",
+      "attempt": 1,
+      "path": "/reserve",
+      "status": 200,
+      "result": {
+        "reserved": 1,
+        "replayed": false
+      },
+      "latency_ms": 4.437,
+      "json_request_body_bytes": 70
+    },
+    {
+      "operation_id": "workload-1",
+      "attempt": 1,
+      "path": "/reserve",
+      "status": 200,
+      "result": {
+        "reserved": 1,
+        "replayed": false
+      },
+      "latency_ms": 4.402,
+      "json_request_body_bytes": 70
+    },
+    {
+      "operation_id": "workload-2",
+      "attempt": 1,
+      "path": "/reserve",
+      "status": 200,
+      "result": {
+        "reserved": 1,
+        "replayed": false
+      },
+      "latency_ms": 3.961,
+      "json_request_body_bytes": 70
+    },
+    {
+      "operation_id": "workload-3",
+      "attempt": 1,
+      "path": "/reserve",
+      "status": 200,
+      "result": {
+        "reserved": 1,
+        "replayed": false
+      },
+      "latency_ms": 4.021,
+      "json_request_body_bytes": 70
+    },
+    {
+      "operation_id": "workload-4",
+      "attempt": 1,
+      "path": "/reserve",
+      "status": 200,
+      "result": {
+        "reserved": 1,
+        "replayed": false
+      },
+      "latency_ms": 4.21,
+      "json_request_body_bytes": 70
+    },
+    {
+      "operation_id": "workload-5",
+      "attempt": 1,
+      "path": "/reserve",
+      "status": 200,
+      "result": {
+        "reserved": 1,
+        "replayed": false
+      },
+      "latency_ms": 3.929,
+      "json_request_body_bytes": 70
+    },
+    {
+      "operation_id": "workload-6",
+      "attempt": 1,
+      "path": "/reserve",
+      "status": 200,
+      "result": {
+        "reserved": 1,
+        "replayed": false
+      },
+      "latency_ms": 4.08,
+      "json_request_body_bytes": 70
+    },
+    {
+      "operation_id": "workload-7",
+      "attempt": 1,
+      "path": "/reserve",
+      "status": 200,
+      "result": {
+        "reserved": 1,
+        "replayed": false
+      },
+      "latency_ms": 4.287,
+      "json_request_body_bytes": 70
+    },
+    {
+      "operation_id": "workload-0",
+      "attempt": 2,
+      "path": "/reserve",
+      "status": 200,
+      "result": {
+        "reserved": 1,
+        "replayed": true
+      },
+      "latency_ms": 1.407,
+      "json_request_body_bytes": 70
+    },
+    {
+      "operation_id": "workload-1",
+      "attempt": 2,
+      "path": "/reserve",
+      "status": 200,
+      "result": {
+        "reserved": 1,
+        "replayed": true
+      },
+      "latency_ms": 1.122,
+      "json_request_body_bytes": 70
+    },
+    {
+      "operation_id": "workload-2",
+      "attempt": 2,
+      "path": "/reserve",
+      "status": 200,
+      "result": {
+        "reserved": 1,
+        "replayed": true
+      },
+      "latency_ms": 1.018,
+      "json_request_body_bytes": 70
+    },
+    {
+      "operation_id": "workload-3",
+      "attempt": 2,
+      "path": "/reserve",
+      "status": 200,
+      "result": {
+        "reserved": 1,
+        "replayed": true
+      },
+      "latency_ms": 1.102,
+      "json_request_body_bytes": 70
+    },
+    {
+      "operation_id": "workload-4",
+      "attempt": 2,
+      "path": "/reserve",
+      "status": 200,
+      "result": {
+        "reserved": 1,
+        "replayed": true
+      },
+      "latency_ms": 1.328,
+      "json_request_body_bytes": 70
+    },
+    {
+      "operation_id": "workload-5",
+      "attempt": 2,
+      "path": "/reserve",
+      "status": 200,
+      "result": {
+        "reserved": 1,
+        "replayed": true
+      },
+      "latency_ms": 1.149,
+      "json_request_body_bytes": 70
+    },
+    {
+      "operation_id": "workload-6",
+      "attempt": 2,
+      "path": "/reserve",
+      "status": 200,
+      "result": {
+        "reserved": 1,
+        "replayed": true
+      },
+      "latency_ms": 0.976,
+      "json_request_body_bytes": 70
+    },
+    {
+      "operation_id": "workload-7",
+      "attempt": 2,
+      "path": "/reserve",
+      "status": 200,
+      "result": {
+        "reserved": 1,
+        "replayed": true
+      },
+      "latency_ms": 1.043,
+      "json_request_body_bytes": 70
+    }
+  ],
+  "native_rpc_events": 138,
+  "native_cross_process_relations": 23,
+  "durable_state": {
+    "stock": 9990,
+    "reservations": {
+      "control-order": 2,
+      "workload-order-0": 1,
+      "workload-order-1": 1,
+      "workload-order-2": 1,
+      "workload-order-3": 1,
+      "workload-order-4": 1,
+      "workload-order-5": 1,
+      "workload-order-6": 1,
+      "workload-order-7": 1
+    },
+    "mutation_counts": {
+      "reserve": 10,
+      "release": 1
+    },
+    "ledger_operations": 11
+  },
+  "response_loss_operation": {
+    "mutation_count": 1,
+    "stock_decrement": 3,
+    "retry_replayed_after_restart": true
+  },
+  "efficiency": {
+    "workload": "fixed_sequential_8_fresh_8_replay",
+    "fresh": {
+      "requests": 8,
+      "completed": 8,
+      "wall_ms": 33.544,
+      "median_request_ms": 4.145,
+      "json_request_body_bytes": 560,
+      "durable_mutations": 8
+    },
+    "replay": {
+      "requests": 8,
+      "completed": 8,
+      "wall_ms": 9.305,
+      "median_request_ms": 1.112,
+      "json_request_body_bytes": 560,
+      "durable_mutations": 0
+    },
+    "interpretation": "Descriptive local timings; durable replay avoids eight mutations while still sending eight HTTP requests."
+  },
+  "evidence": "/tmp/fd-alpha2-retry-final-evidence",
+  "service_report_unresolved": 24,
+  "limitations": [
+    "Application operation/attempt labels are peer self-reports, not native retry edges.",
+    "HTTP runs on one host with distinct application processes; no container or scale claim.",
+    "High-word and generation negatives modify decoded copies of real captures.",
+    "The external harness is not captured; its inbound caller endpoints remain unpaired."
+  ]
+}

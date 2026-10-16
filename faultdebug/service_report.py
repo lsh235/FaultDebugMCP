@@ -40,11 +40,21 @@ def _validate_application(row: dict) -> None:
         if isinstance(value, bool) or not isinstance(value, int) or not 1 <= value <= maximum:
             raise ValueError(f"Invalid application {name}")
     for name in ("trace_id", "trace_id_hi", "rpc_id", "parent_rpc_id", "monotonic_ns"):
-        value = row.get(name, 0 if name in ("trace_id_hi", "parent_rpc_id") else None)
+        optional = (name in ("trace_id_hi", "parent_rpc_id")
+                    or (row["kind"] in ("process_started", "process_stopped")
+                        and name in ("trace_id", "rpc_id")))
+        value = row.get(name, 0 if optional else None)
         if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value < 2**64:
             raise ValueError(f"Invalid application {name}")
     if "status" in row and (isinstance(row["status"], bool) or not isinstance(row["status"], int)):
         raise ValueError("Invalid application status")
+    if row.get("operation_id") is not None or row.get("attempt") is not None:
+        operation, attempt = row.get("operation_id"), row.get("attempt")
+        if (not isinstance(operation, str) or not 1 <= len(operation) <= 128
+                or any(not 33 <= ord(char) <= 126 or char == "," for char in operation)
+                or isinstance(attempt, bool) or not isinstance(attempt, int)
+                or not 1 <= attempt <= 3):
+            raise ValueError("Invalid application retry identity")
     if any(isinstance(value, str) and len(value) > 2000 for value in row.values()):
         raise ValueError("Application string budget exceeded")
 
@@ -129,7 +139,8 @@ def build_service_report(evidence: Path, *, bundle: Path | None = None) -> dict:
                 continue
             row = {**row, "log_path": path.relative_to(evidence).as_posix(), "log_line": line_number,
                    "trace_id_hi": row.get("trace_id_hi", 0),
-                   "native_rpc_matched": _trace(row, application=True) in spans[key]}
+                   "native_rpc_matched": (row["kind"] not in ("process_started", "process_stopped")
+                                          and _trace(row, application=True) in spans[key])}
             events.append(row)
             app_index[(key, _trace(row, application=True), row["kind"])].append(row)
             if row.get("kind") in {"failure", "fault_triggered"}:
@@ -169,6 +180,9 @@ def build_service_report(evidence: Path, *, bundle: Path | None = None) -> dict:
                 "path": begin.get("path"), "request_id": begin.get("request_id"),
                 "parent_rpc_id": begin.get("parent_rpc_id"), "started_ns": begin["monotonic_ns"],
                 "timeout_ms": begin.get("timeout_ms")}
+        if begin.get("operation_id") is not None:
+            call.update(operation_id=begin["operation_id"], attempt=begin["attempt"],
+                        attempt_evidence_class="application_self_report")
         receiver = (relation["session_id"], relation["to_process_id"], relation["to_process_generation"])
         receiver_ends = native_index[(receiver, trace, 1, "end")]
         call["receiver_begin_observed"] = bool(native_index[(receiver, trace, 1, "begin")])
@@ -214,6 +228,7 @@ def build_service_report(evidence: Path, *, bundle: Path | None = None) -> dict:
             "limitations": ["Application reasons are self-reported; hashes identify frozen evidence, not authenticity.",
                             "Native function traces cover the C++ boundary module, not Python call stacks.",
                             "Parent RPC IDs come from application propagation; shared trace IDs alone do not establish causality.",
+                            "Operation and attempt labels are application self-reports; they do not create native retry edges.",
                             "Monotonic timestamps across processes do not establish a global clock or causal order.",
                             "A receiver may finish after the caller times out; caller and receiver statuses are distinct."]}
 

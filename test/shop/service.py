@@ -3,10 +3,13 @@ from __future__ import annotations
 
 import ctypes
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
 import http.client
 import inspect
 import json
 import os
+import socket
+import sqlite3
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -15,9 +18,12 @@ from pathlib import Path
 from faultdebug.clock import local_clock_identity, local_deadline_ns
 from faultdebug.http_context import TraceParent, child_traceparent, extract_traceparent, new_traceparent
 from faultdebug.session import identity_from_env
+from faultdebug.retry_ledger import RetryCapacityExceeded, RetryConflict, RetryDeadlineExceeded, RetryLedger
 
 ROLE = os.environ["SHOP_ROLE"]
 ORDINAL = int(os.environ["SHOP_ORDINAL"])
+if not 1 <= ORDINAL <= 255:
+    raise ValueError("SHOP_ORDINAL must be 1..255 and unique within a generation")
 PROCESS_ID = os.environ["FAULTDEBUG_PROCESS_ID"]
 SESSION = os.environ["FAULTDEBUG_SESSION_ID"]
 PROCESS_GENERATION = identity_from_env({
@@ -27,7 +33,7 @@ PROCESS_GENERATION = identity_from_env({
 CLOCK = local_clock_identity()
 PEERS = json.loads(os.environ["SHOP_PEERS"])
 SCENARIOS = {"success", "inventory_shortage", "payment_decline", "payment_crash",
-             "inventory_timeout", "notification_failure"}
+             "inventory_timeout", "notification_failure", "inventory_response_loss"}
 METHODS = {"/products": 1, "/cart": 2, "/checkout": 3, "/reserve": 4,
            "/release": 5, "/authorize": 6, "/ship": 7, "/notify": 8, "/risk": 9}
 # Linux/glibc also exports no-op __cyg_profile hooks. Prefer this module's
@@ -45,6 +51,32 @@ STATE = {"stock": 10000, "reservations": {}, "charges": {}, "orders": {},
          "carts": {}, "shipments": {}, "notifications": {}}
 EVENT_PATH = Path(os.environ.get("SHOP_EVENT_PATH", "/evidence/events.jsonl"))
 EVENT_PATH.parent.mkdir(parents=True, exist_ok=True)
+LEDGER = None
+LEDGER_PATH = None
+
+
+def configure_inventory_ledger(path: str | Path) -> None:
+    """Opt in to this fixture's SQLite-only atomic inventory mutation."""
+    global LEDGER, LEDGER_PATH
+    LEDGER_PATH = Path(path)
+    LEDGER = RetryLedger(LEDGER_PATH)
+    with sqlite3.connect(LEDGER_PATH, timeout=5) as connection:
+        connection.executescript("""
+            CREATE TABLE IF NOT EXISTS shop_inventory_stock (
+                singleton INTEGER PRIMARY KEY CHECK (singleton = 1),
+                stock INTEGER NOT NULL CHECK (stock >= 0));
+            INSERT OR IGNORE INTO shop_inventory_stock VALUES (1, 10000);
+            CREATE TABLE IF NOT EXISTS shop_inventory_reservations (
+                order_id TEXT PRIMARY KEY, quantity INTEGER NOT NULL,
+                state TEXT NOT NULL CHECK (state IN ('reserved', 'released')));
+            CREATE TABLE IF NOT EXISTS shop_inventory_mutations (
+                sequence INTEGER PRIMARY KEY, operation_id TEXT NOT NULL,
+                action TEXT NOT NULL, order_id TEXT NOT NULL, quantity INTEGER NOT NULL);
+        """)
+
+
+if os.environ.get("SHOP_LEDGER_PATH"):
+    configure_inventory_ledger(os.environ["SHOP_LEDGER_PATH"])
 
 
 def emit(kind: str, ctx: dict | None = None, **fields) -> None:
@@ -65,7 +97,11 @@ def new_id() -> int:
     global COUNTER
     with LOCK:
         COUNTER += 1
-        return ORDINAL * 1_000_000_000 + COUNTER
+        if COUNTER >= 2**24:
+            raise RuntimeError("fixture RPC identity budget exhausted; start a new generation")
+        # A restart must increment process generation. Ordinals are unique among
+        # this fixture's peers; the bounded counter must never silently wrap.
+        return (PROCESS_GENERATION << 32) | (ORDINAL << 24) | COUNTER
 
 
 def span(ctx: dict, path: str, direction: int, status: int | None = None) -> None:
@@ -78,7 +114,20 @@ def span(ctx: dict, path: str, direction: int, status: int | None = None) -> Non
         raise RuntimeError("numeric RPC event not accepted by native runtime")
 
 
-def call(peer: str, path: str, body: dict, parent: dict, timeout: float = 3) -> tuple[int, dict]:
+def valid_operation_id(value: object) -> bool:
+    return (isinstance(value, str) and 1 <= len(value) <= 128
+            and "," not in value and all(33 <= ord(char) <= 126 for char in value))
+
+
+def call(peer: str, path: str, body: dict, parent: dict, timeout: float = 3,
+         *, operation_id: str | None = None, attempt: int = 1) -> tuple[int, dict]:
+    if operation_id is None:
+        # Stable across explicit caller retries; each service action remains a
+        # separate operation even when an order spans several downstream calls.
+        identity = json.dumps([path, body.get("order_id", parent["request_id"])], ensure_ascii=True)
+        operation_id = "shop:" + hashlib.sha256(identity.encode()).hexdigest()
+    if not valid_operation_id(operation_id) or type(attempt) is not int or not 1 <= attempt <= 3:
+        raise ValueError("invalid logical operation or bounded attempt")
     timeout_ms = int(timeout * 1000)
     local_deadline_ns(timeout_ms)  # Validate the bounded relative wire budget.
     outgoing = child_traceparent(TraceParent(parent["trace_id_hi"], parent["trace_id"],
@@ -86,7 +135,9 @@ def call(peer: str, path: str, body: dict, parent: dict, timeout: float = 3) -> 
     ctx = {"trace_id_hi": outgoing.trace_id_hi, "trace_id": outgoing.trace_id_lo,
            "span_id": outgoing.parent_id, "parent_span_id": parent["span_id"],
            "trace_flags": outgoing.trace_flags, "rpc_id": new_id(),
-           "parent_rpc_id": parent["rpc_id"], "request_id": parent["request_id"]}
+           "parent_rpc_id": parent["rpc_id"], "request_id": parent["request_id"],
+           "operation_id": operation_id, "attempt": attempt, "attempt_source": "local_explicit",
+           "attempt_evidence_class": "application_self_report"}
     span(ctx, path, 2)
     emit("client_begin", ctx, peer=peer, path=path, timeout_ms=timeout_ms)
     connection = http.client.HTTPConnection(PEERS[peer], timeout=timeout)
@@ -95,7 +146,8 @@ def call(peer: str, path: str, body: dict, parent: dict, timeout: float = 3) -> 
     headers = {"Content-Type": "application/json", "traceparent": outgoing.to_header(),
                "X-Shop-Rpc": str(ctx["rpc_id"]), "X-Shop-Parent": str(ctx["parent_rpc_id"]),
                "X-Shop-Request": ctx["request_id"],
-               "X-Shop-Timeout-Ms": str(timeout_ms)}
+               "X-Shop-Timeout-Ms": str(timeout_ms),
+               "X-Shop-Operation": operation_id, "X-Shop-Attempt": str(attempt)}
     try:
         connection.request("POST", path, json.dumps(body), headers)
         response = connection.getresponse()
@@ -121,14 +173,82 @@ def failure(ctx: dict, code: str, reason: str, status: int) -> tuple[int, dict]:
     return status, {"code": code, "service": ROLE}
 
 
+def inventory_state() -> dict:
+    if LEDGER is None:
+        return STATE
+    with sqlite3.connect(LEDGER_PATH, timeout=5) as connection:
+        connection.execute("BEGIN")
+        stock = connection.execute("SELECT stock FROM shop_inventory_stock WHERE singleton=1").fetchone()[0]
+        history = {order: {"quantity": quantity, "state": state} for order, quantity, state in
+                   connection.execute("SELECT order_id, quantity, state FROM shop_inventory_reservations")}
+        counts = {"reserve": 0, "release": 0}
+        counts.update(dict(connection.execute("SELECT action, COUNT(*) FROM shop_inventory_mutations GROUP BY action")))
+        ledger_count = connection.execute("SELECT COUNT(*) FROM faultdebug_retry_operations").fetchone()[0]
+    return {**STATE, "inventory_backend": "sqlite", "stock": stock,
+            "reservations": {order: row["quantity"] for order, row in history.items() if row["state"] == "reserved"},
+            "reservation_history": history, "mutation_counts": counts, "ledger_operations": ledger_count}
+
+
+def durable_inventory(path: str, order: str, quantity: int, ctx: dict, deadline: int) -> tuple[int, dict]:
+    action = path.removeprefix("/")
+    # The action namespaces the key; caller IDs remain bounded at 128 bytes.
+    operation_id = ctx.get("operation_id") or "order:" + hashlib.sha256(order.encode()).hexdigest()
+    ledger_id = "inventory:" + hashlib.sha256(json.dumps([action, operation_id]).encode()).hexdigest()
+
+    def mutate(connection: sqlite3.Connection) -> dict:
+        existing = connection.execute("SELECT quantity, state FROM shop_inventory_reservations WHERE order_id=?", (order,)).fetchone()
+        if existing and existing[0] != quantity:
+            raise RetryConflict("order quantity conflicts with durable reservation")
+        if action == "reserve":
+            if existing and existing[1] == "released":
+                raise RetryConflict("released order requires a new order identity")
+            if not existing:
+                stock = connection.execute("SELECT stock FROM shop_inventory_stock WHERE singleton=1").fetchone()[0]
+                if stock < quantity:
+                    raise RetryConflict("insufficient remaining stock")
+                connection.execute("UPDATE shop_inventory_stock SET stock=stock-? WHERE singleton=1", (quantity,))
+                connection.execute("INSERT INTO shop_inventory_reservations VALUES (?, ?, 'reserved')", (order, quantity))
+                connection.execute("INSERT INTO shop_inventory_mutations(operation_id,action,order_id,quantity) VALUES (?,?,?,?)",
+                                   (operation_id, action, order, quantity))
+            return {"reserved": quantity}
+        if existing and existing[1] == "reserved":
+            connection.execute("UPDATE shop_inventory_stock SET stock=stock+? WHERE singleton=1", (quantity,))
+            connection.execute("UPDATE shop_inventory_reservations SET state='released' WHERE order_id=?", (order,))
+            connection.execute("INSERT INTO shop_inventory_mutations(operation_id,action,order_id,quantity) VALUES (?,?,?,?)",
+                               (operation_id, action, order, quantity))
+        elif existing is None:
+            # Compensation can arrive before a delayed first reserve. Persist
+            # cancellation so that arrival cannot resurrect this order later.
+            connection.execute("INSERT INTO shop_inventory_reservations VALUES (?, ?, 'released')", (order, quantity))
+            connection.execute("INSERT INTO shop_inventory_mutations(operation_id,action,order_id,quantity) VALUES (?,?,?,?)",
+                               (operation_id, action, order, 0))
+        return {"released": True}
+
+    try:
+        result = LEDGER.apply_once(ledger_id, {"action": action, "order_id": order, "quantity": quantity},
+                                   mutate, deadline_ns=deadline)
+    except RetryConflict:
+        return failure(ctx, "inventory_operation_conflict", "Logical operation or order payload conflicts with durable inventory history.", 409)
+    except RetryDeadlineExceeded:
+        return failure(ctx, "expired_before_reservation", "Receiver-local RPC budget expired; the inventory transaction was rolled back.", 504)
+    except (RetryCapacityExceeded, sqlite3.OperationalError):
+        return failure(ctx, "inventory_ledger_unavailable", "Durable inventory is busy or at its fixed operation capacity; no result was acknowledged.", 503)
+    emit("inventory_operation", ctx, order_id=order, action=action, replayed=result.replayed,
+         atomic_scope="local_sqlite_transaction")
+    return 200, {**result.value, "replayed": result.replayed}
+
+
 def dispatch(path: str, body: dict, ctx: dict, deadline: int) -> tuple[int, dict]:
     scenario = body.get("scenario", "success")
     if scenario not in SCENARIOS:
         return 400, {"code": "invalid_scenario"}
     order = body.get("order_id", ctx["request_id"])
     quantity = body.get("quantity", 1)
-    if not isinstance(order, str) or len(order) > 80 or not isinstance(quantity, int) or not 1 <= quantity <= 20:
+    if not isinstance(order, str) or not order or len(order) > 80 or type(quantity) is not int or not 1 <= quantity <= 20:
         return 400, {"code": "invalid_order"}
+    if ROLE == "retry-client" and path in {"/reserve", "/release"}:
+        return call("inventory", path, body, ctx, timeout=ctx["timeout_ms"] / 1000,
+                    operation_id=ctx.get("operation_id"), attempt=ctx.get("attempt") or 1)
     if ROLE == "gateway":
         if path == "/products":
             return call("catalog", path, body, ctx)
@@ -178,6 +298,8 @@ def dispatch(path: str, body: dict, ctx: dict, deadline: int) -> tuple[int, dict
             emit("order_completed", ctx, order_id=order, notification_status=status)
             return 200, result
     if ROLE == "inventory":
+        if scenario == "inventory_response_loss" and LEDGER is None:
+            return 400, {"code": "durable_ledger_required"}
         if path == "/reserve":
             if scenario == "inventory_shortage":
                 return failure(ctx, "inventory_shortage", "Injected stock budget is zero; requested quantity cannot be reserved.", 409)
@@ -185,6 +307,8 @@ def dispatch(path: str, body: dict, ctx: dict, deadline: int) -> tuple[int, dict
                 emit("fault_triggered", ctx, code="inventory_latency", delay_ms=900,
                      reason="Injected 900 ms inventory delay exceeds the checkout RPC timeout of 300 ms.")
                 time.sleep(0.9)
+            if LEDGER is not None:
+                return durable_inventory(path, order, quantity, ctx, deadline)
             with LOCK:
                 if time.monotonic_ns() >= deadline:
                     return failure(ctx, "expired_before_reservation", "Receiver-local RPC budget expired before stock mutation; no reservation was created.", 504)
@@ -195,6 +319,8 @@ def dispatch(path: str, body: dict, ctx: dict, deadline: int) -> tuple[int, dict
                     STATE["reservations"][order] = quantity
                 return 200, {"reserved": STATE["reservations"][order]}
         if path == "/release":
+            if LEDGER is not None:
+                return durable_inventory(path, order, quantity, ctx, deadline)
             with LOCK:
                 STATE["stock"] += STATE["reservations"].pop(order, 0)
                 return 200, {"released": True}
@@ -265,6 +391,12 @@ def numeric_header(headers, name: str, default: int, *, minimum: int = 0) -> int
 
 
 def request_context(headers, body: dict) -> tuple[dict, int]:
+    operation_id = single_header(headers, "X-Shop-Operation")
+    attempt_text = single_header(headers, "X-Shop-Attempt")
+    if (operation_id is None) != (attempt_text is None):
+        raise ValueError("partial logical operation mapping")
+    if operation_id is not None and (not valid_operation_id(operation_id) or attempt_text not in {"1", "2", "3"}):
+        raise ValueError("invalid logical operation mapping")
     incoming = extract_traceparent(headers)
     legacy = single_header(headers, "X-Shop-Trace")
     legacy_trace = numeric_header(headers, "X-Shop-Trace", 0, minimum=1) if legacy is not None else None
@@ -295,6 +427,9 @@ def request_context(headers, body: dict) -> tuple[dict, int]:
            "trace_flags": current.trace_flags, "context_source": context_source,
            "parent_rpc_id": numeric_header(headers, "X-Shop-Parent", 0),
            "request_id": request_id, "timeout_ms": timeout_ms,
+           "operation_id": operation_id, "attempt": int(attempt_text) if attempt_text else None,
+           "attempt_source": "peer_self_reported" if operation_id else "unknown",
+           "attempt_evidence_class": "application_self_report" if operation_id else "unknown",
            "legacy_deadline_ignored": legacy_deadline is not None}
     return ctx, deadline
 
@@ -323,7 +458,7 @@ class Handler(BaseHTTPRequestHandler):
             return self.respond(200, {"role": ROLE, "pid": os.getpid(), "process_id": PROCESS_ID})
         if self.path == "/state":
             with LOCK:
-                return self.respond(200, STATE)
+                return self.respond(200, inventory_state() if ROLE == "inventory" else STATE)
         if self.path == "/" and ROLE == "gateway":
             return self.respond(200, Path(__file__).with_name("store.html").read_bytes(), "text/html; charset=utf-8")
         self.respond(404, {"code": "unknown_route"})
@@ -354,12 +489,24 @@ class Handler(BaseHTTPRequestHandler):
             status, result = failure(ctx, "unhandled_service_error", f"Service exception: {type(exc).__name__}", 500)
         span(ctx, self.path, 1, status)
         emit("server_end", ctx, path=self.path, status=status)
+        if (ROLE == "inventory" and LEDGER is not None and self.path == "/reserve" and status == 200
+                and body.get("scenario") == "inventory_response_loss" and not result.get("replayed", True)):
+            # Explicit fixture only: mutation and ledger result have committed,
+            # but the caller receives a transport failure. Replays never drop.
+            emit("fault_triggered", ctx, code="inventory_response_loss_after_commit",
+                 reason="Explicit fixture discarded the first committed reserve response.")
+            self.close_connection = True
+            try:
+                self.connection.shutdown(socket.SHUT_RDWR)
+            except OSError:
+                pass
+            return
         self.respond(status, result)
 
 
 if __name__ == "__main__":
     emit("process_started")
-    server = ServiceServer(("0.0.0.0", 8080), Handler)
+    server = ServiceServer((os.environ.get("SHOP_HOST", "0.0.0.0"), int(os.environ.get("SHOP_PORT", "8080"))), Handler)
     server.daemon_threads = False
     server.serve_forever(poll_interval=0.1)
     server.server_close()

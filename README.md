@@ -4,7 +4,7 @@
 > Follow recorded calls across services, inspect the fault location, and see
 > which evidence is missing.
 
-[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.1-orange)](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.3.0-alpha.1)
+[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.2-orange)](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.3.0-alpha.2)
 [![Release gates](https://img.shields.io/github/actions/workflow/status/lsh235/FaultDebugMCP/v12-release-gate.yml?branch=main&label=release%20gates)](https://github.com/lsh235/FaultDebugMCP/actions/workflows/v12-release-gate.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 [![Clang 18](https://img.shields.io/badge/Clang-18-orange)](https://clang.llvm.org/)
@@ -61,12 +61,13 @@ static call-graph candidates as observed execution.
 
 ## Project status
 
-The development package is **1.3.0a1** (`v1.3.0-alpha.1`); the evidence-foundation
+The development package is **1.3.0a2** (`v1.3.0-alpha.2`); the evidence-foundation
 baseline is [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2).
-This alpha adds version-00 W3C HTTP trace context, explicit RPC/span mapping in the
-shopping fixture, optional process/clock provenance, and receiver-local timeouts.
-See [the transport contract](docs/http-context.md) and
-[the milestone scope and verification](docs/releases/v1.3.0-alpha.1.md).
+This alpha adds explicit operation/attempt labels, a reusable transactional SQLite
+retry ledger, and a cross-process HTTP response-loss/restart fixture. Replaying a
+committed inventory operation returns its saved result without another mutation.
+See [the transport contract](docs/http-context.md), [retry contract](docs/http-retry.md)
+and [milestone scope and verification](docs/releases/v1.3.0-alpha.2.md).
 
 Final independent stable acceptance, current-revision full core/gRPC profiles,
 Docker scale, kind and fresh 30-minute soak remain pending. Historical gate/soak

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import argparse
 import ctypes
+from concurrent.futures import ThreadPoolExecutor
 import http.client
 import importlib.util
 import json
@@ -99,6 +100,20 @@ class ProductionShopHTTPTests(unittest.TestCase):
         path = self.directory / "events.jsonl"
         rows = [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
         return rows if kind is None else [row for row in rows if row["kind"] == kind]
+
+    def state(self):
+        connection = http.client.HTTPConnection("127.0.0.1", self.port, timeout=5)
+        try:
+            connection.request("GET", "/state")
+            response = connection.getresponse()
+            self.assertEqual(response.status, 200)
+            return json.loads(response.read())
+        finally:
+            connection.close()
+
+    def durable_inventory(self):
+        self.service.ROLE = "inventory"
+        self.service.configure_inventory_ledger(self.directory / "inventory.sqlite3")
 
     def parent(self):
         return {"trace_id_hi": HI_A, "trace_id": LO, "span_id": 0x3333333333333333,
@@ -219,6 +234,110 @@ class ProductionShopHTTPTests(unittest.TestCase):
         self.assertEqual((status, body["code"]), (504, "expired_before_reservation"))
         self.assertEqual(self.service.STATE["reservations"], {})
         self.assertEqual(self.service.STATE["stock"], 10000)
+
+    def test_attempt_mapping_is_explicit_paired_and_bounded(self):
+        invalid = [
+            [("X-Shop-Operation", "reserve-1")], [("X-Shop-Attempt", "1")],
+            [("X-Shop-Operation", "reserve-1"), ("X-Shop-Attempt", "1"), ("x-shop-attempt", "1")],
+            [("X-Shop-Operation", "reserve-1"), ("x-shop-operation", "reserve-1"), ("X-Shop-Attempt", "1")],
+        ]
+        invalid += [[("X-Shop-Operation", "reserve-1"), ("X-Shop-Attempt", value)]
+                    for value in ("0", "4", "01", "+1", "1,2", "1.0", "1x")]
+        invalid += [[("X-Shop-Operation", value), ("X-Shop-Attempt", "1")]
+                    for value in ("has space", "x" * 129, "x,y")]
+        for headers in invalid:
+            with self.subTest(headers=headers):
+                self.assertEqual(self.request(headers), (400, {"code": "invalid_request"}))
+        self.assertEqual(self.events("server_begin"), [])
+        for attempt in (1, 2, 3):
+            self.assertEqual(self.request([("X-Shop-Operation", "reserve-1"), ("X-Shop-Attempt", str(attempt))])[0], 200)
+        rows = self.events("server_begin")
+        self.assertEqual([row["attempt"] for row in rows], [1, 2, 3])
+        self.assertTrue(all(row["operation_id"] == "reserve-1" and row["attempt_source"] == "peer_self_reported" for row in rows))
+
+    def test_outbound_retry_has_fresh_rpc_and_spans_with_generation_namespace(self):
+        parent = self.parent()
+        for attempt in (1, 2):
+            self.assertEqual(self.service.call("catalog", "/products", {}, parent,
+                                               operation_id="logical-operation", attempt=attempt)[0], 200)
+        clients, servers = self.events("client_begin"), self.events("server_begin")
+        self.assertEqual([row["attempt"] for row in clients], [1, 2])
+        self.assertTrue(all(row["operation_id"] == "logical-operation" for row in clients + servers))
+        self.assertEqual(len({row["rpc_id"] for row in clients}), 2)
+        self.assertEqual(len({row["span_id"] for row in clients + servers}), 4)
+        self.assertTrue(all(row["rpc_id"] >> 32 == GENERATION for row in clients))
+        before = self.service.new_id()
+        with mock.patch.object(self.service, "PROCESS_GENERATION", GENERATION + 1):
+            after = self.service.new_id()
+        self.assertNotEqual(before, after)
+        self.assertEqual(after >> 32, GENERATION + 1)
+        with mock.patch.object(self.service, "COUNTER", 2**24 - 1), self.assertRaises(RuntimeError):
+            self.service.new_id()
+        for attempt in (True, 0, 4, 1.0):
+            with self.subTest(attempt=attempt), self.assertRaises(ValueError):
+                self.service.call("catalog", "/products", {}, parent, operation_id="logical-operation", attempt=attempt)
+
+    def test_durable_response_loss_retry_and_conflict_count_actual_mutations(self):
+        self.durable_inventory()
+        body = {"order_id": "lost-order", "quantity": 3, "scenario": "inventory_response_loss"}
+        headers = [("X-Shop-Operation", "reserve-lost"), ("X-Shop-Attempt", "1")]
+        with self.assertRaises(http.client.RemoteDisconnected):
+            self.request(headers, body, path="/reserve")
+        state = self.state()
+        self.assertEqual((state["stock"], state["reservations"], state["mutation_counts"], state["ledger_operations"]),
+                         (9997, {"lost-order": 3}, {"reserve": 1, "release": 0}, 1))
+        # Reopen the same database to exercise committed replay from a new
+        # ledger instance; separate-process restart proof lives in acceptance.
+        self.service.configure_inventory_ledger(self.directory / "inventory.sqlite3")
+        headers[-1] = ("X-Shop-Attempt", "2")
+        self.assertEqual(self.request(headers, body, path="/reserve"), (200, {"reserved": 3, "replayed": True}))
+        status, result = self.request(headers, {**body, "quantity": 4}, path="/reserve")
+        self.assertEqual((status, result["code"]), (409, "inventory_operation_conflict"))
+        self.assertEqual(self.state()["mutation_counts"], {"reserve": 1, "release": 0})
+        faults = [row for row in self.events("fault_triggered") if row["code"] == "inventory_response_loss_after_commit"]
+        self.assertEqual(len(faults), 1)
+
+    def test_durable_release_and_old_reserve_replay_never_resurrect(self):
+        self.durable_inventory()
+        body = {"order_id": "released-order", "quantity": 2}
+        headers = [("X-Shop-Operation", "reserve-release"), ("X-Shop-Attempt", "1")]
+        self.assertEqual(self.request(headers, body, path="/reserve"), (200, {"reserved": 2, "replayed": False}))
+        self.assertEqual(self.request(headers, body, path="/release"), (200, {"released": True, "replayed": False}))
+        self.assertEqual(self.request(headers, body, path="/release"), (200, {"released": True, "replayed": True}))
+        self.assertEqual(self.request(headers, body, path="/reserve"), (200, {"reserved": 2, "replayed": True}))
+        headers[0] = ("X-Shop-Operation", "new-reserve-same-order")
+        self.assertEqual(self.request(headers, body, path="/reserve")[0], 409)
+        state = self.state()
+        self.assertEqual((state["stock"], state["reservations"], state["mutation_counts"]),
+                         (10000, {}, {"reserve": 1, "release": 1}))
+        self.assertEqual(state["reservation_history"]["released-order"], {"quantity": 2, "state": "released"})
+
+    def test_durable_deadline_and_concurrent_duplicate_are_atomic(self):
+        self.durable_inventory()
+        expired = {"order_id": "durable-expired", "quantity": 2, "scenario": "inventory_timeout"}
+        self.assertEqual(self.request([("X-Shop-Timeout-Ms", "1")], expired, path="/reserve")[0], 504)
+        self.assertEqual((self.state()["stock"], self.state()["ledger_operations"]), (10000, 0))
+        headers = [("X-Shop-Operation", "concurrent-reserve"), ("X-Shop-Attempt", "1")]
+        body = {"order_id": "concurrent-order", "quantity": 5}
+        with ThreadPoolExecutor(max_workers=4) as pool:
+            results = list(pool.map(lambda _: self.request(headers, body, path="/reserve"), range(4)))
+        self.assertTrue(all(status == 200 for status, _ in results))
+        self.assertEqual(sum(not result["replayed"] for _, result in results), 1)
+        state = self.state()
+        self.assertEqual((state["stock"], state["reservations"], state["mutation_counts"], state["ledger_operations"]),
+                         (9995, {"concurrent-order": 5}, {"reserve": 1, "release": 0}, 1))
+
+    def test_release_before_first_reserve_persists_cancellation(self):
+        self.durable_inventory()
+        body = {"order_id": "cancelled-before-reserve", "quantity": 2}
+        headers = [("X-Shop-Operation", "early-release"), ("X-Shop-Attempt", "1")]
+        self.assertEqual(self.request(headers, body, path="/release"), (200, {"released": True, "replayed": False}))
+        headers[0] = ("X-Shop-Operation", "delayed-reserve")
+        self.assertEqual(self.request(headers, body, path="/reserve")[0], 409)
+        state = self.state()
+        self.assertEqual((state["stock"], state["reservations"]), (10000, {}))
+        self.assertEqual(state["reservation_history"][body["order_id"]], {"quantity": 2, "state": "released"})
+        self.assertEqual(state["mutation_counts"], {"reserve": 0, "release": 1})
 
 
 def run_suite() -> bool:

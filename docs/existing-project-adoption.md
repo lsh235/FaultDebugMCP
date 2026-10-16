@@ -67,6 +67,12 @@ settings as `--cmake-arg=-DKEY=VALUE` so a leading `-D` is parsed correctly.
 Source/build overrides, script-mode options, and conflicting project-injection
 hooks are rejected.
 
+To have the CLI run the same isolated configure/build/index/bundle stages and
+verify the resulting bundle in one call, add `--execute-build` to the command.
+It stores combined command output in `.faultdebug-adopt/build.log` and returns
+the bundle path. This opt-in never runs the application; launch remains a
+separate reviewed step. Without the flag, behavior remains plan-only.
+
 The main target must be a project-owned executable. Targets in nested
 `add_subdirectory()` directories and custom executable output directories are
 supported. Aliases, imported targets, generator-expression source selections,
@@ -95,7 +101,7 @@ and build settings.
 
 ## 4. Build, bundle, and explicitly run
 
-Run the `script` path returned by the plan:
+Without `--execute-build`, run the `script` path returned by the plan:
 
 ```sh
 sh /absolute/project-faultdebug-build/.faultdebug-adopt/build-and-bundle.sh

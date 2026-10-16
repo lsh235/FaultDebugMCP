@@ -15,6 +15,7 @@ include test/keyed_lock_contract.py test/shop_checkout_contract.py
 include test/http_fault_proxy_contract.py test/shop_concurrency.py
 include test/existing_project_adoption.py
 include test/self_test_prerequisites.py
+include test/integration_execution_contract.py
 include .dockerignore
 recursive-include scripts *.sh *.py
 include scripts/faultdebug-cc scripts/faultdebug-cxx

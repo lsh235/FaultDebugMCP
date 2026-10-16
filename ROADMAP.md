@@ -40,6 +40,10 @@ This roadmap describes work beyond v0.1.0. It is not a promise of delivery dates
   is compiled and run outside the checkout, then its temporary artifact is
   checked for complete, loss-free events. This is not user-project validation
   or source-resolution proof. See [alpha8 scope and validation](docs/releases/v1.3.0-alpha.8.md).
+- `v1.3.0-alpha.9` adds explicit `faultdebug integrate --execute-build` for the
+  isolated configure/build/index/bundle stages, validates the resulting bundle,
+  saves a build log, and leaves target launch separate. See
+  [alpha9 scope and validation](docs/releases/v1.3.0-alpha.9.md).
 - The remaining stage F work (general native attempt pairing, native clock metadata,
   container/Pod lifecycle provenance), G (broader Docker/network fault profiles), H
   (8/16/32 scale and measured retained snapshots), I (general viewer/drill-down)

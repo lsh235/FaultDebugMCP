@@ -159,6 +159,31 @@ __attribute__((noinline)) int adoption_library(int crash) {
         assert self.script.is_file()
         return {"script": str(self.script), "commands": self.integration["commands"]}
 
+    def execute_build(self):
+        build = self.root / "execute-build integration"
+        marker = self.root / "execute-build-must-not-launch"
+        args = self.plan_args[:]
+        args[args.index("--build-dir") + 1] = str(build)
+        args.insert(args.index("--json"), "--execute-build")
+        self.env["ADOPTION_EXECUTION_MARKER"] = str(marker)
+        try:
+            _, result = self.cli_json(*args, expected=0)
+        finally:
+            self.env.pop("ADOPTION_EXECUTION_MARKER", None)
+        execution = result.get("execution", {})
+        assert result["status"] == "prepared", result
+        assert execution.get("status") == "PASS", execution
+        assert [row["stage"] for row in execution["stages"]] == ["configure", "build", "index", "bundle"]
+        assert execution.get("target_launch") == "NOT RUN", execution
+        assert Path(execution["log"]).is_file() and Path(execution["log"]).stat().st_size > 0
+        assert Path(execution["bundle"]).is_dir(), execution
+        assert not marker.exists(), "--execute-build launched the adopted application"
+        assert not (build / ".faultdebug-adopt/artifacts").exists(), "build created capture artifacts"
+        assert tree_hashes(self.source) == self.source_before
+        assert tree_hashes(self.original_build) == self.build_before
+        return {"stages": execution["stages"], "bundle": execution["bundle"],
+                "target_launch": execution["target_launch"], "original_inputs_unchanged": True}
+
     def rejection(self):
         cases = [self.original_build, self.source / "new-build", self.source.parent]
         for build in cases:
@@ -458,6 +483,7 @@ def main():
     suite.check("existing_original_build", suite.fixture)
     suite.check("preflight_read_only", suite.preflight, requires=("existing_original_build",))
     suite.check("isolated_plan", suite.plan, requires=("existing_original_build", "installed_runtime"))
+    suite.check("integrate_execute_build", suite.execute_build, requires=("isolated_plan",))
     suite.check("unsafe_reuse_rejected", suite.rejection, requires=("isolated_plan",))
     suite.check("nested_profile_and_shell_paths", suite.instrument, requires=("isolated_plan",))
     suite.check("immutable_source_index_and_bundle", suite.captured_sources, requires=("nested_profile_and_shell_paths",))

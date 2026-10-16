@@ -286,6 +286,65 @@ def prepare_integration(source_root: Path | str, build_dir: Path | str, target: 
     return plan
 
 
+def execute_integration_build(plan: dict) -> dict:
+    """Run only the generated configure/build/index/bundle argument vectors.
+
+    The application launch stage is deliberately excluded; users must request
+    that separately after reviewing the generated plan and bundle.
+    """
+    if plan.get("kind") != "faultdebug-integration-plan" or plan.get("status") != "prepared":
+        raise AdoptionError("only a freshly prepared integration plan can be built")
+    build = Path(plan.get("build_dir", "")).resolve()
+    state = build / ".faultdebug-adopt"
+    log_path = state / "build.log"
+    commands = plan.get("commands")
+    expected = ["configure", "build", "index", "bundle", "run"]
+    if not isinstance(commands, list) or [row.get("stage") for row in commands] != expected:
+        raise AdoptionError("integration plan has an unexpected stage sequence")
+    if not state.is_dir() or not (state / "plan.json").is_file():
+        raise AdoptionError("integration plan state is missing")
+
+    results = []
+    try:
+        with log_path.open("w", encoding="utf-8", errors="replace") as log:
+            for row in commands[:-1]:
+                stage = row["stage"]
+                argv = row.get("argv")
+                if not isinstance(argv, list) or not argv or any(not isinstance(arg, str) for arg in argv):
+                    raise AdoptionError(f"integration {stage} command is malformed")
+                print(f"faultdebug: running isolated {stage}; log: {log_path}",
+                      file=sys.stderr, flush=True)
+                log.write("$ " + shlex.join(argv) + "\n")
+                try:
+                    completed = subprocess.run(argv, cwd=build, stdout=log,
+                                               stderr=subprocess.STDOUT, check=False)
+                except OSError as exc:
+                    results.append({"stage": stage, "status": "FAIL", "error": str(exc)[:512]})
+                    return {"status": "FAIL", "stages": results, "log": str(log_path)}
+                log.flush()
+                result = {"stage": stage, "status": "PASS" if completed.returncode == 0 else "FAIL",
+                          "returncode": completed.returncode}
+                results.append(result)
+                if completed.returncode != 0:
+                    return {"status": "FAIL", "stages": results, "log": str(log_path)}
+    except OSError as exc:
+        return {"status": "FAIL", "stages": results, "log": str(log_path),
+                "error": str(exc)[:512]}
+
+    try:
+        current = json.loads((state / "current-bundle.json").read_text())
+        from .bundle import load_bundle
+        bundle = load_bundle(current["bundle"])
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        return {"status": "FAIL", "stages": results, "log": str(log_path),
+                "error": f"build completed but bundle verification failed: {exc}"[:512]}
+    print(f"faultdebug: isolated build complete; verified bundle: {bundle.root}",
+          file=sys.stderr, flush=True)
+    return {"status": "PASS", "stages": results, "log": str(log_path),
+            "bundle": str(bundle.root), "bundle_file_count": len(bundle.files),
+            "target_launch": "NOT RUN"}
+
+
 def _state(path: Path) -> dict:
     value = json.loads(path.read_text())
     if not isinstance(value, dict) or value.get("schema") != SCHEMA:

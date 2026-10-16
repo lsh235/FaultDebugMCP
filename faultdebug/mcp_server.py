@@ -43,6 +43,39 @@ FOCUSED_MCP_TOOL_NAMES = frozenset({
     "resolve_addresses", "get_function_source", "get_call_relations",
 })
 
+# MCP's top-level Tool.title is distinct from the legacy annotation title. Keep
+# the display title useful on its own and long enough to be meaningfully
+# different from the programmatic snake_case name.
+MCP_TOOL_DISPLAY_TITLES = {
+    "get_service_flow": "Inspect cross-service calls, causes, and evidence gaps",
+    "get_capabilities": "Review supported evidence formats and tool limits",
+    "check_store": "Check evidence-store integrity and compatibility",
+    "open_fault": "Open one fault capture with its recorded context",
+    "get_thread_trace": "Inspect ordered events from one captured thread",
+    "get_fault_flow": "Trace captured fault events across their thread",
+    "get_rpc_trace": "Inspect captured RPC observations and relationships",
+    "collect_faults": "Decode fault captures into bounded evidence records",
+    "get_timeline": "Page events across selected fault captures",
+    "get_process_relations": "Compare process relationships across captures",
+    "get_evidence_summary": "Summarize observed evidence and unresolved questions",
+    "get_incident_report": "Build an evidence-bounded report for one incident",
+    "get_session_manifest": "Inspect declared identities in a capture session",
+    "get_process_participants": "List recorded processes in a declared session",
+    "list_sessions": "List evidence sessions with their capture counts",
+    "get_session": "Retrieve captures assigned to one evidence session",
+    "get_provenance": "Check recorded artifact and build provenance",
+    "list_incidents": "List agent-declared incidents in the evidence store",
+    "get_incident_slice": "Read one bounded page of incident evidence",
+    "get_unresolved": "List questions not resolved by recorded evidence",
+    "get_source_evidence": "Verify source claims against a required bundle",
+    "discover_artifacts": "Find and validate captures under the evidence root",
+    "discover_bundles": "Find candidate source bundles without verifying them",
+    "query_artifact_index": "Search the read-only index of captured artifacts",
+    "resolve_addresses": "Resolve captured addresses against verified symbols",
+    "get_function_source": "Read source lines for a verified function",
+    "get_call_relations": "Inspect verified callers and callees for a function",
+}
+
 
 def _relative(root: Path, name: str) -> Path:
     relative = Path(name)
@@ -125,8 +158,18 @@ def make_server(root: Path, *, tool_profile: str = "full"):
     def register_tool(*, name=None, description=None, annotations=None):
         def decorator(function):
             if tool_profile == "full" or function.__name__ in FOCUSED_MCP_TOOL_NAMES:
-                app.tool(name=name, description=description, annotations=annotations)(function)
-                registered_tool_names.add(name or function.__name__)
+                tool_name = name or function.__name__
+                try:
+                    title = MCP_TOOL_DISPLAY_TITLES[tool_name]
+                except KeyError as exc:
+                    raise ValueError(f"missing MCP display title for {tool_name}") from exc
+                titled_annotations = (
+                    annotations.model_copy(update={"title": title})
+                    if annotations is not None else None
+                )
+                app.tool(name=name, title=title, description=description,
+                         annotations=titled_annotations)(function)
+                registered_tool_names.add(tool_name)
             return function
         return decorator
     @register_tool(annotations=_read_only("Get service flow"))

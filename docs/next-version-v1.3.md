@@ -167,6 +167,17 @@ the [alpha18 record](releases/v1.3.0-alpha.18.md),
 [research](mcp-output-schema-research.md), and
 [feature review](mcp-output-schema-review.md).
 
+### Alpha19 follow-up: publish human-readable MCP tool titles
+
+The server now provides distinct top-level display titles for the full tool
+catalog and aligns them with the existing annotation titles. The real stdio
+contract checks both full and focused profiles. Titles are part of the TDQS
+definition input, but their score effect is not deterministic; Glama's external
+pin, deployment, re-scan and result still need verification. See the
+[title research](mcp-tool-title-research.md),
+[title review](mcp-tool-title-review.md), and
+[alpha19 record](releases/v1.3.0-alpha.19.md).
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,

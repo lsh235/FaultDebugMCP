@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.3.0-alpha.19] - 2026-10-17
+
+- Publish distinct, task-specific top-level MCP display titles for all 27
+  tools, aligned with the existing annotation titles and safety hints.
+- Validate title visibility over real stdio in full and focused profiles;
+  Glama's external pin, deployment, re-scan and score remain unverified.
+
 ## [1.3.0-alpha.18] - 2026-10-17
 
 - Upgrade the MCP Python SDK within major version 1 and publish validated,

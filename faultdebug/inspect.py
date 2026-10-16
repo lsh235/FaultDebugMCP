@@ -19,7 +19,11 @@ STATUS_PARTIAL = 1 << 9
 
 def _build_id(binary: Path) -> str | None:
     try:
+        from elftools.common.exceptions import ELFError
         from elftools.elf.elffile import ELFFile
+    except ImportError:
+        return None
+    try:
         with binary.open("rb") as stream:
             elf = ELFFile(stream)
             for section in elf.iter_sections():
@@ -28,7 +32,7 @@ def _build_id(binary: Path) -> str | None:
                         if note["n_type"] == "NT_GNU_BUILD_ID":
                             value = note["n_desc"]
                             return value.hex() if isinstance(value, bytes) else str(value).replace("0x", "").lower()
-    except (ImportError, OSError, ValueError, KeyError):
+    except (ELFError, OSError, ValueError, KeyError):
         return None
     return None
 

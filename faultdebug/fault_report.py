@@ -277,7 +277,7 @@ def write_fault_report(artifact: Path, output: Path, *, bundle: str | None = Non
     from .report_view import render_html
     if artifact.suffix != ".fault":
         raise ValueError("fault-report requires a checksummed .fault artifact")
-    if output.exists():
+    if output.is_symlink() or output.exists():
         raise ValueError("report output already exists; choose a new directory")
     # Hash the same bytes that the decoder validated, avoiding a reread race.
     data = artifact.read_bytes()
@@ -298,7 +298,7 @@ def write_fault_report(artifact: Path, output: Path, *, bundle: str | None = Non
             path = temporary / name
             path.write_text(content, encoding="utf-8")
             os.chmod(path, 0o600)
-        if output.exists():
+        if output.is_symlink() or output.exists():
             raise ValueError("report output already exists; choose a new directory")
         temporary.rename(output)
     finally:

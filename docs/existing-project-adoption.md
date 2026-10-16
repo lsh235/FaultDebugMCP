@@ -85,7 +85,7 @@ python -m faultdebug.cli integrate \
   --profile recommended \
   --cmake-arg=-DCMAKE_C_COMPILER=clang-18 \
   --cmake-arg=-DCMAKE_CXX_COMPILER=clang++-18 \
-  --execute-build --execute-target \
+  --execute-build --execute-target --fault-report \
   --target-arg=--config \
   --target-arg='/absolute/project/config with spaces.yaml' \
   --json
@@ -100,6 +100,14 @@ does not pass the smoke contract. Application code runs as the current user;
 this is not a sandbox. Use this for a bounded smoke workload. For a service or
 long-running process, manage its lifecycle separately and use the generated
 launch stage when ready.
+
+Add `--fault-report` to explicitly generate the existing JSON/Markdown/HTML
+source-verified report next to the capture. It requires `--execute-target` and
+uses the exact artifact and verified bundle from that run. A nonzero target can
+still have a report if it produced a validated capture, while target and
+combined execution remain failed. Existing or symlinked report destinations
+are never replaced. No-crash captures remain explicitly no-crash, and the
+report does not infer a root cause.
 
 The main target must be a project-owned executable. Targets in nested
 `add_subdirectory()` directories and custom executable output directories are

@@ -35,14 +35,19 @@ def main() -> int:
                             help="after --execute-build passes, explicitly launch and verify one target capture")
     integrate.add_argument("--target-arg", action="append", default=[],
                             help="one application argument; repeat as needed and use --target-arg=--option for option-looking values")
+    integrate.add_argument("--fault-report", action="store_true",
+                            help="after target capture, write an evidence-bound report beside the artifact")
     integrate.add_argument("--json", action="store_true", help="print the full versioned command plan")
     def integrate_cmd(n):
         from .adoption import (AdoptionError, execute_integration_build,
-                               execute_integration_target, prepare_integration)
+                               execute_integration_target, prepare_integration,
+                               write_integration_fault_report)
         if n.execute_target and not n.execute_build:
             p.error("--execute-target requires --execute-build")
         if n.target_arg and not n.execute_target:
             p.error("--target-arg requires --execute-target")
+        if n.fault_report and not n.execute_target:
+            p.error("--fault-report requires --execute-target")
         try:
             plan = prepare_integration(n.source_root, n.build_dir, n.target, n.faultdebug_prefix,
                                        profile=n.profile, cmake_args=n.cmake_arg,
@@ -54,9 +59,14 @@ def main() -> int:
                     target_execution = execute_integration_target(plan, execution, n.target_arg)
                     execution["target_execution"] = target_execution
                     execution["target_launch"] = target_execution.get("target_launch", "NOT RUN")
+                    report_result = None
+                    if n.fault_report:
+                        report_result = write_integration_fault_report(target_execution, execution)
+                        execution["fault_report"] = report_result
                     execution["overall_status"] = (
                         "PASS" if execution["status"] == "PASS" and
-                        target_execution["status"] == "PASS" else "FAIL")
+                        target_execution["status"] == "PASS" and
+                        (report_result is None or report_result["status"] == "PASS") else "FAIL")
                 plan["execution"] = execution
         except (AdoptionError, OSError) as exc:
             print(json.dumps({"schema": 1, "kind": "faultdebug-integration-plan", "status": "rejected", "reason": str(exc)}, sort_keys=True))
@@ -76,6 +86,10 @@ def main() -> int:
                     target_execution = execution["target_execution"]
                     print(f"Target capture: {target_execution['status']}; "
                           f"artifacts: {target_execution.get('artifacts_dir', 'NOT CREATED')}")
+                    if n.fault_report:
+                        report_result = execution["fault_report"]
+                        print(f"Fault report: {report_result['status']}; "
+                              f"output: {report_result.get('output', 'NOT CREATED')}")
         return (0 if not n.execute_build or plan["execution"]["overall_status"] == "PASS" else 1)
     integrate.set_defaults(func=integrate_cmd)
     run = sub.add_parser("run", help="launch and collect an instrumented target")

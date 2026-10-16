@@ -159,6 +159,17 @@ class FaultReportTests(unittest.TestCase):
                 write_fault_report(artifact, root / "bad")
             self.assertFalse((root / "bad").exists())
 
+    def test_broken_symlink_report_destination_is_not_replaced(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            artifact = write_artifact(capture(), root / "capture", pid=7)
+            output = root / "report"
+            output.symlink_to(root / "missing-report-target")
+            with self.assertRaisesRegex(ValueError, "already exists"):
+                write_fault_report(artifact, output)
+            self.assertTrue(output.is_symlink())
+            self.assertFalse((root / "missing-report-target").exists())
+
     def test_mcp_model_read_only_and_allowlist(self):
         async def check(root):
             server = make_server(root)

@@ -6,14 +6,17 @@ import json
 import contextlib
 import io
 from pathlib import Path
+import shutil
 import sys
 import tempfile
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from faultdebug.adoption import (AdoptionError, execute_integration_build,
-                                 execute_integration_target)
+                                 execute_integration_target,
+                                 write_integration_fault_report)
 from faultdebug.bundle import create_bundle
 from faultdebug.cli import main as cli_main
 
@@ -29,7 +32,11 @@ def _stage_command(name: str, *, exit_code: int = 0) -> list[str]:
 
 def _target_command(artifact_dir: Path, args_file: Path, *, target_exit: int = 0) -> list[str]:
     report = {"header": {"status": 0},
-              "threads": [{"event_count": 1, "dropped_count": 0, "events": [{"function": 1}]}],
+              "threads": [{"tid": 1, "generation": 1, "slot": 0,
+                            "event_count": 1, "dropped_count": 0,
+                            "events": [{"sequence": 0, "monotonic_ns": 1,
+                                        "type": 1, "function": 1, "callsite": 0,
+                                        "generation": 1}]}],
               "rpc": {"header": {"dropped_count": 0}, "complete": True},
               "complete": True, "snapshot_consistency": {"stable": True, "unstable_records": []},
               "collector": {"ok": True},
@@ -67,6 +74,7 @@ def _assert_cli_rejects(*options: str, message: str) -> None:
 def main() -> int:
     _assert_cli_rejects("--execute-target", message="--execute-target requires --execute-build")
     _assert_cli_rejects("--target-arg=unexpected", message="--target-arg requires --execute-target")
+    _assert_cli_rejects("--fault-report", message="--fault-report requires --execute-target")
     with tempfile.TemporaryDirectory(prefix="faultdebug-integration-execute-") as raw:
         root = Path(raw)
         source = root / "source"
@@ -126,6 +134,28 @@ def main() -> int:
         assert len(list(target_artifacts.glob("*.fault"))) == 1
         assert not target_marker.exists(), "application arguments were interpreted by a shell"
 
+        target_report = write_integration_fault_report(target_result, target_build_result)
+        assert target_report["status"] == "PASS", target_report
+        assert target_report["crashes"] == 0, target_report
+        target_report_dir = Path(target_report["output"])
+        report_model = json.loads((target_report_dir / "report.json").read_text())
+        assert report_model["bundle"]["verified"] is True
+        assert report_model["artifact"]["checksum_verified"] is True
+        assert report_model["crashes"] == []
+        assert {path.name for path in target_report_dir.iterdir()} == {
+            "report.json", "report.md", "report.html"}
+        assert "No crash record" in (target_report_dir / "report.md").read_text()
+        assert write_integration_fault_report(target_result, target_build_result)["status"] == "FAIL"
+        symlink_artifacts = root / "symlink-artifacts"
+        symlink_artifacts.mkdir()
+        symlink_artifact = symlink_artifacts / Path(target_result["artifact"]).name
+        shutil.copyfile(target_result["artifact"], symlink_artifact)
+        occupied = symlink_artifacts / "target-report"
+        occupied.symlink_to(root / "missing-report-target")
+        symlink_report = write_integration_fault_report(
+            {"target_launch": "RAN", "artifact": str(symlink_artifact)}, target_build_result)
+        assert symlink_report["status"] == "FAIL" and occupied.is_symlink(), symlink_report
+
         failed_target_build = root / "failed-target-build"
         failed_target_state = failed_target_build / ".faultdebug-adopt"
         failed_target_state.mkdir(parents=True)
@@ -147,6 +177,39 @@ def main() -> int:
         assert failed_target["launcher_returncode"] == 9
         assert failed_target["target_returncode"] == 9
         assert Path(failed_target["artifact"]).is_file()
+        failed_report = write_integration_fault_report(
+            failed_target, {"status": "PASS", "bundle": str(bundle.root)})
+        assert failed_target["status"] == "FAIL", failed_target
+        assert failed_report["status"] == "PASS", failed_report
+        assert Path(failed_report["output"]).is_dir()
+
+        # The CLI preserves target failure even when its requested report succeeds.
+        cli_plan = {**target_plan, "script": "build script"}
+        old_argv = sys.argv
+        sys.argv = ["faultdebug", "integrate", "--source-root", str(source),
+                    "--build-dir", str(target_build), "--target", "app",
+                    "--faultdebug-prefix", str(root / "prefix"), "--execute-build",
+                    "--execute-target", "--fault-report", "--json"]
+        stdout = io.StringIO()
+        try:
+            with contextlib.redirect_stdout(stdout), \
+                 patch("faultdebug.adoption.prepare_integration", return_value=cli_plan), \
+                 patch("faultdebug.adoption.execute_integration_build",
+                       return_value={"status": "PASS", "log": "build.log",
+                                     "bundle": str(bundle.root)}), \
+                 patch("faultdebug.adoption.execute_integration_target",
+                       return_value=failed_target), \
+                 patch("faultdebug.adoption.write_integration_fault_report",
+                       return_value=failed_report) as report_writer:
+                cli_status = cli_main()
+        finally:
+            sys.argv = old_argv
+        cli_result = json.loads(stdout.getvalue())
+        assert cli_status == 1, cli_result
+        assert cli_result["execution"]["target_execution"]["status"] == "FAIL", cli_result
+        assert cli_result["execution"]["fault_report"]["status"] == "PASS", cli_result
+        assert cli_result["execution"]["overall_status"] == "FAIL", cli_result
+        report_writer.assert_called_once()
 
         failed_build = root / "failed-build"
         failed_state = failed_build / ".faultdebug-adopt"

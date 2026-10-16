@@ -130,16 +130,15 @@ and set these fields:
     "mcp", "--root", "/app/artifacts", "--tool-profile", "focused"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "ALPHA17_CODE_COMMIT",
+  "pinnedCommit": "1c0be35ef30726dac7b47c5dc473bc37ddf9088e",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }
 ```
 
-Replace `ALPHA17_CODE_COMMIT` with the implementation SHA in the
-[alpha17 release record](releases/v1.3.0-alpha.17.md). The `focused` argument
-selects a published 15-tool first-line workflow; omit it for the complete 27-tool
-catalog. This repository example does not update the external Glama setting. The
+This full implementation SHA selects the alpha17 `focused` 15-tool first-line
+workflow; omit the profile argument for the complete 27-tool catalog. This
+repository example does not update the external Glama setting. The
 previously documented
 `255395c86809cce886ce58cdc5736b2a4c0f8aaa` revision predates it and exposed 25
 tools with 76 described parameters. Alpha15 exposed 26 tools and 83 described

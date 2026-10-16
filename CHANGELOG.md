@@ -2,6 +2,19 @@
 
 ## [Unreleased]
 
+## [1.2.0-rc.2] - 2026-10-17
+
+Evidence-foundation candidate based on `cb02d7ab9265c22e3e6c1e05f1460fb336c2001a`.
+The Python package is `1.2.0rc2`; native ABI/FDAR v1 and store schema v2 are unchanged.
+This RC records the shared service query and strict identity/input contracts.
+It is not stable v1.2 or completion of the v1.3 roadmap; current-revision full
+core/gRPC release acceptance and an independent final audit remain pending.
+
+- Match application corroboration by full 128-bit trace and process generation.
+- Bound evidence reads and expose deterministic paginated CLI/MCP snapshots.
+- Keep missing/ambiguous end events and invalid durations unresolved.
+
+
 - Documented all MCP tool selection boundaries, return/error contracts and
   parameter semantics in the live stdio definitions; added read-only annotations,
   schema validation constraints and a protocol/immutable-evidence CI audit.

@@ -45,6 +45,19 @@ manifest Build ID. It is a read-only consistency check; neither the Build ID nor
 an unsigned manifest authenticates the package creator. See
 [the alpha6 record](releases/v1.3.0-alpha.6.md).
 
+### Alpha7 follow-up: adopt an existing C/C++ project
+
+`faultdebug preflight` reports static ELF readiness without executing the
+target. `faultdebug integrate` prepares an isolated CMake build for an explicitly
+selected executable and optional owned libraries, then pins the captured source,
+compile database and linked binary identity for report generation. The new
+offline acceptance fixture checks source/build preservation, normal and fatal
+capture, rebuild identity refresh, and metadata tampering. External cJSON/libuv
+checks are opt-in and require explicit local source trees; their declared source
+revision is not inferred from a local hash. See
+[the alpha7 record](releases/v1.3.0-alpha.7.md) and
+[the adoption guide](existing-project-adoption.md).
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,

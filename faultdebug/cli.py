@@ -12,6 +12,41 @@ from .session import process_participants, session_manifest
 def main() -> int:
     p = argparse.ArgumentParser(prog="faultdebug")
     sub = p.add_subparsers(dest="action", required=True)
+    preflight = sub.add_parser("preflight", help="inspect an existing ELF binary without executing it")
+    preflight.add_argument("--binary", required=True, type=__import__('pathlib').Path)
+    preflight.add_argument("--json", action="store_true")
+    def preflight_cmd(n):
+        from .adoption import collect_preflight, format_preflight
+        report = collect_preflight(n.binary)
+        print(json.dumps(report, sort_keys=True) if n.json else format_preflight(report))
+        return 0 if report["status"] == "ready" else 2
+    preflight.set_defaults(func=preflight_cmd)
+    integrate = sub.add_parser("integrate", help="prepare an isolated opt-in CMake build plan")
+    integrate.add_argument("--source-root", required=True, type=__import__('pathlib').Path)
+    integrate.add_argument("--build-dir", required=True, type=__import__('pathlib').Path)
+    integrate.add_argument("--target", required=True)
+    integrate.add_argument("--instrument-target", action="append", default=[], help="additional owned library/target to instrument")
+    integrate.add_argument("--faultdebug-prefix", required=True, type=__import__('pathlib').Path)
+    integrate.add_argument("--profile", choices=("recommended", "minimal", "full", "legacy"), default="recommended")
+    integrate.add_argument("--cmake-arg", action="append", default=[], help="configure argument; use --cmake-arg=-DKEY=VALUE")
+    integrate.add_argument("--json", action="store_true", help="print the full versioned command plan")
+    def integrate_cmd(n):
+        from .adoption import AdoptionError, prepare_integration
+        try:
+            plan = prepare_integration(n.source_root, n.build_dir, n.target, n.faultdebug_prefix,
+                                       profile=n.profile, cmake_args=n.cmake_arg,
+                                       instrument_targets=n.instrument_target)
+        except (AdoptionError, OSError) as exc:
+            print(json.dumps({"schema": 1, "kind": "faultdebug-integration-plan", "status": "rejected", "reason": str(exc)}, sort_keys=True))
+            return 2
+        if n.json:
+            print(json.dumps(plan, sort_keys=True))
+        else:
+            print(f"Prepared isolated integration: {plan['plan']}\nBuild and bundle: {plan['script']}")
+            for row in plan["commands"]:
+                print(f"{row['stage']}: {__import__('shlex').join(row['argv'])}")
+        return 0
+    integrate.set_defaults(func=integrate_cmd)
     run = sub.add_parser("run", help="launch and collect an instrumented target")
     run.add_argument("--timeout", type=float)
     run.add_argument("--artifact-dir")

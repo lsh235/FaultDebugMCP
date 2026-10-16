@@ -134,6 +134,18 @@ published schema. See the [alpha15 record](releases/v1.3.0-alpha.15.md),
 [research](mcp-required-bundle-research.md), and
 [feature review](mcp-required-bundle-review.md).
 
+### Alpha16 follow-up: discover source-bundle candidates
+
+`discover_bundles` lists root-relative directories containing `bundle.json`
+without reading or hashing their contents. It closes the workflow gap between
+capture discovery and alpha15's required bundle inputs, while leaving all
+verification to the source-consuming tools. Candidate paths are paged and
+bounded; malformed files remain unverified candidates. The Glama score still
+requires an external scan and is not inferred from this local schema change.
+See the [alpha16 record](releases/v1.3.0-alpha.16.md),
+[research](mcp-bundle-discovery-research.md), and
+[feature review](mcp-bundle-discovery-review.md).
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,

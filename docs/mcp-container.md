@@ -54,7 +54,7 @@ sensitive; do not expose them to untrusted MCP clients.
 ## Tool definitions and Glama
 
 The MCP `tools/list` response contains descriptions and per-parameter JSON Schema
-metadata for all 26 tools. Each tool declares `readOnlyHint=true`,
+metadata for all 27 tools. Each tool declares `readOnlyHint=true`,
 `destructiveHint=false`, `idempotentHint=true`, and `openWorldHint=false`.
 Capture and bundle paths are relative to the configured root; absolute paths,
 parent traversal and escaping symlinks are rejected. Address resolution may read
@@ -64,7 +64,7 @@ Choose tools by evidence source and question:
 
 | Question | Tools |
 | --- | --- |
-| What can this server read, and where are the captures? | `get_capabilities`, `check_store`, `discover_artifacts` |
+| What can this server read, and where are the captures or source bundles? | `get_capabilities`, `check_store`, `discover_artifacts`, `discover_bundles` |
 | What did one process record? | `open_fault`, `get_thread_trace`, `get_fault_flow`, `get_rpc_trace`, `get_evidence_summary` |
 | How do captures group or relate across processes? | `collect_faults`, `get_timeline`, `get_process_relations`, `get_incident_report`, `get_session_manifest`, `get_process_participants` |
 | What is already persisted in SQLite? | `list_sessions`, `get_session`, `get_provenance`, `query_artifact_index` (legacy index) |
@@ -128,16 +128,20 @@ and set these fields:
     "mcp", "--root", "/app/artifacts"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "f0295bac52ec05d745823ac63db0c384ee101a66",
+  "pinnedCommit": "3ab501011374250181143a3e3c45e74558f09c49",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }
 ```
 
-This pin selects the alpha15 source-schema update. The previously documented
+This pin selects the alpha16 bundle-discovery schema and behavior. Repository
+documentation does not update the external Glama administrator setting. The
+previously documented
 `255395c86809cce886ce58cdc5736b2a4c0f8aaa` revision predates it and exposed 25
-tools with 76 described parameters. Alpha15's source audit exposes 26 tools and
-83 described parameters, with `bundle` required for the two source tools. Check
+tools with 76 described parameters. Alpha15 exposed 26 tools and 83 described
+parameters, with `bundle` required for the two source tools. Alpha16 adds the
+read-only `discover_bundles` tool; its stdio audit exposes 27 tools and 84
+parameters. Check
 the generated Dockerfile's `git checkout` before deploying. A null pin alone
 does not prove that the generated checkout contains your latest changes.
 
@@ -155,15 +159,16 @@ directory does not contain sample captures or expose the checkout as evidence.
 Click **Deploy** to test the image. After a successful test, select **Make
 Release** or **Create Release**, then **Create & Publish Release**, as described
 in [Glama's release guide](https://glama.ai/blog/2026-03-15-how-to-make-a-release).
-Check that inspection sees 26 tools, including `get_fault_flow`, before checking
+Check that inspection sees 27 tools, including `discover_bundles`, before checking
 the new TDQS scan. A successful image build is separate from an official score.
 
 The old pinned revision was validated locally with Glama's generated Dockerfile
 template and `mcp-proxy@6.7.16`: image build, HTTP MCP initialization, its
 25-tool listing, 76 parameter descriptions and `get_capabilities` passed. The
-alpha15 source revision separately passes the repository's 26-tool/83-parameter
-stdio audit. Neither local result confirms a remote Glama deployment or TDQS
-score. After changing the administrator pin, Deploy and release the listing,
+alpha15 source revision separately passed the repository's 26-tool/83-parameter
+stdio audit; alpha16's recorded audit is in its release note. Neither local
+result confirms a remote Glama deployment or TDQS score. After changing the
+administrator pin, Deploy and release the listing,
 then verify its scan timestamp, required-bundle schemas and official score.
 
 ### A build fails immediately with HTTP 502

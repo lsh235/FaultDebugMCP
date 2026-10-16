@@ -115,6 +115,66 @@ def load_bundle(path: str | os.PathLike[str]) -> SourceBundle:
     return bundle
 
 
+def discover_bundle_paths(root: str | os.PathLike[str], *, page: int = 0,
+                          page_size: int = 200, limit: int = 10000) -> dict:
+    """List root-relative bundle manifest candidates without reading their contents."""
+    if type(page) is not int or page < 0:
+        raise BundleError("page must be a non-negative integer")
+    if type(page_size) is not int or not 1 <= page_size <= 200:
+        raise BundleError("page_size must be between 1 and 200")
+    if type(limit) is not int or not 1 <= limit <= 10000:
+        raise BundleError("limit must be between 1 and 10000")
+    root = Path(root).expanduser().resolve()
+    if not root.is_dir():
+        raise BundleError("bundle discovery root must be an existing directory")
+
+    rows: list[dict] = []
+    for manifest_path in root.rglob("bundle.json"):
+        if len(rows) >= limit:
+            raise BundleError(f"bundle discovery exceeds limit {limit}")
+        directory = manifest_path.parent
+        relative = directory.relative_to(root).as_posix() or "."
+        reason = None
+        size = None
+        try:
+            info = manifest_path.lstat()
+            size = info.st_size
+            resolved = manifest_path.resolve(strict=False)
+            if manifest_path.is_symlink():
+                reason = "symlink_manifest"
+            elif not stat.S_ISREG(info.st_mode):
+                reason = "not_regular_manifest"
+            elif resolved.parent != root and root not in resolved.parents:
+                reason = "outside_root"
+            else:
+                parent = directory
+                while parent != root:
+                    if parent.is_symlink():
+                        reason = "symlink_parent"
+                        break
+                    parent = parent.parent
+        except (OSError, RuntimeError):
+            reason = "unavailable_manifest"
+        row = {"path": relative,
+               "status": "rejected" if reason else "candidate",
+               "manifest_bytes": size,
+               "verification": "not_performed"}
+        if reason:
+            row["reason"] = reason
+        rows.append(row)
+
+    rows.sort(key=lambda row: row["path"])
+    start = page * page_size
+    selected = rows[start:start + page_size]
+    return {"schema": 1, "status": "PASS", "bundles": selected,
+            "total": len(rows),
+            "candidate_count": sum(row["status"] == "candidate" for row in rows),
+            "rejected_count": sum(row["status"] == "rejected" for row in rows),
+            "page": page, "page_size": page_size,
+            "next_page": page + 1 if start + page_size < len(rows) else None,
+            "verification": "not_performed"}
+
+
 def create_bundle(
     source_root: Path,
     output: Path,

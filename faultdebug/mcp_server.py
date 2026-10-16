@@ -6,7 +6,7 @@ from mcp.types import ToolAnnotations
 from pydantic import Field
 from .service_query import ServiceSection, query_service_flow
 from .format import collect_file
-from .bundle import BundleError, load_bundle
+from .bundle import BundleError, discover_bundle_paths, load_bundle
 from .inspect import (resolve_addresses as resolve_address_records, thread_trace,
                       verified_call_relations, verified_function_source)
 from .aggregate import ArtifactIndex, build_timeline, collect_artifacts
@@ -93,7 +93,8 @@ def make_server(root: Path):
         raise RuntimeError("official mcp Python SDK is required") from exc
     app = FastMCP("faultdebug", instructions=(
         "Inspect existing local captures; no recording, ingestion, repair, or report-file writes. "
-        "Start with get_capabilities and discover_artifacts; use open_fault/get_fault_flow for captures. "
+        "Start with get_capabilities/discover_artifacts; discover_bundles locates source bundles. "
+        "Use open_fault/get_fault_flow for captures. "
         "For existing SQLite evidence, check_store then list_sessions/list_incidents and fetch a slice. "
         "Paths are relative to --root. Keep observed, derived, static_candidates, unresolved and hypotheses "
         "distinct. Source citations need a verified bundle; shared IDs/time order do not prove causality."
@@ -489,6 +490,22 @@ def make_server(root: Path):
         result["page"] = page
         result["page_size"] = 200
         return result
+    @app.tool(annotations=_read_only("Discover bundles"))
+    def discover_bundles(page: Page = 0) -> dict:
+        """Find root-relative directories containing a bundle.json manifest candidate.
+
+        Use before get_function_source, get_call_relations or get_source_evidence
+        when the verified bundle path is unknown; discover_artifacts finds captures
+        only. Returns candidate paths (paged), total and rejected symlink/non-file
+        manifests. Discovery reads no manifest contents or hashes, so every result
+        has verification=not_performed and may be malformed or tampered. The consuming
+        source tool verifies the selected bundle before exposing data. Scans at most
+        10,000 manifests; invalid roots or exceeding the limit produce MCP errors.
+        Reads directory entries only and writes nothing."""
+        try:
+            return discover_bundle_paths(root, page=page)
+        except BundleError as exc:
+            raise ValueError(str(exc)) from exc
     @app.tool(annotations=_read_only("Query artifact index"))
     def query_artifact_index(name: Annotated[str, Field(min_length=1, description="Existing root-relative .sqlite or .db legacy artifact index created by artifact-index CLI; not a schema-v2 evidence store.")], trace_id: TraceId = None, correlation_id: CorrelationId = None, page: Page = 0) -> dict:
         """Query capture payloads from an existing legacy SQLite artifact metadata index.

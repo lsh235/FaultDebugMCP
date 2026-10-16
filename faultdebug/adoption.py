@@ -432,8 +432,9 @@ def execute_integration_target(plan: dict, build_result: dict,
 
 
 def write_integration_fault_report(target_result: dict, build_result: dict,
-                                   *, language: str = "en", max_events: int = 80) -> dict:
-    """Create a report beside an explicitly requested, verified target capture."""
+                                   *, language: str = "en", max_events: int = 80,
+                                   output: Path | str | None = None) -> dict:
+    """Create a report for an explicitly requested, verified target capture."""
     if target_result.get("target_launch") != "RAN":
         return {"status": "NOT RUN", "reason": "target was not launched"}
     artifact_value = target_result.get("artifact")
@@ -447,16 +448,17 @@ def write_integration_fault_report(target_result: dict, build_result: dict,
     bundle = build_result.get("bundle")
     if not isinstance(bundle, str) or not bundle:
         return {"status": "FAIL", "reason": "verified source bundle is unavailable"}
-    output = artifact.parent / f"{artifact.stem}-report"
-    if output.is_symlink() or output.exists():
+    report_output = (Path(output).expanduser() if output is not None else
+                     artifact.parent / f"{artifact.stem}-report")
+    if report_output.is_symlink() or report_output.exists():
         return {"status": "FAIL", "reason": "report output already exists; refusing to replace it",
-                "output": str(output)}
+                "output": str(report_output)}
     try:
         from .fault_report import write_fault_report
-        report = write_fault_report(artifact, output, bundle=bundle, language=language,
+        report = write_fault_report(artifact, report_output, bundle=bundle, language=language,
                                     max_events=max_events)
     except (OSError, ValueError, KeyError, TypeError) as exc:
-        return {"status": "FAIL", "reason": str(exc)[:512], "output": str(output)}
+        return {"status": "FAIL", "reason": str(exc)[:512], "output": str(report_output)}
     return {"status": "PASS", **report}
 
 

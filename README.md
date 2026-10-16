@@ -4,7 +4,7 @@
 > Follow recorded calls across services, inspect the fault location, and see
 > which evidence is missing.
 
-[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.13-orange)](docs/releases/v1.3.0-alpha.13.md)
+[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.14-orange)](docs/releases/v1.3.0-alpha.14.md)
 [![Release gates](https://img.shields.io/github/actions/workflow/status/lsh235/FaultDebugMCP/v12-release-gate.yml?branch=main&label=release%20gates)](https://github.com/lsh235/FaultDebugMCP/actions/workflows/v12-release-gate.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 [![Clang 18](https://img.shields.io/badge/Clang-18-orange)](https://clang.llvm.org/)
@@ -61,7 +61,7 @@ static call-graph candidates as observed execution.
 
 ## Project status
 
-The development package is **1.3.0a13** (`v1.3.0-alpha.13`); the evidence-foundation
+The development package is **1.3.0a14** (`v1.3.0-alpha.14`); the evidence-foundation
 baseline is [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2).
 The existing-project path provides static ELF preflight and isolated opt-in
 CMake integration. `faultdebug self-test` verifies one bounded installed capture;
@@ -73,10 +73,12 @@ Alpha11 adds the explicit `--fault-report` handoff after the verified capture;
 alpha12 adds `--fault-report-language en|ko` while keeping English as the
 default. Alpha13 adds `--fault-report-max-events 1..500` while keeping the
 80-event default and omitted-view accounting. Meson adoption remains deferred
-until it can meet the existing source-provenance contract. See the
+until it can meet the existing source-provenance contract. Alpha14 adds
+`--fault-report-output PATH` for a new caller-selected report directory while
+preserving the adjacent-to-capture default. See the
 [adoption guide](docs/existing-project-adoption.md),
-[event-limit review](docs/integration-report-event-limit-review.md), and
-[milestone scope and verification](docs/releases/v1.3.0-alpha.13.md).
+[report-output review](docs/integration-report-output-review.md), and
+[milestone scope and verification](docs/releases/v1.3.0-alpha.14.md).
 
 Final independent stable acceptance, current-revision full core/gRPC profiles,
 kind and fresh 30-minute soak remain pending. Docker 8/16/32 results cover only

@@ -90,6 +90,7 @@ jobs:
           python -m pip install --disable-pip-version-check build
           python -m build --wheel
           python -m pip install --force-reinstall --no-deps dist/*.whl
+          python -c "import faultdebug; from importlib.metadata import version; assert faultdebug.__version__ == version('faultdebug'), (faultdebug.__version__, version('faultdebug'))"
       - name: Verify installed capture outside the checkout
         working-directory: /tmp
         env:

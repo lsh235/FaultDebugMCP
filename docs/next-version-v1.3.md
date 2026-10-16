@@ -115,6 +115,14 @@ selected-target provenance and runtime-link lifecycle required by `integrate`.
 See the [alpha13 record](releases/v1.3.0-alpha.13.md), [event-limit review](integration-report-event-limit-review.md),
 and [Meson deferral review](meson-adoption-review.md).
 
+### Alpha14 follow-up: choose integrated report destination
+
+`integrate --fault-report-output PATH` routes the verified JSON/Markdown/HTML
+report to a new caller-selected directory, creating missing parents while
+preserving the adjacent-to-capture default and refusing destination collisions.
+See the [alpha14 record](releases/v1.3.0-alpha.14.md) and
+[feature review](integration-report-output-review.md).
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,

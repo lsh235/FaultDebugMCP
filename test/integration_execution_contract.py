@@ -80,6 +80,8 @@ def main() -> int:
                          message="--fault-report-language requires --fault-report")
     _assert_cli_rejects("--fault-report-max-events=1",
                          message="--fault-report-max-events requires --fault-report")
+    _assert_cli_rejects("--fault-report-output=/tmp/integration-report-output",
+                         message="--fault-report-output requires --fault-report")
     _assert_cli_rejects("--execute-build", "--execute-target", "--fault-report",
                          "--fault-report-max-events=0",
                          message="--fault-report-max-events must be between 1 and 500")
@@ -88,6 +90,22 @@ def main() -> int:
                          message="--fault-report-max-events must be between 1 and 500")
     _assert_cli_rejects("--execute-build", "--execute-target", "--fault-report",
                          "--fault-report-max-events=many", message="invalid int value")
+    with tempfile.TemporaryDirectory(prefix="faultdebug-report-destination-") as raw:
+        occupied_output = Path(raw) / "already exists"
+        occupied_output.mkdir()
+        _assert_cli_rejects("--execute-build", "--execute-target", "--fault-report",
+                             f"--fault-report-output={occupied_output}",
+                             message="--fault-report-output must be a new path")
+        occupied_file = Path(raw) / "already exists.txt"
+        occupied_file.write_text("preserve\n")
+        _assert_cli_rejects("--execute-build", "--execute-target", "--fault-report",
+                             f"--fault-report-output={occupied_file}",
+                             message="--fault-report-output must be a new path")
+        dangling_link = Path(raw) / "dangling report link"
+        dangling_link.symlink_to(Path(raw) / "missing report directory")
+        _assert_cli_rejects("--execute-build", "--execute-target", "--fault-report",
+                             f"--fault-report-output={dangling_link}",
+                             message="--fault-report-output must be a new path")
     with tempfile.TemporaryDirectory(prefix="faultdebug-integration-execute-") as raw:
         root = Path(raw)
         source = root / "source"
@@ -163,6 +181,14 @@ def main() -> int:
             "report.json", "report.md", "report.html"}
         assert "장애 레코드 없음" in (target_report_dir / "report.md").read_text()
         assert write_integration_fault_report(target_result, target_build_result)["status"] == "FAIL"
+        custom_output = root / "custom reports with spaces" / "normal run"
+        custom_report = write_integration_fault_report(
+            target_result, target_build_result, output=custom_output)
+        assert custom_report["status"] == "PASS", custom_report
+        custom_report_dir = Path(custom_report["output"])
+        assert custom_report_dir.resolve() == custom_output.resolve()
+        assert {path.name for path in custom_report_dir.iterdir()} == {
+            "report.json", "report.md", "report.html"}
 
         # The integrated report keeps only the newest events and labels the
         # omitted display context without changing the underlying artifact.
@@ -208,6 +234,20 @@ def main() -> int:
         symlink_report = write_integration_fault_report(
             {"target_launch": "RAN", "artifact": str(symlink_artifact)}, target_build_result)
         assert symlink_report["status"] == "FAIL" and occupied.is_symlink(), symlink_report
+        output_link = symlink_artifacts / "custom-report-link"
+        output_link.symlink_to(root / "missing-custom-report")
+        linked_output_report = write_integration_fault_report(
+            {"target_launch": "RAN", "artifact": str(symlink_artifact)},
+            target_build_result, output=output_link)
+        assert linked_output_report["status"] == "FAIL" and output_link.is_symlink(), linked_output_report
+        existing_output = root / "existing-custom-report"
+        existing_output.mkdir()
+        (existing_output / "keep.txt").write_text("keep\n")
+        existing_output_report = write_integration_fault_report(
+            {"target_launch": "RAN", "artifact": str(symlink_artifact)},
+            target_build_result, output=existing_output)
+        assert existing_output_report["status"] == "FAIL", existing_output_report
+        assert (existing_output / "keep.txt").read_text() == "keep\n"
 
         failed_target_build = root / "failed-target-build"
         failed_target_state = failed_target_build / ".faultdebug-adopt"
@@ -238,11 +278,13 @@ def main() -> int:
 
         # The CLI preserves target failure even when its requested report succeeds.
         cli_plan = {**target_plan, "script": "build script"}
+        cli_report_output = root / "CLI report destination"
         old_argv = sys.argv
         sys.argv = ["faultdebug", "integrate", "--source-root", str(source),
                     "--build-dir", str(target_build), "--target", "app",
                     "--faultdebug-prefix", str(root / "prefix"), "--execute-build",
-                    "--execute-target", "--fault-report", "--fault-report-language=ko", "--json"]
+                    "--execute-target", "--fault-report", "--fault-report-language=ko",
+                    f"--fault-report-output={cli_report_output}", "--json"]
         stdout = io.StringIO()
         try:
             with contextlib.redirect_stdout(stdout), \
@@ -265,6 +307,7 @@ def main() -> int:
         report_writer.assert_called_once()
         assert report_writer.call_args.kwargs["language"] == "ko", report_writer.call_args
         assert report_writer.call_args.kwargs["max_events"] == 80, report_writer.call_args
+        assert report_writer.call_args.kwargs["output"] == cli_report_output, report_writer.call_args
 
         failed_build = root / "failed-build"
         failed_state = failed_build / ".faultdebug-adopt"

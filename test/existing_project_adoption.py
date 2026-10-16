@@ -202,6 +202,8 @@ __attribute__((noinline)) int adoption_library(int crash) {
         args.insert(args.index("--json"), "--fault-report")
         args.insert(args.index("--json"), "--fault-report-language=ko")
         args.insert(args.index("--json"), "--fault-report-max-events=1")
+        custom_report_output = self.root / "custom reports" / "normal capture"
+        args.insert(args.index("--json"), f"--fault-report-output={custom_report_output}")
         args.extend(["--target-arg=--fixture-arg", "--target-arg=value with spaces"])
         self.env["ADOPTION_EXECUTION_MARKER"] = str(marker)
         try:
@@ -217,6 +219,7 @@ __attribute__((noinline)) int adoption_library(int crash) {
         assert target.get("status") == "PASS" and target.get("target_returncode") == 0, target
         assert fault_report.get("status") == "PASS", execution
         report_dir = Path(fault_report["output"])
+        assert report_dir.resolve() == custom_report_output.resolve()
         report_model = json.loads((report_dir / "report.json").read_text())
         assert report_model["bundle"]["verified"] is True
         assert report_model["artifact"]["checksum_verified"] is True

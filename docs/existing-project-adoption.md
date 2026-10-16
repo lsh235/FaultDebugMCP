@@ -114,6 +114,11 @@ Set `--fault-report-max-events=1..500` to control the newest pre-crash events
 shown per thread; the default remains 80. This option also requires
 `--fault-report`. Lower display limits record how many retained events were
 omitted from the view and do not change the capture or report its data as lost.
+Use `--fault-report-output PATH` to put the three report files in a chosen new
+directory; relative paths are resolved from the caller's working directory and
+missing parents are created. This option requires `--fault-report`. Existing
+files, directories and symlinks are never replaced. Without it, the report
+remains beside the capture.
 
 The main target must be a project-owned executable. Targets in nested
 `add_subdirectory()` directories and custom executable output directories are

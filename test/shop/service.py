@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import ctypes
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 import hashlib
 import http.client
 import inspect
@@ -17,6 +18,7 @@ from pathlib import Path
 
 from faultdebug.clock import local_clock_identity, local_deadline_ns
 from faultdebug.http_context import TraceParent, child_traceparent, extract_traceparent, new_traceparent
+from faultdebug.keyed_lock import KeyedLockCapacityError, KeyedLockPool, KeyedLockTimeout
 from faultdebug.session import identity_from_env
 from faultdebug.retry_ledger import RetryCapacityExceeded, RetryConflict, RetryDeadlineExceeded, RetryLedger
 
@@ -45,6 +47,13 @@ NATIVE.fd_rpc_begin.restype = NATIVE.fd_rpc_end.restype = ctypes.c_int
 NATIVE.shop_request_boundary.argtypes = NATIVE.shop_payment_fault.argtypes = []
 NATIVE.shop_request_boundary.restype = NATIVE.shop_payment_fault.restype = None
 LOCK = threading.RLock()
+CHECKOUT_LOCK_MODE = os.environ.get("SHOP_CHECKOUT_LOCK_MODE", "keyed")
+if CHECKOUT_LOCK_MODE not in {"keyed", "global"}:
+    raise ValueError("SHOP_CHECKOUT_LOCK_MODE must be keyed or global")
+CHECKOUT_LOCKS = KeyedLockPool(max_keys=int(os.environ.get("SHOP_CHECKOUT_MAX_KEYS", "1024")))
+# The comparison mode serializes checkout only. STATE/new_id must remain free
+# while any order waits on remote services, including in the baseline mode.
+CHECKOUT_GLOBAL_LOCK = threading.Lock()
 EVENT_LOCK = threading.Lock()
 COUNTER = 0
 STATE = {"stock": 10000, "reservations": {}, "charges": {}, "orders": {},
@@ -238,6 +247,77 @@ def durable_inventory(path: str, order: str, quantity: int, ctx: dict, deadline:
     return 200, {**result.value, "replayed": result.replayed}
 
 
+@contextmanager
+def checkout_hold(order: str, timeout: float):
+    if CHECKOUT_LOCK_MODE == "keyed":
+        with CHECKOUT_LOCKS.hold(order, timeout=timeout):
+            yield
+    else:
+        if not CHECKOUT_GLOBAL_LOCK.acquire(timeout=timeout):
+            raise KeyedLockTimeout("global checkout wait budget expired")
+        try:
+            yield
+        finally:
+            CHECKOUT_GLOBAL_LOCK.release()
+
+
+def checkout_steps(body: dict, ctx: dict, order: str, quantity: int) -> tuple[int, dict]:
+    # checkout_hold protects this order across remote calls. The shared state
+    # lock protects only dict access, so other orders and RPC IDs can progress.
+    with LOCK:
+        existing = STATE["orders"].get(order)
+        cached = dict(existing) if existing is not None else None
+    if cached is not None:
+        if cached["quantity"] != quantity:
+            return failure(ctx, "checkout_order_conflict", "Order identity already completed with a different quantity.", 409)
+        return 200, {**cached, "replayed": True}
+    for peer in sorted(p for p in PEERS if p.startswith("risk-")):
+        status, result = call(peer, "/risk", body, ctx)
+        if status != 200:
+            return status, result
+    status, result = call("inventory", "/reserve", body, ctx, timeout=0.3)
+    if status != 200:
+        return status, result
+    status, result = call("payment", "/authorize", body, ctx)
+    if status != 200:
+        rollback, _ = call("inventory", "/release", body, ctx)
+        emit("compensation", ctx, peer="inventory", status=rollback, order_id=order)
+        return status, {**result, "reservation_released": rollback == 200}
+    status, shipping = call("shipping", "/ship", body, ctx)
+    if status != 200:
+        return status, shipping
+    status, notification = call("notification", "/notify", body, ctx)
+    result = {"order_id": order, "state": "completed", "quantity": quantity,
+              "notification": "sent" if status == 200 else "deferred",
+              "shipment": shipping["shipment_id"], "replayed": False}
+    with LOCK:
+        STATE["orders"][order] = result
+    emit("order_completed", ctx, order_id=order, notification_status=status)
+    return 200, result
+
+
+def checkout(body: dict, ctx: dict, deadline: int, order: str, quantity: int) -> tuple[int, dict]:
+    remaining = max(0.0, (deadline - time.monotonic_ns()) / 1e9)
+    try:
+        with checkout_hold(order, remaining):
+            # Acquiring an immediately available lock is allowed at timeout=0;
+            # expired HTTP work must still stop before any downstream request.
+            if time.monotonic_ns() >= deadline:
+                raise KeyedLockTimeout("receiver checkout budget expired")
+            emit("checkout_begin", ctx, order_id=order, quantity=quantity, lock_mode=CHECKOUT_LOCK_MODE)
+            status, result = 500, {}
+            try:
+                status, result = checkout_steps(body, ctx, order, quantity)
+                return status, result
+            finally:
+                emit("checkout_end", ctx, order_id=order, quantity=quantity,
+                     lock_mode=CHECKOUT_LOCK_MODE, status=status, replayed=bool(result.get("replayed", False)))
+    except KeyedLockTimeout:
+        return failure(ctx, "checkout_lock_deadline", "Receiver-local checkout budget expired before orchestration began.", 504)
+    except KeyedLockCapacityError:
+        return failure(ctx, "checkout_lock_capacity", "Checkout live-key capacity reached; no downstream work began.", 503)
+
+
 def dispatch(path: str, body: dict, ctx: dict, deadline: int) -> tuple[int, dict]:
     scenario = body.get("scenario", "success")
     if scenario not in SCENARIOS:
@@ -271,32 +351,7 @@ def dispatch(path: str, body: dict, ctx: dict, deadline: int) -> tuple[int, dict
         return 200, {"order_id": order, "quantity": quantity,
                      "amount": products["products"][0]["price"] * quantity}
     if ROLE == "checkout" and path == "/checkout":
-        # Serialize this fixture's orchestration to make replay deterministic.
-        with LOCK:
-            if order in STATE["orders"]:
-                return 200, {**STATE["orders"][order], "replayed": True}
-            for peer in sorted(p for p in PEERS if p.startswith("risk-")):
-                status, result = call(peer, "/risk", body, ctx)
-                if status != 200:
-                    return status, result
-            status, result = call("inventory", "/reserve", body, ctx, timeout=0.3)
-            if status != 200:
-                return status, result
-            status, result = call("payment", "/authorize", body, ctx)
-            if status != 200:
-                rollback, _ = call("inventory", "/release", body, ctx)
-                emit("compensation", ctx, peer="inventory", status=rollback, order_id=order)
-                return status, {**result, "reservation_released": rollback == 200}
-            status, shipping = call("shipping", "/ship", body, ctx)
-            if status != 200:
-                return status, shipping
-            status, notification = call("notification", "/notify", body, ctx)
-            result = {"order_id": order, "state": "completed", "quantity": quantity,
-                      "notification": "sent" if status == 200 else "deferred",
-                      "shipment": shipping["shipment_id"], "replayed": False}
-            STATE["orders"][order] = result
-            emit("order_completed", ctx, order_id=order, notification_status=status)
-            return 200, result
+        return checkout(body, ctx, deadline, order, quantity)
     if ROLE == "inventory":
         if scenario == "inventory_response_loss" and LEDGER is None:
             return 400, {"code": "durable_ledger_required"}
@@ -332,8 +387,12 @@ def dispatch(path: str, body: dict, ctx: dict, deadline: int) -> tuple[int, dict
                  reason="Injected invalid authorization transition calls the native payment invariant trap.")
             NATIVE.shop_payment_fault()
         with LOCK:
+            first_charge = order not in STATE["charges"]
             STATE["charges"].setdefault(order, quantity * 39000)
-            return 200, {"authorized": True, "amount": STATE["charges"][order]}
+            amount = STATE["charges"][order]
+        if first_charge:
+            emit("payment_charge", ctx, order_id=order, amount=amount)
+        return 200, {"authorized": True, "amount": amount}
     if ROLE == "shipping" and path == "/ship":
         with LOCK:
             STATE["shipments"].setdefault(order, "shipment-" + order)

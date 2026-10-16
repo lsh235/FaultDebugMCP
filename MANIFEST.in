@@ -6,9 +6,13 @@ recursive-include cmake *.cmake *.cmake.in *.pc.in
 recursive-include docs *.md
 recursive-include docs/assets *.png
 recursive-include test/shop *.py *.cc *.html *.md CMakeLists.txt Dockerfile
+include test/shop/Dockerfile.dockerignore
 include test/http_context_contract.py test/process_clock_contract.py test/shop_http_context.py
 include test/retry_ledger_contract.py test/shop_http_retry.py
 include test/external/http-retry-alpha2.json
+include test/external/shop-concurrency-alpha3.json
+include test/keyed_lock_contract.py test/shop_checkout_contract.py
+include test/http_fault_proxy_contract.py test/shop_concurrency.py
 include .dockerignore
 recursive-include scripts *.sh *.py
 include scripts/faultdebug-cc scripts/faultdebug-cxx

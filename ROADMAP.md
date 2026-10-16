@@ -15,6 +15,11 @@ This roadmap describes work beyond v0.1.0. It is not a promise of delivery dates
   HTTP response loss, restart/replay and compensation controls. Fixed fresh/replay
   workload measurements describe cost and avoided mutations. See
   [scope and verification](docs/releases/v1.3.0-alpha.2.md).
+- `v1.3.0-alpha.3` adds bounded process-local keyed locking and concurrent
+  checkout with duplicate-order protection, local TCP fault/recovery controls,
+  independent 8-role native sessions, and bounded Docker 8/16/32 profiles. The
+  measured fixed-workload costs and exact scenario limits are recorded in
+  [alpha3 validation](docs/releases/v1.3.0-alpha.3.md).
 - The remaining stage F work (general native attempt pairing, native clock metadata,
   container/Pod lifecycle provenance), G (broader Docker/network fault profiles), H
   (8/16/32 scale and measured retained snapshots), I (general viewer/drill-down)

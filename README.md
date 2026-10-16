@@ -4,7 +4,7 @@
 > Follow recorded calls across services, inspect the fault location, and see
 > which evidence is missing.
 
-[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.2-orange)](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.3.0-alpha.2)
+[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.3-orange)](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.3.0-alpha.3)
 [![Release gates](https://img.shields.io/github/actions/workflow/status/lsh235/FaultDebugMCP/v12-release-gate.yml?branch=main&label=release%20gates)](https://github.com/lsh235/FaultDebugMCP/actions/workflows/v12-release-gate.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 [![Clang 18](https://img.shields.io/badge/Clang-18-orange)](https://clang.llvm.org/)
@@ -61,16 +61,18 @@ static call-graph candidates as observed execution.
 
 ## Project status
 
-The development package is **1.3.0a2** (`v1.3.0-alpha.2`); the evidence-foundation
+The development package is **1.3.0a3** (`v1.3.0-alpha.3`); the evidence-foundation
 baseline is [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2).
-This alpha adds explicit operation/attempt labels, a reusable transactional SQLite
-retry ledger, and a cross-process HTTP response-loss/restart fixture. Replaying a
-committed inventory operation returns its saved result without another mutation.
-See [the transport contract](docs/http-context.md), [retry contract](docs/http-retry.md)
-and [milestone scope and verification](docs/releases/v1.3.0-alpha.2.md).
+This alpha adds bounded process-local keyed locks so distinct checkout orders can
+progress concurrently while duplicates serialize. A local TCP fault proxy and
+native multi-service acceptance exercise reset, response loss and recovery, with
+fixed workload measurements and explicit evidence limits.
+See [the retry contract](docs/http-retry.md), [concurrency contract](docs/http-concurrency.md)
+and [milestone scope and verification](docs/releases/v1.3.0-alpha.3.md).
 
 Final independent stable acceptance, current-revision full core/gRPC profiles,
-Docker scale, kind and fresh 30-minute soak remain pending. Historical gate/soak
+kind and fresh 30-minute soak remain pending. Docker 8/16/32 results cover only
+the bounded scenarios listed in this milestone's verification record. Historical gate/soak
 results apply only to their recorded revisions; the earlier soak retained
 explicit loss ([historical validation](docs/v1.2-p3-01.md)).
 The [v1.3 plan](docs/next-version-v1.3.md) tracks the remaining work.

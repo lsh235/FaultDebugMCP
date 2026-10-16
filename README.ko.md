@@ -29,16 +29,17 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-개발 버전은 **1.3.0a2** (`v1.3.0-alpha.2`)이며, 문서의 증거 기반 구현은
+개발 버전은 **1.3.0a3** (`v1.3.0-alpha.3`)이며, 문서의 증거 기반 구현은
 [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)로 고정했습니다.
-이번 알파는 논리 작업·시도 번호, 재사용 가능한 SQLite 재시도 원장,
-별도 프로세스 간 HTTP 응답 유실·재시작 검증을 추가합니다. 저장된 재고 작업을
-재시도하면 결과를 재사용하며 재고를 다시 차감하지 않습니다.
-[전달 계약](docs/http-context.md) · [재시도 계약](docs/http-retry.md) ·
-[구현 범위와 검증](docs/releases/v1.3.0-alpha.2.md)
+이번 알파는 같은 주문의 중복 실행을 직렬화하면서 서로 다른 주문은 동시에 진행하는
+bounded keyed lock과 실제 TCP 장애 주입 프록시를 추가합니다. 별도 서비스 프로세스에서
+동시 처리·응답 유실·복구를 검사하고 고정 workload의 비용과 증거 한계를 기록합니다.
+[재시도 계약](docs/http-retry.md) · [동시 처리 계약](docs/http-concurrency.md) ·
+[구현 범위와 검증](docs/releases/v1.3.0-alpha.3.md)
 
 정식 릴리스의 독립 최종 수락, 현재 revision의 전체 core/gRPC profile,
-Docker 규모·kind·새 30분 soak는 남아 있습니다. 이전 revision의 PASS를 현재 코드의
+kind·새 30분 soak는 남아 있습니다. Docker 8/16/32 검증은 이번 알파 기록에 명시한
+제한된 시나리오 범위입니다. 이전 revision의 PASS를 현재 코드의
 수락으로 옮기지 않습니다. 과거 soak의 손실은 [기존 기록](docs/v1.2-p3-01.md)에 남겼습니다.
 
 ## 빠른 시작

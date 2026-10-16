@@ -46,6 +46,9 @@ jobs:
           python test/process_clock_contract.py
           python test/shop_http_context.py
           python test/retry_ledger_contract.py
+          python test/keyed_lock_contract.py
+          python test/shop_checkout_contract.py
+          python test/http_fault_proxy_contract.py
       - name: Test cross-service report and container PID identities
         run: python test/service_report_test.py
 
@@ -89,6 +92,16 @@ jobs:
           path: |
             build-ci/http-retry.json
             build-ci/http-retry-evidence/
+          if-no-files-found: error
+      - name: Test concurrent checkout and TCP fault recovery
+        run: python3 test/shop_concurrency.py --boundary build-ci/test/shop/libshop_boundary.so --runtime-dir build-ci --output build-ci/shop-concurrency.json
+      - name: Upload concurrent checkout evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: shop-concurrency-evidence
+          path: |
+            build-ci/shop-concurrency.json
+            build-ci/shop-concurrency-evidence/
           if-no-files-found: error
       - name: Record toolchain versions
         run: |

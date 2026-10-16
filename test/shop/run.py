@@ -48,7 +48,10 @@ def compose(directory: Path, count: int, image: str, port: int, project: str) ->
             "user": f"{os.getuid()}:{os.getgid()}",
             "mem_limit": "256m", "pids_limit": 128,
             "environment": {"SHOP_ROLE": name, "SHOP_ORDINAL": str(ordinal), "SHOP_PEERS": peers,
-                            "FAULTDEBUG_SESSION_ID": project, "FAULTDEBUG_PROCESS_ID": identity},
+                            "FAULTDEBUG_SESSION_ID": project, "FAULTDEBUG_PROCESS_ID": identity,
+                            "SHOP_CHECKOUT_LOCK_MODE": "keyed",
+                            **({"SHOP_LEDGER_PATH": "/evidence/inventory.sqlite3"}
+                               if name == "inventory" else {})},
             "command": ["fault-debug", "run", "--collect-success", "--artifact-dir", "/evidence",
                         "--session-id", project, "--process-id", identity, "--process-role", name,
                         "python", "-u", "/app/test/shop/service.py"],
@@ -100,11 +103,17 @@ def exercise(base: list[str], names: list[str], port: int, scenario: str, reques
     responses = []
     def one(index: int):
         body = {"order_id": f"{scenario}-{index}", "quantity": 1, "scenario": scenario}
-        return {"order_id": body["order_id"], "status": (result := http_request(port, "/checkout", body))[0], "body": result[1]}
+        started = time.perf_counter_ns()
+        result = http_request(port, "/checkout", body)
+        return {"order_id": body["order_id"], "status": result[0], "body": result[1],
+                "latency_ms": round((time.perf_counter_ns() - started) / 1e6, 3),
+                "json_request_body_bytes": len(json.dumps(body).encode())}
     # Crash has one request; subsequent requests would observe an already-dead service.
     count = 1 if scenario == "payment_crash" else requests
+    started = time.perf_counter_ns()
     with concurrent.futures.ThreadPoolExecutor(max_workers=concurrency) as pool:
         responses = list(pool.map(one, range(count)))
+    workload_ms = round((time.perf_counter_ns() - started) / 1e6, 3)
     for response in responses:
         if response["status"] != EXPECTED[scenario]:
             raise AssertionError(f"{scenario}: unexpected response {response}")
@@ -126,6 +135,9 @@ def exercise(base: list[str], names: list[str], port: int, scenario: str, reques
         assert replay[0] == 200 and replay[1]["replayed"] is True, replay
         assert inside(base, "inventory", "/state")["stock"] == before
         assert len(inside(base, "payment", "/state")["charges"]) == count
+        conflict = http_request(port, "/checkout", {"order_id": f"{scenario}-0", "quantity": 2, "scenario": scenario})
+        assert conflict[0] == 409, conflict
+        assert inside(base, "inventory", "/state")["stock"] == before
     else:
         assert not states["checkout"]["orders"]
         assert not states["inventory"]["reservations"] and states["inventory"]["stock"] == 10000
@@ -134,7 +146,27 @@ def exercise(base: list[str], names: list[str], port: int, scenario: str, reques
     if scenario in {"payment_decline", "payment_crash"}:
         assert all(response["body"]["reservation_released"] for response in responses)
     return {"scenario": scenario, "assertions": "PASS", "requests": count,
-            "concurrency": concurrency, "responses": responses, "states": states}
+            "concurrency": concurrency, "responses": responses, "states": states,
+            "workload_ms": workload_ms,
+            "json_request_body_bytes": sum(row["json_request_body_bytes"] for row in responses),
+            "completed_requests": len(responses)}
+
+
+def checkout_overlap(path: Path) -> int:
+    """Peak protected checkout intervals in this one process's event order."""
+    active, maximum = 0, 0
+    for line in path.read_text().splitlines():
+        row = json.loads(line)
+        if row["kind"] == "checkout_begin":
+            active += 1
+            maximum = max(maximum, active)
+        elif row["kind"] == "checkout_end":
+            active -= 1
+            if active < 0:
+                raise AssertionError("Checkout end has no matching begin")
+    if active:
+        raise AssertionError("Checkout intervals did not close")
+    return maximum
 
 
 def shutdown(base: list[str], names: list[str], port: int):
@@ -166,7 +198,7 @@ def execute(args):
         command(["docker", "cp", f"{container}:/opt/shop-bundle", str(output / "bundle")])
     finally:
         command(["docker", "rm", container])
-    summary = {"schema": 1, "application_processes": args.processes, "image_id": image_id,
+    summary = {"schema": 1, "status": "RUNNING", "application_processes": args.processes, "image_id": image_id,
                "backend": "docker-compose", "scenarios": [], "kubernetes": "NOT RUN"}
     for scenario in args.scenarios:
         folder = output / scenario
@@ -208,12 +240,31 @@ def execute(args):
                                                   "rpc_decode_error", "rpc_sequence_gap", "rpc_sequence_not_monotonic"}
                            for row in model["unresolved"])
             result["report"] = report
+            result["max_concurrent_checkouts"] = checkout_overlap(folder / "evidence" / "checkout" / "events.jsonl")
+            if scenario == "success" and min(args.requests, args.concurrency) >= 2:
+                assert result["max_concurrent_checkouts"] >= 2, result["max_concurrent_checkouts"]
+            from faultdebug.artifact import decode_artifact
+            captures = [decode_artifact(path.read_bytes()) for path in (folder / "evidence").rglob("*.fault")]
+            result["retained_native_events"] = sum(len(thread.get("events", []))
+                                                   for capture in captures for thread in capture.get("threads", []))
+            result["native_thread_dropped_count"] = sum(thread.get("dropped_count", 0)
+                                                        for capture in captures for thread in capture.get("threads", []))
+            result["native_rpc_dropped_count"] = sum(capture.get("rpc", {}).get("header", {}).get("dropped_count", 0)
+                                                     for capture in captures)
+            result["native_rpc_events"] = sum(service["rpc_events"] for service in model["services"])
+            result["native_relations"] = len(model["calls"])
             summary["scenarios"].append(result)
+        except BaseException as exc:
+            summary["status"] = "FAIL"
+            summary["error"] = f"{type(exc).__name__}: {exc}"
+            raise
         finally:
             logs = subprocess.run(base + ["logs", "--no-color"], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
             (folder / "containers.log").write_text(logs.stdout)
             command(base + ["down", "--timeout", "5"], timeout=60)
             (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
+    summary["status"] = "PASS"
+    (output / "summary.json").write_text(json.dumps(summary, indent=2) + "\n")
     links = "".join(f'<li><a href="{s}/report/report.html">{s}</a></li>' for s in args.scenarios)
     (output / "index.html").write_text('<!doctype html><meta charset="utf-8"><title>Shopping fault reports</title>'
                                      '<style>body{font:18px system-ui;background:#101a2a;color:#dce7f5;padding:50px}a{color:#8cbbff}li{margin:18px}</style>'

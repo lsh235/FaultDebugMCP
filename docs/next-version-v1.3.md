@@ -98,6 +98,13 @@ a report cannot turn an unsuccessful target into a PASS. Existing destinations
 are protected. See the [alpha11 record](releases/v1.3.0-alpha.11.md) and
 [feature review](integration-fault-report-review.md).
 
+### Alpha12 follow-up: choose the integrated report language
+
+`integrate --fault-report-language en|ko` forwards an explicit locale to the
+existing report writer; English remains the default and the option requires
+`--fault-report`. See the [alpha12 record](releases/v1.3.0-alpha.12.md) and
+[feature review](integration-report-language-review.md).
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,

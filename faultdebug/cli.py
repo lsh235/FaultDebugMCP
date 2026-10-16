@@ -37,6 +37,8 @@ def main() -> int:
                             help="one application argument; repeat as needed and use --target-arg=--option for option-looking values")
     integrate.add_argument("--fault-report", action="store_true",
                             help="after target capture, write an evidence-bound report beside the artifact")
+    integrate.add_argument("--fault-report-language", choices=("en", "ko"),
+                            help="language for the integrated report (requires --fault-report; default: en)")
     integrate.add_argument("--json", action="store_true", help="print the full versioned command plan")
     def integrate_cmd(n):
         from .adoption import (AdoptionError, execute_integration_build,
@@ -48,6 +50,8 @@ def main() -> int:
             p.error("--target-arg requires --execute-target")
         if n.fault_report and not n.execute_target:
             p.error("--fault-report requires --execute-target")
+        if n.fault_report_language and not n.fault_report:
+            p.error("--fault-report-language requires --fault-report")
         try:
             plan = prepare_integration(n.source_root, n.build_dir, n.target, n.faultdebug_prefix,
                                        profile=n.profile, cmake_args=n.cmake_arg,
@@ -61,7 +65,8 @@ def main() -> int:
                     execution["target_launch"] = target_execution.get("target_launch", "NOT RUN")
                     report_result = None
                     if n.fault_report:
-                        report_result = write_integration_fault_report(target_execution, execution)
+                        report_result = write_integration_fault_report(
+                            target_execution, execution, language=n.fault_report_language or "en")
                         execution["fault_report"] = report_result
                     execution["overall_status"] = (
                         "PASS" if execution["status"] == "PASS" and

@@ -151,6 +151,7 @@ class FaultReportTests(unittest.TestCase):
             self.assertEqual(run.returncode, 0, run.stderr)
             self.assertEqual({p.name for p in output.iterdir()}, {"report.md", "report.json", "report.html"})
             self.assertIn("장애 실행 흐름", (output / "report.md").read_text())
+            self.assertIn("장애 실행 흐름", (output / "report.html").read_text())
             self.assertTrue(json.loads((output / "report.json").read_text())["artifact"]["checksum_verified"])
             with self.assertRaises(ValueError):
                 write_fault_report(artifact, output)

@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.3.0-alpha.18] - 2026-10-17
+
+- Upgrade the MCP Python SDK within major version 1 and publish validated,
+  structured outputs for capabilities, store health, artifact discovery, and
+  bundle discovery while preserving the existing text response channel.
+- Audit both full and focused tool profiles over real stdio; Glama's external
+  pin, deployment, rescan and numeric score remain unverified.
+
 ## [1.3.0-alpha.1] - 2026-10-17
 
 Identity-transport development milestone; Python package `1.3.0a1` and native

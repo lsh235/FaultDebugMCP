@@ -4,7 +4,7 @@
 > Follow recorded calls across services, inspect the fault location, and see
 > which evidence is missing.
 
-[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.17-orange)](docs/releases/v1.3.0-alpha.17.md)
+[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.18-orange)](docs/releases/v1.3.0-alpha.18.md)
 [![Release gates](https://img.shields.io/github/actions/workflow/status/lsh235/FaultDebugMCP/v12-release-gate.yml?branch=main&label=release%20gates)](https://github.com/lsh235/FaultDebugMCP/actions/workflows/v12-release-gate.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 [![Clang 18](https://img.shields.io/badge/Clang-18-orange)](https://clang.llvm.org/)
@@ -61,7 +61,7 @@ static call-graph candidates as observed execution.
 
 ## Project status
 
-The development package is **1.3.0a17** (`v1.3.0-alpha.17`); the evidence-foundation
+The development package is **1.3.0a18** (`v1.3.0-alpha.18`); the evidence-foundation
 baseline is [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2).
 The existing-project path provides static ELF preflight and isolated opt-in
 CMake integration. `faultdebug self-test` verifies one bounded installed capture;
@@ -81,15 +81,19 @@ their existing runtime behavior. Alpha16 adds bounded, read-only `discover_bundl
 so MCP clients can locate candidate source bundles before calling those tools; it
 does not verify candidates until a source tool consumes one.
 Alpha17 adds `--tool-profile focused`, a 15-tool evidence workflow for smaller
-MCP catalogs; the default `full` profile preserves all 27 tools. It targets the
-tool-count part of server coherence without claiming an official Glama score
-increase. See the
+MCP catalogs; the default `full` profile preserves all 27 tools. Alpha18 moves
+to the official MCP Python SDK v1.30 and publishes validated structured-output
+schemas for capabilities, store health, artifact discovery and bundle discovery.
+It adds a machine-readable response channel while retaining text results. The
+four schemas are real-protocol tested; an official Glama score change still
+requires an external pin, deployment and rescan. See the
 [adoption guide](docs/existing-project-adoption.md),
 [report-output review](docs/integration-report-output-review.md), and
 [MCP bundle review](docs/mcp-required-bundle-review.md),
 [bundle-discovery review](docs/mcp-bundle-discovery-review.md),
-[MCP profile review](docs/mcp-profile-review.md), and
-[milestone scope and verification](docs/releases/v1.3.0-alpha.17.md).
+[MCP profile review](docs/mcp-profile-review.md),
+[structured-output review](docs/mcp-output-schema-review.md), and
+[milestone scope and verification](docs/releases/v1.3.0-alpha.18.md).
 
 Final independent stable acceptance, current-revision full core/gRPC profiles,
 kind and fresh 30-minute soak remain pending. Docker 8/16/32 results cover only

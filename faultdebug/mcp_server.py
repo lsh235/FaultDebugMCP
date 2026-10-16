@@ -15,6 +15,8 @@ from .session import process_participants, session_manifest
 from .discovery import inspect_spool
 from .evidence_store import EvidenceStore, EvidenceStoreError
 from .capabilities import get_capabilities as capability_contract
+from .mcp_outputs import (ArtifactDiscoveryOutput, BundleDiscoveryOutput,
+                          CapabilitiesOutput, StoreCheckOutput)
 
 # Field metadata is exported in tools/list; docstring Args alone is not a schema.
 CaptureName = Annotated[str, Field(min_length=1, description="Root-relative .fault or decoded .json capture path, e.g. fault-1234.fault; no absolute paths, '..', or escaping symlinks.")]
@@ -150,7 +152,7 @@ def make_server(root: Path, *, tool_profile: str = "full"):
         return query_service_flow(path, section=section, page=page,
                                   page_size=page_size, snapshot_id=snapshot_id)
     @register_tool(annotations=_read_only("Get capabilities"))
-    def get_capabilities() -> dict:
+    def get_capabilities() -> CapabilitiesOutput:
         """Describe supported capture/store versions, evidence classes, platform and query limits.
 
         Use first to plan an inspection; discover_artifacts locates files and check_store
@@ -164,7 +166,7 @@ def make_server(root: Path, *, tool_profile: str = "full"):
         contract["exposed_tools"] = sorted(registered_tool_names)
         return contract
     @register_tool(annotations=_read_only("Check store"))
-    def check_store(db: StorePath = "evidence.sqlite3") -> dict:
+    def check_store(db: StorePath = "evidence.sqlite3") -> StoreCheckOutput:
         """Inspect one SQLite evidence store's health and migration compatibility without repair.
 
         Use before list_sessions or list_incidents, especially for a missing/corrupt DB;
@@ -503,7 +505,7 @@ def make_server(root: Path, *, tool_profile: str = "full"):
         except (EvidenceStoreError, ValueError) as exc:
             return {"schema": 2, "error": {"code": "SOURCE_EVIDENCE_ERROR", "message": str(exc)}}
     @register_tool(annotations=_read_only("Discover artifacts"))
-    def discover_artifacts(pattern: Annotated[str, Field(min_length=1, description="Root-relative recursive filename glob, e.g. fault-*.fault or *.json. No absolute paths or parent traversal; at most 10,000 matches.")] = "fault-*.fault", include_json: Annotated[bool, Field(description="With default fault-*.fault, also discover fault-*.json; with a custom pattern this does not add another glob.")] = False, page: Page = 0) -> dict:
+    def discover_artifacts(pattern: Annotated[str, Field(min_length=1, description="Root-relative recursive filename glob, e.g. fault-*.fault or *.json. No absolute paths or parent traversal; at most 10,000 matches.")] = "fault-*.fault", include_json: Annotated[bool, Field(description="With default fault-*.fault, also discover fault-*.json; with a custom pattern this does not add another glob.")] = False, page: Page = 0) -> ArtifactDiscoveryOutput:
         """Recursively discover and validate captures beneath the configured artifact root.
 
         Use first when filenames are unknown; query_artifact_index searches an existing
@@ -524,7 +526,7 @@ def make_server(root: Path, *, tool_profile: str = "full"):
         result["page_size"] = 200
         return result
     @register_tool(annotations=_read_only("Discover bundles"))
-    def discover_bundles(page: Page = 0) -> dict:
+    def discover_bundles(page: Page = 0) -> BundleDiscoveryOutput:
         """Find root-relative directories containing a bundle.json manifest candidate.
 
         Use before get_function_source, get_call_relations or get_source_evidence

@@ -234,5 +234,202 @@
     "Inventory replay atomicity is confined to its SQLite transaction; checkout/payment are memory-only.",
     "Proxy records and operation/attempt labels are self-reports; proxy configuration does not establish a native cause edge.",
     "Uncaptured external harness requests and before-forward receiver absence remain unresolved in service reports."
-  ]
+  ],
+  "hosted_validation": {
+    "tested_commit": "b80382459249108e34996afa8f5cc620e42f2746",
+    "ci": {
+      "pull_request_run": {
+        "run_id": 38963416946,
+        "status": "PASS"
+      },
+      "push_initial_attempt": {
+        "run_id": 38963393987,
+        "status": "FAIL",
+        "failure": "AssertionError: distinct-order checkout failed",
+        "diagnostic_payload_retained": false
+      },
+      "push_failed_job_rerun": {
+        "run_id": 38963393987,
+        "status": "PASS"
+      },
+      "interpretation": "The same commit passed in the PR run and push rerun. The first failure did not reproduce; its triggering response and exact cause are unknown."
+    },
+    "docker_matrix": {
+      "run_id": 38963439397,
+      "status": "PASS",
+      "profiles": [
+        {
+          "processes": 8,
+          "status": "PASS",
+          "image_id": "sha256:2429553b57a052cc474130ec4f39d189d388bfc5397fd6e729e4298db44a3b7c",
+          "scenarios": [
+            {
+              "name": "success",
+              "requests": 4,
+              "concurrency": 2,
+              "http_statuses": [
+                200
+              ],
+              "max_concurrent_checkouts": 2,
+              "native_relations": 34,
+              "native_rpc_events": 148,
+              "rpc_dropped": 0,
+              "thread_dropped": 0,
+              "complete_or_expected_crash_processes": 8,
+              "processes": 8
+            },
+            {
+              "name": "inventory_shortage",
+              "requests": 4,
+              "concurrency": 2,
+              "http_statuses": [
+                409
+              ],
+              "max_concurrent_checkouts": 2,
+              "native_relations": 16,
+              "native_rpc_events": 72,
+              "rpc_dropped": 0,
+              "thread_dropped": 0,
+              "complete_or_expected_crash_processes": 8,
+              "processes": 8
+            },
+            {
+              "name": "payment_decline",
+              "requests": 4,
+              "concurrency": 2,
+              "http_statuses": [
+                402
+              ],
+              "max_concurrent_checkouts": 2,
+              "native_relations": 24,
+              "native_rpc_events": 104,
+              "rpc_dropped": 0,
+              "thread_dropped": 0,
+              "complete_or_expected_crash_processes": 8,
+              "processes": 8
+            },
+            {
+              "name": "inventory_timeout",
+              "requests": 4,
+              "concurrency": 2,
+              "http_statuses": [
+                504
+              ],
+              "max_concurrent_checkouts": 2,
+              "native_relations": 16,
+              "native_rpc_events": 72,
+              "rpc_dropped": 0,
+              "thread_dropped": 0,
+              "complete_or_expected_crash_processes": 8,
+              "processes": 8
+            },
+            {
+              "name": "notification_failure",
+              "requests": 4,
+              "concurrency": 2,
+              "http_statuses": [
+                200
+              ],
+              "max_concurrent_checkouts": 2,
+              "native_relations": 34,
+              "native_rpc_events": 148,
+              "rpc_dropped": 0,
+              "thread_dropped": 0,
+              "complete_or_expected_crash_processes": 8,
+              "processes": 8
+            },
+            {
+              "name": "payment_crash",
+              "requests": 1,
+              "concurrency": 2,
+              "http_statuses": [
+                502
+              ],
+              "max_concurrent_checkouts": 1,
+              "native_relations": 6,
+              "native_rpc_events": 25,
+              "rpc_dropped": 0,
+              "thread_dropped": 0,
+              "complete_or_expected_crash_processes": 8,
+              "processes": 8
+            }
+          ]
+        },
+        {
+          "processes": 16,
+          "status": "PASS",
+          "image_id": "sha256:2429553b57a052cc474130ec4f39d189d388bfc5397fd6e729e4298db44a3b7c",
+          "scenarios": [
+            {
+              "name": "success",
+              "requests": 24,
+              "concurrency": 4,
+              "http_statuses": [
+                200
+              ],
+              "max_concurrent_checkouts": 4,
+              "native_relations": 366,
+              "native_rpc_events": 1516,
+              "rpc_dropped": 0,
+              "thread_dropped": 0,
+              "complete_or_expected_crash_processes": 16,
+              "processes": 16
+            },
+            {
+              "name": "payment_decline",
+              "requests": 24,
+              "concurrency": 4,
+              "http_statuses": [
+                402
+              ],
+              "max_concurrent_checkouts": 4,
+              "native_relations": 336,
+              "native_rpc_events": 1392,
+              "rpc_dropped": 0,
+              "thread_dropped": 0,
+              "complete_or_expected_crash_processes": 16,
+              "processes": 16
+            }
+          ]
+        },
+        {
+          "processes": 32,
+          "status": "PASS",
+          "image_id": "sha256:2429553b57a052cc474130ec4f39d189d388bfc5397fd6e729e4298db44a3b7c",
+          "scenarios": [
+            {
+              "name": "success",
+              "requests": 8,
+              "concurrency": 4,
+              "http_statuses": [
+                200
+              ],
+              "max_concurrent_checkouts": 4,
+              "native_relations": 254,
+              "native_rpc_events": 1036,
+              "rpc_dropped": 0,
+              "thread_dropped": 0,
+              "complete_or_expected_crash_processes": 32,
+              "processes": 32
+            },
+            {
+              "name": "payment_decline",
+              "requests": 8,
+              "concurrency": 4,
+              "http_statuses": [
+                402
+              ],
+              "max_concurrent_checkouts": 4,
+              "native_relations": 240,
+              "native_rpc_events": 976,
+              "rpc_dropped": 0,
+              "thread_dropped": 0,
+              "complete_or_expected_crash_processes": 32,
+              "processes": 32
+            }
+          ]
+        }
+      ]
+    }
+  }
 }

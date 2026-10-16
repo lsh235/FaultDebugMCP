@@ -361,7 +361,7 @@ This CLI registration pattern follows the client-specific MCP commands in the
 manual-start note and explicit tool workflow follow common local-stdio MCP
 project documentation such as [denysvitali/codex-mcp](https://github.com/denysvitali/codex-mcp).
 
-The 25 MCP tools publish parameter descriptions, validated limits/enums and
+The 26 MCP tools publish parameter descriptions, validated limits/enums and
 read-only annotations. Their stdio definitions and non-mutating behavior are
 checked in CI. See [MCP definition verification and Glama](docs/mcp-container.md#tool-definitions-and-glama)
 for the local audit command and registry re-evaluation steps.
@@ -414,3 +414,10 @@ Before opening a pull request, read
 - [Session manifests](docs/session-manifest.md)
 - [Incident queries](docs/incident-query-v090.md)
 - [Roadmap](ROADMAP.md)
+
+### Read-only service queries
+
+Use `faultdebug service-query EVIDENCE` or MCP `get_service_flow` for bounded
+service summaries and paginated evidence. Reuse `snapshot_id` across pages to
+reject changed inputs. See [the query contract](docs/service-query.md) for
+limits, full trace/process identity matching, and interpretation boundaries.

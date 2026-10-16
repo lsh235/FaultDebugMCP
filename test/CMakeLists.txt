@@ -55,6 +55,8 @@ if(UNIX AND NOT APPLE)
     COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/abi_decoder_contract.py")
   add_test(NAME fd_python_service_report
     COMMAND ${FAULTDEBUG_VALIDATION_PYTHON} "${CMAKE_CURRENT_SOURCE_DIR}/service_report_test.py")
+  add_test(NAME fd_python_service_identity
+    COMMAND ${FAULTDEBUG_VALIDATION_PYTHON} "${CMAKE_CURRENT_SOURCE_DIR}/service_identity_contract.py")
   add_test(NAME fd_python_decoder_capacity
     COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/decoder_capacity.py"
       $<TARGET_FILE:fd_threads>)

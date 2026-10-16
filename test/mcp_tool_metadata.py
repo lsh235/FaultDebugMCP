@@ -59,7 +59,7 @@ async def audit(root):
             assert initialized.instructions and len(initialized.instructions) <= 512
             listed = await session.list_tools()
             tools = {tool.name: tool for tool in listed.tools}
-            assert len(tools) == 25, sorted(tools)
+            assert len(tools) == 26, sorted(tools)
             parameters = 0
             for name, tool in tools.items():
                 assert tool.description and 30 <= len(tool.description) <= 1600, name

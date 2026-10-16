@@ -316,6 +316,22 @@ def main() -> int:
             raise SystemExit(f"service-report: {exc}") from exc
         print(json.dumps(result, sort_keys=True)); return 0
     service_flow.set_defaults(func=service_flow_cmd)
+    query = sub.add_parser("service-query", help="read a bounded service-flow summary or evidence page")
+    query.add_argument("evidence", type=__import__('pathlib').Path)
+    query.add_argument("--section", choices=["summary", "services", "calls", "causes", "events",
+                                             "native_relations", "unresolved", "evidence_files"], default="summary")
+    query.add_argument("--page", type=int, default=0)
+    query.add_argument("--page-size", type=int, default=100)
+    query.add_argument("--snapshot-id", help="expected evidence fingerprint returned by the first query")
+    def service_query_cmd(n):
+        from .service_query import query_service_flow
+        try:
+            result = query_service_flow(n.evidence, section=n.section, page=n.page,
+                                        page_size=n.page_size, snapshot_id=n.snapshot_id)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise SystemExit(f"service-query: {exc}") from exc
+        print(json.dumps(result, sort_keys=True)); return 0
+    query.set_defaults(func=service_query_cmd)
     ns = p.parse_args()
     if ns.action == "run" and ns.command[:1] == ["--"]: ns.command = ns.command[1:]
     if ns.action == "run":

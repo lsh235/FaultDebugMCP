@@ -44,7 +44,7 @@ def main() -> int:
     assert len(resolved["items"]) == 1 and "resolved" in resolved["items"][0]
     source = tools["get_function_source"].fn(ns.artifact, ns.function_id, ns.bundle)
     assert source["resolved"] and source["source"]
-    static_relations = tools["get_call_relations"].fn(ns.artifact, ns.function_id, "outbound", ns.bundle)
+    static_relations = tools["get_call_relations"].fn(ns.artifact, ns.function_id, ns.bundle, "outbound")
     assert static_relations["direction"] == "outbound" and "relations" in static_relations
     print(json.dumps({"status": "PASS", "tools": sorted(expected), "source_file": source["file"], "relations": len(static_relations["relations"]), "discovered": discovered["count"]}, sort_keys=True))
     return 0

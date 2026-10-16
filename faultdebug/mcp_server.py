@@ -524,33 +524,33 @@ def make_server(root: Path):
         return {"items": resolve_address_records(_load(root, name), addresses, bundle=loaded,
                                                  debug_directories=_debug_directories(root, debug_directory))}
     @app.tool(annotations=_read_only("Get function source"))
-    def get_function_source(name: CaptureName, function_id: FunctionId, bundle: Annotated[str | None, Field(description="Verified root-relative source bundle directory; MUST be supplied for this lookup despite the nullable default. Missing bundle fails the call.")] = None) -> dict:
+    def get_function_source(name: CaptureName, function_id: FunctionId,
+                            bundle: RequiredBundlePath) -> dict:
         """Read exact source lines for one indexed function from a verified immutable bundle.
 
         Use a function ID from resolve_addresses or the bundle index; get_source_evidence
         verifies references for a stored incident, while get_call_relations returns
         static neighbors. Returns resolved, function_id, file, start_line, end_line and
-        source text. A bundle must be supplied even though the argument defaults to null;
-        without it the call fails. Capture decoding and bundle hashes are checked, but
+        source text. A verified bundle is required. Capture decoding and bundle hashes are checked, but
         this lookup does not itself match the capture's Build ID to that function.
         Missing source/IDs or invalid inputs produce MCP tool errors."""
         _load(root, name)
-        loaded = _bundle(root, bundle) if bundle else None
-        if loaded is None: raise ValueError("bundle is required for verified source lookup")
+        loaded = _bundle(root, bundle)
         return verified_function_source(function_id, loaded)
     @app.tool(annotations=_read_only("Get call relations"))
-    def get_call_relations(name: CaptureName, function_id: FunctionId, direction: Annotated[Literal["outbound", "inbound"], Field(description="outbound: indexed callees/unresolved edges of this function; inbound: indexed callers whose edge targets this exact function ID.")] = "outbound", bundle: Annotated[str | None, Field(description="Verified root-relative source bundle directory; MUST be supplied for this lookup despite the nullable default. Missing bundle fails the call.")] = None) -> dict:
+    def get_call_relations(name: CaptureName, function_id: FunctionId,
+                           bundle: RequiredBundlePath,
+                           direction: Annotated[Literal["outbound", "inbound"], Field(description="outbound: indexed callees/unresolved edges of this function; inbound: indexed callers whose edge targets this exact function ID.")] = "outbound") -> dict:
         """Read inbound callers or outbound call candidates for one function in a verified static index.
 
         Use for source call hypotheses; get_fault_flow reconstructs recorded nesting and
         get_process_relations joins runtime IPC/RPC evidence. Returns function_id,
         direction, relations, evidence=static_index and bundle. Outbound includes unresolved
-        edges; inbound includes indexed callers with matching callee IDs. A bundle must
-        be supplied despite the nullable default. No runtime execution is proven, and
+        edges; inbound includes indexed callers with matching callee IDs. A verified
+        bundle is required. No runtime execution is proven, and
         capture/function Build-ID matching requires resolve_addresses. Missing IDs,
         unverified bundles or invalid directions produce MCP tool errors."""
         _load(root, name)
-        loaded = _bundle(root, bundle) if bundle else None
-        if loaded is None: raise ValueError("bundle is required for verified call relations")
+        loaded = _bundle(root, bundle)
         return verified_call_relations(function_id, direction, loaded)
     return app

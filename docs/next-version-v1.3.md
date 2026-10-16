@@ -123,6 +123,17 @@ preserving the adjacent-to-capture default and refusing destination collisions.
 See the [alpha14 record](releases/v1.3.0-alpha.14.md) and
 [feature review](integration-report-output-review.md).
 
+### Alpha15 follow-up: make source-bundle requirements machine-readable
+
+`get_function_source` and `get_call_relations` already fail without a verified
+bundle, so their MCP schemas now mark `bundle` required and non-null. This
+avoids schema-permitted calls that the handlers must reject while preserving
+optional bundles for capture-only tools. It aligns with Glama TDQS parameter
+semantics; the official score remains unverified until Glama re-evaluates the
+published schema. See the [alpha15 record](releases/v1.3.0-alpha.15.md),
+[research](mcp-required-bundle-research.md), and
+[feature review](mcp-required-bundle-review.md).
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,

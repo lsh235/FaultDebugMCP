@@ -54,7 +54,9 @@ sensitive; do not expose them to untrusted MCP clients.
 ## Tool definitions and Glama
 
 The MCP `tools/list` response contains descriptions and per-parameter JSON Schema
-metadata for all 27 tools. Each tool declares `readOnlyHint=true`,
+metadata for all 27 tools in the default `full` profile. The optional `focused`
+profile exposes a bounded 15-tool capture/incident/source workflow. Every tool
+in either profile declares `readOnlyHint=true`,
 `destructiveHint=false`, `idempotentHint=true`, and `openWorldHint=false`.
 Capture and bundle paths are relative to the configured root; absolute paths,
 parent traversal and escaping symlinks are rejected. Address resolution may read
@@ -125,24 +127,26 @@ and set these fields:
   ],
   "cmdArguments": [
     "mcp-proxy", "--", ".venv/bin/fault-debug",
-    "mcp", "--root", "/app/artifacts"
+    "mcp", "--root", "/app/artifacts", "--tool-profile", "focused"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "3ab501011374250181143a3e3c45e74558f09c49",
+  "pinnedCommit": "1c0be35ef30726dac7b47c5dc473bc37ddf9088e",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }
 ```
 
-This pin selects the alpha16 bundle-discovery schema and behavior. Repository
-documentation does not update the external Glama administrator setting. The
+This full implementation SHA selects the alpha17 `focused` 15-tool first-line
+workflow; omit the profile argument for the complete 27-tool catalog. This
+repository example does not update the external Glama setting. The
 previously documented
 `255395c86809cce886ce58cdc5736b2a4c0f8aaa` revision predates it and exposed 25
 tools with 76 described parameters. Alpha15 exposed 26 tools and 83 described
-parameters, with `bundle` required for the two source tools. Alpha16 adds the
-read-only `discover_bundles` tool; its stdio audit exposes 27 tools and 84
-parameters. Check
-the generated Dockerfile's `git checkout` before deploying. A null pin alone
+parameters, with `bundle` required for the two source tools. Alpha16 added the
+read-only `discover_bundles` tool; the full-profile audit exposes 27 tools and
+84 parameters. Alpha17 keeps that behavior while its focused profile publishes
+15 tools. Check the
+generated Dockerfile's `git checkout` before deploying. A null pin alone
 does not prove that the generated checkout contains your latest changes.
 
 Python 3.12 matches `requires-python = ">=3.12,<3.13"` in `pyproject.toml`.
@@ -159,15 +163,17 @@ directory does not contain sample captures or expose the checkout as evidence.
 Click **Deploy** to test the image. After a successful test, select **Make
 Release** or **Create Release**, then **Create & Publish Release**, as described
 in [Glama's release guide](https://glama.ai/blog/2026-03-15-how-to-make-a-release).
-Check that inspection sees 27 tools, including `discover_bundles`, before checking
-the new TDQS scan. A successful image build is separate from an official score.
+Check that inspection sees 15 focused tools, including `discover_bundles`,
+before checking the new TDQS scan. A successful image build is separate from an
+official score.
 
 The old pinned revision was validated locally with Glama's generated Dockerfile
 template and `mcp-proxy@6.7.16`: image build, HTTP MCP initialization, its
 25-tool listing, 76 parameter descriptions and `get_capabilities` passed. The
 alpha15 source revision separately passed the repository's 26-tool/83-parameter
-stdio audit; alpha16's recorded audit is in its release note. Neither local
-result confirms a remote Glama deployment or TDQS score. After changing the
+stdio audit; alpha16's full-profile audit and alpha17's profile audit are in
+their release notes. Neither local result confirms a remote Glama deployment or
+TDQS score. After changing the
 administrator pin, Deploy and release the listing,
 then verify its scan timestamp, required-bundle schemas and official score.
 

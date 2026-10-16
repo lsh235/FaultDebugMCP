@@ -34,6 +34,13 @@ FunctionId = Annotated[str, Field(min_length=1, description="Exact compiler/inde
 TraceId = Annotated[str | None, Field(description="Exact context.trace_id recorded in the capture; null disables this filter. With correlation_id supplied, both filters must match (AND).")]
 CorrelationId = Annotated[str | None, Field(description="Exact context.correlation_id recorded in the capture; null disables this filter. Shared identifiers group evidence but do not prove causal links.")]
 
+FOCUSED_MCP_TOOL_NAMES = frozenset({
+    "get_capabilities", "discover_artifacts", "discover_bundles", "open_fault",
+    "get_thread_trace", "get_fault_flow", "get_rpc_trace", "get_incident_report",
+    "check_store", "list_incidents", "get_incident_slice", "get_source_evidence",
+    "resolve_addresses", "get_function_source", "get_call_relations",
+})
+
 
 def _relative(root: Path, name: str) -> Path:
     relative = Path(name)
@@ -86,20 +93,41 @@ def _bundle(root: Path, name: str):
     try: return load_bundle(path)
     except BundleError as exc: raise ValueError(str(exc)) from exc
 
-def make_server(root: Path):
+def make_server(root: Path, *, tool_profile: str = "full"):
+    if type(tool_profile) is not str or tool_profile not in {"full", "focused"}:
+        raise ValueError("tool_profile must be 'full' or 'focused'")
     try:
         from mcp.server.fastmcp import FastMCP
     except ImportError as exc:
         raise RuntimeError("official mcp Python SDK is required") from exc
-    app = FastMCP("faultdebug", instructions=(
-        "Inspect existing local captures; no recording, ingestion, repair, or report-file writes. "
-        "Start with get_capabilities/discover_artifacts; discover_bundles locates source bundles. "
-        "Use open_fault/get_fault_flow for captures. "
-        "For existing SQLite evidence, check_store then list_sessions/list_incidents and fetch a slice. "
-        "Paths are relative to --root. Keep observed, derived, static_candidates, unresolved and hypotheses "
-        "distinct. Source citations need a verified bundle; shared IDs/time order do not prove causality."
-    ))
-    @app.tool(annotations=_read_only("Get service flow"))
+    if tool_profile == "focused":
+        instructions = (
+            "Focused evidence inspection: discover_artifacts locates captures; use open_fault/get_fault_flow and "
+            "discover_bundles before verified source tools. Stored incidents use check_store, list_incidents and "
+            "get_incident_slice. Session/timeline/index tools need full profile. Paths stay under --root. Keep observed, "
+            "derived, static_candidates, unresolved and hypotheses distinct; source needs a verified bundle, and "
+            "shared IDs/time order do not prove causality. No writes or network lookup."
+        )
+    else:
+        instructions = (
+            "Inspect existing local captures; no recording, ingestion, repair, or report-file writes. "
+            "Start with get_capabilities/discover_artifacts; discover_bundles locates source bundles. "
+            "Use open_fault/get_fault_flow for captures. "
+            "For existing SQLite evidence, check_store then list_sessions/list_incidents and fetch a slice. "
+            "Paths are relative to --root. Keep observed, derived, static_candidates, unresolved and hypotheses "
+            "distinct. Source citations need a verified bundle; shared IDs/time order do not prove causality."
+        )
+    app = FastMCP("faultdebug", instructions=instructions)
+    registered_tool_names: set[str] = set()
+
+    def register_tool(*, name=None, description=None, annotations=None):
+        def decorator(function):
+            if tool_profile == "full" or function.__name__ in FOCUSED_MCP_TOOL_NAMES:
+                app.tool(name=name, description=description, annotations=annotations)(function)
+                registered_tool_names.add(name or function.__name__)
+            return function
+        return decorator
+    @register_tool(annotations=_read_only("Get service flow"))
     def get_service_flow(
         evidence: Annotated[str, Field(min_length=1, description="Root-relative frozen evidence directory containing native .fault captures and optional events.jsonl files. No symlinks; 64 MiB total input budget.")],
         section: Annotated[ServiceSection, Field(description="Summary returns counts; select one evidence collection to retrieve a page without mixing native observations and application explanations.")] = "summary",
@@ -121,16 +149,21 @@ def make_server(root: Path):
         path = _relative(root, evidence)
         return query_service_flow(path, section=section, page=page,
                                   page_size=page_size, snapshot_id=snapshot_id)
-    @app.tool(annotations=_read_only("Get capabilities"))
+    @register_tool(annotations=_read_only("Get capabilities"))
     def get_capabilities() -> dict:
         """Describe supported capture/store versions, evidence classes, platform and query limits.
 
         Use first to plan an inspection; discover_artifacts locates files and check_store
-        checks a specific database. Returns the bounded capability contract, including
-        required/additional tools and security limitations. Reads no captures and needs
+        checks a specific database. Returns the bounded contract, active MCP profile,
+        exposed tool names and filtered capability groups. Reads no captures and needs
         no credentials; it does not prove that a particular file or bundle is valid."""
-        return capability_contract()
-    @app.tool(annotations=_read_only("Check store"))
+        contract = capability_contract()
+        for key in ("required_tools", "additional_tools", "v09_tools"):
+            contract[key] = [name for name in contract[key] if name in registered_tool_names]
+        contract["mcp_tool_profile"] = tool_profile
+        contract["exposed_tools"] = sorted(registered_tool_names)
+        return contract
+    @register_tool(annotations=_read_only("Check store"))
     def check_store(db: StorePath = "evidence.sqlite3") -> dict:
         """Inspect one SQLite evidence store's health and migration compatibility without repair.
 
@@ -148,7 +181,7 @@ def make_server(root: Path):
             return {"schema": 2, "status": "error", "read_only": True,
                     "error": {"code": "STORE_PATH_INVALID", "message": "evidence store is outside the allowlisted root"}}
         return EvidenceStore.inspect_health(path)
-    @app.tool(annotations=_read_only("Open fault"))
+    @register_tool(annotations=_read_only("Open fault"))
     def open_fault(name: CaptureName, bundle: BundlePath = None) -> dict:
         """Decode one capture's process, thread, crash and integrity records for initial triage.
 
@@ -160,7 +193,7 @@ def make_server(root: Path):
         report = _load(root, name)
         if bundle: report["bundle"] = {"path": str(_bundle(root, bundle).root), "verified": True}
         return report
-    @app.tool(annotations=_read_only("Get thread trace"))
+    @register_tool(annotations=_read_only("Get thread trace"))
     def get_thread_trace(name: CaptureName, tid: Annotated[int | None, Field(ge=0, description="Captured OS thread ID; null includes all thread generations. A reused ID can match more than one thread record.")] = None, page: Page = 0) -> dict:
         """Read captured thread records and their retained function events from one artifact.
 
@@ -171,7 +204,7 @@ def make_server(root: Path):
         an unmatched tid or an exhausted page yields empty items. No live process is queried."""
         rows = thread_trace(_load(root, name), tid)
         return {"items": rows[page * 200:(page + 1) * 200], "page": page, "page_size": 200, "total": len(rows)}
-    @app.tool(annotations=_read_only("Get fault flow"))
+    @register_tool(annotations=_read_only("Get fault flow"))
     def get_fault_flow(name: CaptureName, bundle: BundlePath = None, max_events: Annotated[int, Field(ge=1, le=500, description="Maximum last retained pre-crash function events per thread (1–500); truncates the view, not the underlying capture.")] = 80, debug_directory: DebugDirectory = None) -> dict:
         """Build a bounded per-thread fault-flow model with recorded nesting, fault context and gaps.
 
@@ -187,7 +220,7 @@ def make_server(root: Path):
         return build_fault_report(_load(root, name), bundle=_bundle(root, bundle) if bundle else None,
                                   max_events=max_events,
                                   debug_directories=_debug_directories(root, debug_directory))
-    @app.tool(annotations=_read_only("Get rpc trace"))
+    @register_tool(annotations=_read_only("Get rpc trace"))
     def get_rpc_trace(name: CaptureName, page: Page = 0) -> dict:
         """Decode one capture's semantic RPC observations, static candidates and unresolved limits.
 
@@ -205,7 +238,7 @@ def make_server(root: Path):
         decoded["page"] = page
         decoded["page_size"] = 200
         return decoded
-    @app.tool(annotations=_read_only("Collect faults"))
+    @register_tool(annotations=_read_only("Collect faults"))
     def collect_faults(names: CaptureNames, trace_id: TraceId = None, correlation_id: CorrelationId = None, page: Page = 0) -> dict:
         """Collect process/crash metadata from named captures, grouped by exact context identifiers.
 
@@ -221,7 +254,7 @@ def make_server(root: Path):
         start = max(0, page) * 200
         result["artifacts"] = result["artifacts"][start:start + 200]; result["page"] = max(0, page); result["page_size"] = 200
         return result
-    @app.tool(annotations=_read_only("Get timeline"))
+    @register_tool(annotations=_read_only("Get timeline"))
     def get_timeline(names: CaptureNames) -> dict:
         """Order captured process-start, crash and explicit IPC events, preserving ambiguous links.
 
@@ -234,7 +267,7 @@ def make_server(root: Path):
         if len(names) > 1000: raise ValueError("maximum 1000 artifacts")
         reports = [collect_file(_safe_artifact(root, name)) for name in names]
         return build_timeline(reports)
-    @app.tool(annotations=_read_only("Get process relations"))
+    @register_tool(annotations=_read_only("Get process relations"))
     def get_process_relations(names: CaptureNames, page: Page = 0) -> dict:
         """Match explicit IPC/RPC endpoint evidence across named captures into process relationships.
 
@@ -253,7 +286,7 @@ def make_server(root: Path):
         result["page"] = page
         result["page_size"] = 200
         return result
-    @app.tool(annotations=_read_only("Get evidence summary"))
+    @register_tool(annotations=_read_only("Get evidence summary"))
     def get_evidence_summary(name: CaptureName) -> dict:
         """Summarize RPC evidence counts and limits for one capture without returning full histories.
 
@@ -264,7 +297,7 @@ def make_server(root: Path):
         as successful communication. Invalid capture paths or decode failures produce
         MCP tool errors. No target execution or evidence ingestion occurs."""
         return evidence_summary([_load(root, name)])
-    @app.tool(annotations=_read_only("Get incident report"))
+    @register_tool(annotations=_read_only("Get incident report"))
     def get_incident_report(names: CaptureNames, page: Page = 0) -> dict:
         """Project a combined RPC incident report directly from named captures, without a stored incident ID.
 
@@ -283,7 +316,7 @@ def make_server(root: Path):
         result["page_size"] = 200
         result["total_rpc_events"] = len(events)
         return result
-    @app.tool(annotations=_read_only("Get session manifest"))
+    @register_tool(annotations=_read_only("Get session manifest"))
     def get_session_manifest(names: CaptureNames, page: Page = 0) -> dict:
         """Build a runtime-session manifest with participants and separate cross-process evidence classes.
 
@@ -303,7 +336,7 @@ def make_server(root: Path):
         result["page_size"] = 200
         result["total_participants"] = len(participants)
         return result
-    @app.tool(annotations=_read_only("Get process participants"))
+    @register_tool(annotations=_read_only("Get process participants"))
     def get_process_participants(names: CaptureNames, page: Page = 0) -> dict:
         """List captured process identities, generations and collector status from named artifacts.
 
@@ -323,7 +356,7 @@ def make_server(root: Path):
         result["page_size"] = 200
         result["total_participants"] = len(participants)
         return result
-    @app.tool(annotations=_read_only("List sessions"))
+    @register_tool(annotations=_read_only("List sessions"))
     def list_sessions(db: StorePath = "evidence.sqlite3", start_ns: StartNs = None,
                       end_ns: EndNs = None, trust_state: TrustState = None,
                       page: Page = 0) -> dict:
@@ -343,7 +376,7 @@ def make_server(root: Path):
             raise ValueError(str(exc)) from exc
         finally:
             store.close()
-    @app.tool(annotations=_read_only("Get session"))
+    @register_tool(annotations=_read_only("Get session"))
     def get_session(session_id: SessionId, db: StorePath = "evidence.sqlite3",
                     start_ns: StartNs = None, end_ns: EndNs = None,
                     trust_state: TrustState = None, page: Page = 0) -> dict:
@@ -365,7 +398,7 @@ def make_server(root: Path):
             raise ValueError(str(exc)) from exc
         finally:
             store.close()
-    @app.tool(annotations=_read_only("Get provenance"))
+    @register_tool(annotations=_read_only("Get provenance"))
     def get_provenance(db: StorePath = "evidence.sqlite3", session_id: SessionId = None,
                        artifact_id: Annotated[int | None, Field(ge=1, description="Exact numeric artifact row ID from get_session/get_incident_slice; null includes all matching artifact rows.")] = None, trust_state: ProvenanceTrust = None,
                        page: Page = 0) -> dict:
@@ -385,7 +418,7 @@ def make_server(root: Path):
             raise ValueError(str(exc)) from exc
         finally:
             store.close()
-    @app.tool(annotations=_read_only("List incidents"))
+    @register_tool(annotations=_read_only("List incidents"))
     def list_incidents(db: StorePath = "evidence.sqlite3", session_id: SessionId = None,
                        start_ns: StartNs = None, end_ns: EndNs = None,
                        trust_state: TrustState = None, page: Page = 0) -> dict:
@@ -406,7 +439,7 @@ def make_server(root: Path):
                 store.close()
         except (EvidenceStoreError, ValueError) as exc:
             return {"schema": 2, "error": {"code": "INCIDENT_QUERY_ERROR", "message": str(exc)}}
-    @app.tool(annotations=_read_only("Get incident slice"))
+    @register_tool(annotations=_read_only("Get incident slice"))
     def get_incident_slice(incident_id: IncidentId, db: StorePath = "evidence.sqlite3",
                            trust_state: TrustState = None, page: Page = 0) -> dict:
         """Read artifact, process, RPC and source-reference evidence for one stored declared incident.
@@ -427,7 +460,7 @@ def make_server(root: Path):
                 store.close()
         except (EvidenceStoreError, ValueError) as exc:
             return {"schema": 2, "error": {"code": "INCIDENT_QUERY_ERROR", "message": str(exc)}}
-    @app.tool(annotations=_read_only("Get unresolved"))
+    @register_tool(annotations=_read_only("Get unresolved"))
     def get_unresolved(incident_id: IncidentId, db: StorePath = "evidence.sqlite3", page: Page = 0) -> dict:
         """Read only unresolved evidence and capture-limit rows for one stored incident.
 
@@ -446,7 +479,7 @@ def make_server(root: Path):
                 store.close()
         except (EvidenceStoreError, ValueError) as exc:
             return {"schema": 2, "error": {"code": "INCIDENT_QUERY_ERROR", "message": str(exc)}}
-    @app.tool(annotations=_read_only("Get source evidence"))
+    @register_tool(annotations=_read_only("Get source evidence"))
     def get_source_evidence(incident_id: IncidentId, bundle: RequiredBundlePath,
                             db: StorePath = "evidence.sqlite3",
                             function_ids: Annotated[list[FunctionId] | None, Field(max_length=100, description="Up to 100 exact index IDs to request in addition to incident references. Null/empty uses stored references; IDs outside the bundle stay unresolved.")] = None, page: Page = 0) -> dict:
@@ -469,7 +502,7 @@ def make_server(root: Path):
                 store.close()
         except (EvidenceStoreError, ValueError) as exc:
             return {"schema": 2, "error": {"code": "SOURCE_EVIDENCE_ERROR", "message": str(exc)}}
-    @app.tool(annotations=_read_only("Discover artifacts"))
+    @register_tool(annotations=_read_only("Discover artifacts"))
     def discover_artifacts(pattern: Annotated[str, Field(min_length=1, description="Root-relative recursive filename glob, e.g. fault-*.fault or *.json. No absolute paths or parent traversal; at most 10,000 matches.")] = "fault-*.fault", include_json: Annotated[bool, Field(description="With default fault-*.fault, also discover fault-*.json; with a custom pattern this does not add another glob.")] = False, page: Page = 0) -> dict:
         """Recursively discover and validate captures beneath the configured artifact root.
 
@@ -490,7 +523,7 @@ def make_server(root: Path):
         result["page"] = page
         result["page_size"] = 200
         return result
-    @app.tool(annotations=_read_only("Discover bundles"))
+    @register_tool(annotations=_read_only("Discover bundles"))
     def discover_bundles(page: Page = 0) -> dict:
         """Find root-relative directories containing a bundle.json manifest candidate.
 
@@ -506,7 +539,7 @@ def make_server(root: Path):
             return discover_bundle_paths(root, page=page)
         except BundleError as exc:
             raise ValueError(str(exc)) from exc
-    @app.tool(annotations=_read_only("Query artifact index"))
+    @register_tool(annotations=_read_only("Query artifact index"))
     def query_artifact_index(name: Annotated[str, Field(min_length=1, description="Existing root-relative .sqlite or .db legacy artifact index created by artifact-index CLI; not a schema-v2 evidence store.")], trace_id: TraceId = None, correlation_id: CorrelationId = None, page: Page = 0) -> dict:
         """Query capture payloads from an existing legacy SQLite artifact metadata index.
 
@@ -523,7 +556,7 @@ def make_server(root: Path):
             rows = index.query(trace_id=trace_id, correlation_id=correlation_id, limit=200, offset=max(page, 0) * 200)
             return {"schema": 1, "count": len(rows), "page": max(page, 0), "page_size": 200, "artifacts": rows}
         finally: index.close()
-    @app.tool(annotations=_read_only("Resolve addresses"))
+    @register_tool(annotations=_read_only("Resolve addresses"))
     def resolve_addresses(name: CaptureName, addresses: Annotated[list[Annotated[int, Field(ge=0, le=18446744073709551615)]], Field(max_length=1000, description="Up to 1,000 absolute runtime instruction addresses as JSON integers, e.g. [4198400]; preserve uint64 precision, do not pass hex strings or offsets.")], bundle: BundlePath = None, debug_directory: DebugDirectory = None) -> dict:
         """Resolve captured instruction addresses against module Build IDs and available ELF symbols.
 
@@ -540,7 +573,7 @@ def make_server(root: Path):
         loaded = _bundle(root, bundle) if bundle else None
         return {"items": resolve_address_records(_load(root, name), addresses, bundle=loaded,
                                                  debug_directories=_debug_directories(root, debug_directory))}
-    @app.tool(annotations=_read_only("Get function source"))
+    @register_tool(annotations=_read_only("Get function source"))
     def get_function_source(name: CaptureName, function_id: FunctionId,
                             bundle: RequiredBundlePath) -> dict:
         """Read exact source lines for one indexed function from a verified immutable bundle.
@@ -554,7 +587,7 @@ def make_server(root: Path):
         _load(root, name)
         loaded = _bundle(root, bundle)
         return verified_function_source(function_id, loaded)
-    @app.tool(annotations=_read_only("Get call relations"))
+    @register_tool(annotations=_read_only("Get call relations"))
     def get_call_relations(name: CaptureName, function_id: FunctionId,
                            bundle: RequiredBundlePath,
                            direction: Annotated[Literal["outbound", "inbound"], Field(description="outbound: indexed callees/unresolved edges of this function; inbound: indexed callers whose edge targets this exact function ID.")] = "outbound") -> dict:
@@ -570,4 +603,7 @@ def make_server(root: Path):
         _load(root, name)
         loaded = _bundle(root, bundle)
         return verified_call_relations(function_id, direction, loaded)
+    required_tools = set(capability_contract()["required_tools"])
+    if not required_tools <= registered_tool_names:
+        raise RuntimeError("MCP profile omitted one or more required capability tools")
     return app

@@ -29,6 +29,14 @@ GNU `.build-id` cache entry whose embedded Build ID matches the captured module.
 This does not close the independent stable gates above. The behavior and limits
 are in [the alpha4 record](releases/v1.3.0-alpha.4.md).
 
+### Alpha5 follow-up: reproducible debug package output
+
+`faultdebug debug-package` produces the stripped runtime and GNU Build-ID debug
+layout consumed by alpha4, without modifying the input and without replacing an
+existing destination. The command verifies the input, runtime, and sidecar
+Build IDs before publishing the package. Scope and validation are recorded in
+[the alpha5 record](releases/v1.3.0-alpha.5.md).
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,

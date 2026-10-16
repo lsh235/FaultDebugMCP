@@ -24,6 +24,10 @@ This roadmap describes work beyond v0.1.0. It is not a promise of delivery dates
   the GNU `.build-id` layout. It verifies the sidecar Build ID before using its
   symbols and exposes the same optional lookup to CLI and MCP inspection. See
   [alpha4 scope and validation](docs/releases/v1.3.0-alpha.4.md).
+- `v1.3.0-alpha.5` adds `faultdebug debug-package` to generate a new,
+  Build-ID-verified stripped runtime plus `.build-id` debug root from one linked
+  ELF. The output is directly consumable by alpha4's local debug-directory
+  resolver. See [alpha5 scope and validation](docs/releases/v1.3.0-alpha.5.md).
 - The remaining stage F work (general native attempt pairing, native clock metadata,
   container/Pod lifecycle provenance), G (broader Docker/network fault profiles), H
   (8/16/32 scale and measured retained snapshots), I (general viewer/drill-down)

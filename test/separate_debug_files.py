@@ -83,6 +83,14 @@ class SeparateDebugFileTests(unittest.TestCase):
             self.assertFalse(mismatch[0]["resolved"], mismatch)
             self.assertEqual(mismatch[0]["reason"], "missing_symbol")
 
+            malformed_root = root / "malformed-debug"
+            malformed_path = malformed_root / ".build-id" / expected_id[:2] / f"{expected_id[2:]}.debug"
+            malformed_path.parent.mkdir(parents=True)
+            malformed_path.write_text("not an ELF file", encoding="utf-8")
+            malformed = resolve_addresses(report, [address], debug_directories=[malformed_root])
+            self.assertFalse(malformed[0]["resolved"], malformed)
+            self.assertEqual(malformed[0]["reason"], "missing_symbol")
+
     def test_bad_debug_directory_is_rejected(self):
         with self.assertRaisesRegex(ValueError, "must exist and be directories"):
             resolve_addresses({"modules": []}, [], debug_directories=["/path/that/does/not/exist"])

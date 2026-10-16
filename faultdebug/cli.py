@@ -266,6 +266,19 @@ def main() -> int:
         return serve_agent(n.socket, n.spool_root, max_bytes=n.max_bytes, max_files=n.max_files,
                            status_path=n.status_path)
     agent.set_defaults(func=agent_cmd)
+    debug_package = sub.add_parser("debug-package", help="split a linked ELF into a stripped runtime and Build-ID debug package")
+    debug_package.add_argument("binary", type=__import__('pathlib').Path)
+    debug_package.add_argument("--output", required=True, type=__import__('pathlib').Path,
+                               help="new output directory; existing paths are never overwritten")
+    debug_package.add_argument("--objcopy", help="objcopy executable (defaults to FAULTDEBUG_OBJCOPY, objcopy, or llvm-objcopy)")
+    def debug_package_cmd(n):
+        from .debug_package import create_debug_package
+        try:
+            result = create_debug_package(n.binary, n.output, objcopy=n.objcopy)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise SystemExit(f"debug-package: {exc}") from exc
+        print(json.dumps(result, sort_keys=True)); return 0
+    debug_package.set_defaults(func=debug_package_cmd)
     ins = sub.add_parser("inspect", help="inspect a captured fault artifact")
     ins.add_argument("artifact")
     ins.add_argument("--bundle")

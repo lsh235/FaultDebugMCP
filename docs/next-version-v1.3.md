@@ -105,6 +105,16 @@ existing report writer; English remains the default and the option requires
 `--fault-report`. See the [alpha12 record](releases/v1.3.0-alpha.12.md) and
 [feature review](integration-report-language-review.md).
 
+### Alpha13 follow-up: control integrated report context
+
+`integrate --fault-report-max-events 1..500` exposes the existing per-thread
+display bound in the integrated report flow, retaining the alpha12 default of
+80 and the report's omitted-from-view accounting. Meson adoption was reviewed
+and deferred because the current Meson wrapper path cannot yet prove the
+selected-target provenance and runtime-link lifecycle required by `integrate`.
+See the [alpha13 record](releases/v1.3.0-alpha.13.md), [event-limit review](integration-report-event-limit-review.md),
+and [Meson deferral review](meson-adoption-review.md).
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,

@@ -201,6 +201,7 @@ __attribute__((noinline)) int adoption_library(int crash) {
         args.insert(args.index("--json"), "--execute-target")
         args.insert(args.index("--json"), "--fault-report")
         args.insert(args.index("--json"), "--fault-report-language=ko")
+        args.insert(args.index("--json"), "--fault-report-max-events=1")
         args.extend(["--target-arg=--fixture-arg", "--target-arg=value with spaces"])
         self.env["ADOPTION_EXECUTION_MARKER"] = str(marker)
         try:
@@ -220,6 +221,10 @@ __attribute__((noinline)) int adoption_library(int crash) {
         assert report_model["bundle"]["verified"] is True
         assert report_model["artifact"]["checksum_verified"] is True
         assert report_model["language"] == "ko"
+        assert all(len(thread["events"]) <= 1 for thread in report_model["threads"])
+        assert sum(thread["omitted_from_view"] for thread in report_model["threads"]) == (
+            sum(thread["retained_events"] for thread in report_model["threads"])
+            - sum(len(thread["events"]) for thread in report_model["threads"]))
         assert report_model["crashes"] == []
         assert {path.name for path in report_dir.iterdir()} == {
             "report.json", "report.md", "report.html"}

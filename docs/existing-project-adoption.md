@@ -110,6 +110,10 @@ are never replaced. No-crash captures remain explicitly no-crash, and the
 report does not infer a root cause. Choose Korean with
 `--fault-report-language=ko`; English remains the default. This language option
 requires `--fault-report` and affects the JSON, Markdown and HTML report files.
+Set `--fault-report-max-events=1..500` to control the newest pre-crash events
+shown per thread; the default remains 80. This option also requires
+`--fault-report`. Lower display limits record how many retained events were
+omitted from the view and do not change the capture or report its data as lost.
 
 The main target must be a project-owned executable. Targets in nested
 `add_subdirectory()` directories and custom executable output directories are

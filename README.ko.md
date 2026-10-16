@@ -29,7 +29,7 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-개발 버전은 **1.3.0a12** (`v1.3.0-alpha.12`)이며, 문서의 증거 기반 구현은
+개발 버전은 **1.3.0a13** (`v1.3.0-alpha.13`)이며, 문서의 증거 기반 구현은
 [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)로 고정했습니다.
 기존 프로젝트용 정적 ELF 점검과 분리된 CMake 적용 경로를 제공합니다.
 `faultdebug self-test`가 설치된 경로의 고정 fixture capture를 확인하고,
@@ -38,10 +38,14 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 앱을 실행하고 complete/stable/loss-free 캡처 하나를 검증합니다. 알파11의
 `--fault-report`는 검증된 캡처와 번들로 보고서를 함께 생성합니다. 알파12는
 `--fault-report-language ko`로 보고서 언어를 고를 수 있고 영어 기본값을 유지합니다.
+알파13은 통합 보고서의 스레드별 표시 이벤트를 `--fault-report-max-events 1..500`으로
+조절하며 기본 80개와 생략 수 표시는 유지합니다. Meson 적용은 동일한 source provenance
+경로를 보장할 설계가 준비될 때까지 보류했습니다.
 모든 실행은 명시적 opt-in입니다.
 [기존 프로젝트 적용 안내](docs/existing-project-adoption.md) ·
 [보고서 언어 검토](docs/integration-report-language-review.md) ·
-[구현 범위와 검증](docs/releases/v1.3.0-alpha.12.md)
+[이벤트 상한 검토](docs/integration-report-event-limit-review.md) ·
+[구현 범위와 검증](docs/releases/v1.3.0-alpha.13.md)
 
 정식 릴리스의 독립 최종 수락, 현재 revision의 전체 core/gRPC profile,
 kind·새 30분 soak는 남아 있습니다. Docker 8/16/32 검증은 이번 알파 기록에 명시한

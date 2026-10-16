@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT))
 from faultdebug.adoption import (AdoptionError, execute_integration_build,
                                  execute_integration_target,
                                  write_integration_fault_report)
+from faultdebug.artifact import write_artifact
 from faultdebug.bundle import create_bundle
 from faultdebug.cli import main as cli_main
 
@@ -77,6 +78,16 @@ def main() -> int:
     _assert_cli_rejects("--fault-report", message="--fault-report requires --execute-target")
     _assert_cli_rejects("--fault-report-language=ko",
                          message="--fault-report-language requires --fault-report")
+    _assert_cli_rejects("--fault-report-max-events=1",
+                         message="--fault-report-max-events requires --fault-report")
+    _assert_cli_rejects("--execute-build", "--execute-target", "--fault-report",
+                         "--fault-report-max-events=0",
+                         message="--fault-report-max-events must be between 1 and 500")
+    _assert_cli_rejects("--execute-build", "--execute-target", "--fault-report",
+                         "--fault-report-max-events=501",
+                         message="--fault-report-max-events must be between 1 and 500")
+    _assert_cli_rejects("--execute-build", "--execute-target", "--fault-report",
+                         "--fault-report-max-events=many", message="invalid int value")
     with tempfile.TemporaryDirectory(prefix="faultdebug-integration-execute-") as raw:
         root = Path(raw)
         source = root / "source"
@@ -146,10 +157,48 @@ def main() -> int:
         assert report_model["artifact"]["checksum_verified"] is True
         assert report_model["language"] == "ko"
         assert report_model["crashes"] == []
+        assert len(report_model["threads"][0]["events"]) == 1
+        assert report_model["threads"][0]["omitted_from_view"] == 0
         assert {path.name for path in target_report_dir.iterdir()} == {
             "report.json", "report.md", "report.html"}
         assert "장애 레코드 없음" in (target_report_dir / "report.md").read_text()
         assert write_integration_fault_report(target_result, target_build_result)["status"] == "FAIL"
+
+        # The integrated report keeps only the newest events and labels the
+        # omitted display context without changing the underlying artifact.
+        limited_capture = {
+            "header": {"status": 0},
+            "threads": [{"tid": 3, "generation": 1, "slot": 0,
+                         "event_count": 3, "dropped_count": 0,
+                         "events": [{"sequence": i, "monotonic_ns": i + 1,
+                                     "type": 1, "function": i + 10,
+                                     "callsite": 0, "generation": 1}
+                                    for i in range(3)]}],
+            "rpc": {"header": {"dropped_count": 0}, "complete": True},
+            "complete": True, "snapshot_consistency": {"stable": True, "unstable_records": []},
+            "collector": {"ok": True}, "target": {"returncode": 0, "signal": None},
+        }
+        limited_artifact = write_artifact(limited_capture, root / "limited-artifacts",
+                                          pid=3, artifact_stem="limited")
+        limited_report = write_integration_fault_report(
+            {"target_launch": "RAN", "artifact": str(limited_artifact)},
+            target_build_result, max_events=1)
+        assert limited_report["status"] == "PASS", limited_report
+        limited_model = json.loads((Path(limited_report["output"]) / "report.json").read_text())
+        assert len(limited_model["threads"][0]["events"]) == 1, limited_model
+        assert limited_model["threads"][0]["events"][0]["sequence"] == 2, limited_model
+        assert limited_model["threads"][0]["omitted_from_view"] == 2, limited_model
+        assert limited_model["capture"]["evidence_status"] == "capture_complete", limited_model
+        largest_artifact = write_artifact(limited_capture, root / "largest-artifacts",
+                                          pid=4, artifact_stem="largest")
+        largest_report = write_integration_fault_report(
+            {"target_launch": "RAN", "artifact": str(largest_artifact)},
+            target_build_result, max_events=500)
+        assert largest_report["status"] == "PASS", largest_report
+        largest_model = json.loads((Path(largest_report["output"]) / "report.json").read_text())
+        assert len(largest_model["threads"][0]["events"]) == 3, largest_model
+        assert largest_model["threads"][0]["omitted_from_view"] == 0, largest_model
+        assert largest_model["capture"]["evidence_status"] == "capture_complete", largest_model
         symlink_artifacts = root / "symlink-artifacts"
         symlink_artifacts.mkdir()
         symlink_artifact = symlink_artifacts / Path(target_result["artifact"]).name
@@ -215,6 +264,7 @@ def main() -> int:
         assert cli_result["execution"]["overall_status"] == "FAIL", cli_result
         report_writer.assert_called_once()
         assert report_writer.call_args.kwargs["language"] == "ko", report_writer.call_args
+        assert report_writer.call_args.kwargs["max_events"] == 80, report_writer.call_args
 
         failed_build = root / "failed-build"
         failed_state = failed_build / ".faultdebug-adopt"

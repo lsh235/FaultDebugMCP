@@ -39,6 +39,8 @@ def main() -> int:
                             help="after target capture, write an evidence-bound report beside the artifact")
     integrate.add_argument("--fault-report-language", choices=("en", "ko"),
                             help="language for the integrated report (requires --fault-report; default: en)")
+    integrate.add_argument("--fault-report-max-events", type=int,
+                            help="last 1–500 pre-crash events per thread in the report (requires --fault-report; default: 80)")
     integrate.add_argument("--json", action="store_true", help="print the full versioned command plan")
     def integrate_cmd(n):
         from .adoption import (AdoptionError, execute_integration_build,
@@ -52,6 +54,10 @@ def main() -> int:
             p.error("--fault-report requires --execute-target")
         if n.fault_report_language and not n.fault_report:
             p.error("--fault-report-language requires --fault-report")
+        if n.fault_report_max_events is not None and not n.fault_report:
+            p.error("--fault-report-max-events requires --fault-report")
+        if n.fault_report_max_events is not None and not 1 <= n.fault_report_max_events <= 500:
+            p.error("--fault-report-max-events must be between 1 and 500")
         try:
             plan = prepare_integration(n.source_root, n.build_dir, n.target, n.faultdebug_prefix,
                                        profile=n.profile, cmake_args=n.cmake_arg,
@@ -66,7 +72,9 @@ def main() -> int:
                     report_result = None
                     if n.fault_report:
                         report_result = write_integration_fault_report(
-                            target_execution, execution, language=n.fault_report_language or "en")
+                            target_execution, execution, language=n.fault_report_language or "en",
+                            max_events=(n.fault_report_max_events
+                                        if n.fault_report_max_events is not None else 80))
                         execution["fault_report"] = report_result
                     execution["overall_status"] = (
                         "PASS" if execution["status"] == "PASS" and

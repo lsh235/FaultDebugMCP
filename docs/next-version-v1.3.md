@@ -3,7 +3,12 @@
 작성일: **2026-10-11, Asia/Seoul**.
 기준 revision: `70d6771386a97778bdad167c6508827d6c1d56b4`.
 상태: **IN PROGRESS — P0-01 완료, P0-02 로컬·hosted gate PASS, 최종 수락 pending**.
-v1.3은 제안 버전명이며, 현재 패키지는 `1.2.0rc1`이다.
+초기 계획 작성 당시 패키지는 `1.2.0rc1`이었다.
+2026-10-17: 증거 기반 구현을 `v1.2.0-rc.2`로 고정하고 `1.3.0a1` 개발 알파에서
+P1-01/P1-02의 첫 범위(traceparent v00, 명시적 RPC/span 연결, 세대·선택적 시계 출처,
+상대 timeout)를 구현했다. 일반 retry/attempt, native clock metadata, Pod/container
+lifecycle 및 전체 P1 수락은 남아 있다. 아래 원래 matrix는 전체 정식 수락 기준이며,
+[이번 알파의 범위와 실제 검증](releases/v1.3.0-alpha.1.md)을 함께 읽는다.
 
 ## 1. 목표와 출발 조건
 

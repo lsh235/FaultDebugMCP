@@ -40,6 +40,11 @@ jobs:
         run: |
           python test/service_identity_contract.py
           python test/service_query_contract.py
+      - name: Test HTTP identity and local clock contracts
+        run: |
+          python test/http_context_contract.py
+          python test/process_clock_contract.py
+          python test/shop_http_context.py
       - name: Test cross-service report and container PID identities
         run: python test/service_report_test.py
 
@@ -64,7 +69,7 @@ jobs:
         env:
           CC: clang-18
           CXX: clang++-18
-        run: cmake -S . -B build-ci -G Ninja -DFAULTDEBUG_BUILD_TESTS=ON -DFAULTDEBUG_ENABLE_PROVENANCE=OFF
+        run: cmake -S . -B build-ci -G Ninja -DFAULTDEBUG_BUILD_TESTS=ON -DFAULTDEBUG_BUILD_SHOP=ON -DFAULTDEBUG_ENABLE_PROVENANCE=OFF
       - name: Build native fixtures
         run: cmake --build build-ci --parallel 2
       - name: Runtime smoke
@@ -72,6 +77,8 @@ jobs:
           python3 -m faultdebug.cli run -- build-ci/test/fd_c_chain 16
           python3 test/crash_thread_generation.py build-ci/test/fd_c_chain
           test -x build-ci/test/fd_c_chain
+      - name: Test real HTTP context with native recorder
+        run: python3 test/shop_http_context.py --boundary build-ci/test/shop/libshop_boundary.so --runtime-dir build-ci
       - name: Record toolchain versions
         run: |
           clang-18 --version

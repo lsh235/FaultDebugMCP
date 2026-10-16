@@ -4,7 +4,7 @@
 > Follow recorded calls across services, inspect the fault location, and see
 > which evidence is missing.
 
-[![Native candidate](https://img.shields.io/badge/native-v1.2.0--rc.1-orange)](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.1)
+[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.1-orange)](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.3.0-alpha.1)
 [![Release gates](https://img.shields.io/github/actions/workflow/status/lsh235/FaultDebugMCP/v12-release-gate.yml?branch=main&label=release%20gates)](https://github.com/lsh235/FaultDebugMCP/actions/workflows/v12-release-gate.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 [![Clang 18](https://img.shields.io/badge/Clang-18-orange)](https://clang.llvm.org/)
@@ -61,16 +61,18 @@ static call-graph candidates as observed execution.
 
 ## Project status
 
-The native package is **1.2.0rc1**; `v1.2.0-rc.1` is a pre-release candidate.
-Main also includes offline service reports and generation-counter fixes.
-Current-source core/gRPC and Docker N=8/16 gates pass locally and on GitHub;
-see [the current-source validation](docs/v1.3-p0-01.md).
-The prebuilt demo is a separate development snapshot, not a stable release.
+The development package is **1.3.0a1** (`v1.3.0-alpha.1`); the evidence-foundation
+baseline is [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2).
+This alpha adds version-00 W3C HTTP trace context, explicit RPC/span mapping in the
+shopping fixture, optional process/clock provenance, and receiver-local timeouts.
+See [the transport contract](docs/http-context.md) and
+[the milestone scope and verification](docs/releases/v1.3.0-alpha.1.md).
 
-Final independent acceptance and a fresh 30-minute soak after the generation
-fix remain pending. The earlier RC soak was incomplete; its counts and source
-scope are in [the historical validation](docs/v1.2-p3-01.md).
-See the [v1.3 plan](docs/next-version-v1.3.md) for remaining work.
+Final independent stable acceptance, current-revision full core/gRPC profiles,
+Docker scale, kind and fresh 30-minute soak remain pending. Historical gate/soak
+results apply only to their recorded revisions; the earlier soak retained
+explicit loss ([historical validation](docs/v1.2-p3-01.md)).
+The [v1.3 plan](docs/next-version-v1.3.md) tracks the remaining work.
 
 ## What it provides
 

@@ -48,10 +48,15 @@ def _optional_identity_id(value: object, field: str) -> str | None:
 
 
 def _identity_generation(value: object) -> int:
-    try:
+    if isinstance(value, bool):
+        raise SessionIdentityError("process_generation must be a positive integer")
+    if isinstance(value, int):
         result = int(value)
-    except (TypeError, ValueError) as exc:
-        raise SessionIdentityError("process_generation must be a positive integer") from exc
+    elif (isinstance(value, str) and 0 < len(value) <= 10
+          and value.isascii() and value.isdecimal() and value[0] != "0"):
+        result = int(value)
+    else:
+        raise SessionIdentityError("process_generation must be a positive integer or canonical decimal string")
     if result < 1 or result > 0xFFFFFFFF:
         raise SessionIdentityError("process_generation must be between 1 and 2^32-1")
     return result
@@ -68,7 +73,7 @@ class ProcessIdentity:
     def __post_init__(self) -> None:
         _identity_id(self.session_id, "session_id")
         _identity_id(self.process_id, "process_id")
-        _identity_generation(self.process_generation)
+        object.__setattr__(self, "process_generation", _identity_generation(self.process_generation))
         _optional_identity_id(self.parent_process_id, "parent_process_id")
         if self.role is not None and (
             not isinstance(self.role, str)
@@ -81,7 +86,14 @@ class ProcessIdentity:
     def session_record(self) -> dict[str, object]:
         return {"schema": SESSION_SCHEMA, "session_id": self.session_id}
 
-    def process_record(self, *, pid: int | None = None, parent_pid: int | None = None) -> dict[str, object]:
+    def process_record(self, *, pid: int | None = None, parent_pid: int | None = None,
+                       clock: Mapping[str, object] | None = None) -> dict[str, object]:
+        """Project identity, optionally including caller-supplied clock provenance.
+
+        Callers must sample provenance in the process it describes.  A launcher
+        or daemon recording another PID cannot assume that target shares its
+        time namespace, so this method never samples clocks automatically.
+        """
         result: dict[str, object] = {
             "schema": SESSION_SCHEMA,
             "session_id": self.session_id,
@@ -96,6 +108,8 @@ class ProcessIdentity:
             result["pid"] = int(pid)
         if parent_pid is not None:
             result["parent_pid"] = int(parent_pid)
+        if clock is not None:
+            result["clock"] = dict(clock)
         return result
 
 
@@ -265,7 +279,7 @@ def _participant(report: dict[str, Any], index: int, declared_id: str | None,
     if artifact_ref is not None:
         result["artifact_ref"] = str(artifact_ref)
     for key in ("pid", "parent_pid", "executable", "start_monotonic_ns", "process_id",
-                "process_generation", "parent_process_id", "role"):
+                "process_generation", "parent_process_id", "role", "clock"):
         if key in process:
             result[key] = process[key]
         elif key in process_identity:

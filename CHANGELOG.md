@@ -2,6 +2,22 @@
 
 ## [Unreleased]
 
+## [1.3.0-alpha.1] - 2026-10-17
+
+Identity-transport development milestone; Python package `1.3.0a1` and native
+project `1.3.0`. This is the first part of the v1.3 plan, not stable acceptance.
+
+- Add a strict, dependency-free version-00 W3C traceparent adapter preserving all
+  128 trace bits and flags, rejecting ambiguous/duplicate context explicitly.
+- Use it in the real HTTP shopping lab with explicit numeric RPC correlation and
+  separate client/server span IDs. Headers and app logs remain application evidence.
+- Record optional local Linux boot/time-namespace clock provenance; keep unknown
+  sources unknown and validate process-generation values without lossy coercion.
+- Compute receiver deadlines from bounded relative timeout budgets.
+- Validate HTTP boundaries with both an explicit fake recorder and native captures,
+  alongside installed CLI/MCP and existing report/query contracts.
+
+
 ## [1.2.0-rc.2] - 2026-10-17
 
 Evidence-foundation candidate based on `cb02d7ab9265c22e3e6c1e05f1460fb336c2001a`.

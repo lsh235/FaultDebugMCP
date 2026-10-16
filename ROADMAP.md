@@ -2,6 +2,24 @@
 
 This roadmap describes work beyond v0.1.0. It is not a promise of delivery dates.
 
+## 2026-10-17 development milestones
+
+- `v1.2.0-rc.2` records the PDF's evidence-foundation implementation from
+  `cb02d7a`; [compatibility and acceptance limits](docs/releases/v1.2.0-rc.2.md).
+- `v1.3.0-alpha.1` begins stage F: strict full128 traceparent v00, explicit
+  lab RPC/client/server mapping, optional boot/time-namespace provenance,
+  validated generations and receiver-local relative deadlines. See
+  [milestone evidence and remaining work](docs/releases/v1.3.0-alpha.1.md).
+- The remaining stage F work (general attempt pairing, native clock metadata,
+  container/Pod lifecycle provenance), G (chaos/durable retry oracle), H
+  (8/16/32 scale and measured retained snapshots), I (general viewer/drill-down)
+  and J (full package/hosted/soak and independent stable acceptance) stay open.
+
+Adoption goal: let a new user complete one reproducible installation → capture →
+CLI/MCP summary → source/unknown-evidence investigation, then accept outside
+failure fixtures and measured improvements. Popularity and provider counts are
+not acceptance criteria; task completion and trustworthy evidence are.
+
 ## REA-informed evidence foundation
 
 The [implementation plan](docs/rea-improvement-plan.ko.md) maps REA lessons to

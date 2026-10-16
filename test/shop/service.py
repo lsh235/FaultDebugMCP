@@ -12,10 +12,19 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from faultdebug.clock import local_clock_identity, local_deadline_ns
+from faultdebug.http_context import TraceParent, child_traceparent, extract_traceparent, new_traceparent
+from faultdebug.session import identity_from_env
+
 ROLE = os.environ["SHOP_ROLE"]
 ORDINAL = int(os.environ["SHOP_ORDINAL"])
 PROCESS_ID = os.environ["FAULTDEBUG_PROCESS_ID"]
 SESSION = os.environ["FAULTDEBUG_SESSION_ID"]
+PROCESS_GENERATION = identity_from_env({
+    "session_id": SESSION, "process_id": PROCESS_ID,
+    "process_generation": os.environ.get("FAULTDEBUG_PROCESS_GENERATION", "1"),
+}, env={}).process_generation
+CLOCK = local_clock_identity()
 PEERS = json.loads(os.environ["SHOP_PEERS"])
 SCENARIOS = {"success", "inventory_shortage", "payment_decline", "payment_crash",
              "inventory_timeout", "notification_failure"}
@@ -34,14 +43,15 @@ EVENT_LOCK = threading.Lock()
 COUNTER = 0
 STATE = {"stock": 10000, "reservations": {}, "charges": {}, "orders": {},
          "carts": {}, "shipments": {}, "notifications": {}}
-EVENT_PATH = Path("/evidence/events.jsonl")
+EVENT_PATH = Path(os.environ.get("SHOP_EVENT_PATH", "/evidence/events.jsonl"))
 EVENT_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 
 def emit(kind: str, ctx: dict | None = None, **fields) -> None:
     caller = inspect.currentframe().f_back
     row = {"schema": 1, "kind": kind, "service": ROLE, "process_id": PROCESS_ID,
-           "process_generation": 1, "session_id": SESSION, "pid": os.getpid(), "tid": threading.get_native_id(),
+           "process_generation": PROCESS_GENERATION, "session_id": SESSION, "pid": os.getpid(), "tid": threading.get_native_id(),
+           "clock": CLOCK,
            "monotonic_ns": time.monotonic_ns(), "source_file": "test/shop/service.py",
            "source_line": caller.f_lineno, **(ctx or {}), **fields}
     with EVENT_LOCK, EVENT_PATH.open("a", encoding="utf-8") as stream:
@@ -59,7 +69,9 @@ def new_id() -> int:
 
 
 def span(ctx: dict, path: str, direction: int, status: int | None = None) -> None:
-    args = (ctx["rpc_id"], 0, ctx["trace_id"], METHODS[path], direction)
+    # rpc_id is the explicit correlation shared by this demo's HTTP peers.
+    # Native numeric RPC records do not carry W3C span IDs or prove retry pairing.
+    args = (ctx["rpc_id"], ctx["trace_id_hi"], ctx["trace_id"], METHODS[path], direction)
     accepted = (NATIVE.fd_rpc_begin(*args, time.monotonic_ns()) if status is None else
                 NATIVE.fd_rpc_end(*args, status, time.monotonic_ns(), 2))
     if accepted != 1:
@@ -67,15 +79,23 @@ def span(ctx: dict, path: str, direction: int, status: int | None = None) -> Non
 
 
 def call(peer: str, path: str, body: dict, parent: dict, timeout: float = 3) -> tuple[int, dict]:
-    ctx = {"trace_id": parent["trace_id"], "rpc_id": new_id(),
+    timeout_ms = int(timeout * 1000)
+    local_deadline_ns(timeout_ms)  # Validate the bounded relative wire budget.
+    outgoing = child_traceparent(TraceParent(parent["trace_id_hi"], parent["trace_id"],
+                                             parent["span_id"], parent["trace_flags"]))
+    ctx = {"trace_id_hi": outgoing.trace_id_hi, "trace_id": outgoing.trace_id_lo,
+           "span_id": outgoing.parent_id, "parent_span_id": parent["span_id"],
+           "trace_flags": outgoing.trace_flags, "rpc_id": new_id(),
            "parent_rpc_id": parent["rpc_id"], "request_id": parent["request_id"]}
     span(ctx, path, 2)
-    emit("client_begin", ctx, peer=peer, path=path, timeout_ms=int(timeout * 1000))
+    emit("client_begin", ctx, peer=peer, path=path, timeout_ms=timeout_ms)
     connection = http.client.HTTPConnection(PEERS[peer], timeout=timeout)
-    headers = {"Content-Type": "application/json", "X-Shop-Trace": str(ctx["trace_id"]),
+    # Legacy X-Shop-Trace is accepted on ingress only. Mixed-version peers that
+    # only understand that header cannot preserve a full 128-bit outgoing ID.
+    headers = {"Content-Type": "application/json", "traceparent": outgoing.to_header(),
                "X-Shop-Rpc": str(ctx["rpc_id"]), "X-Shop-Parent": str(ctx["parent_rpc_id"]),
                "X-Shop-Request": ctx["request_id"],
-               "X-Shop-Deadline": str(time.monotonic_ns() + int(timeout * 1e9))}
+               "X-Shop-Timeout-Ms": str(timeout_ms)}
     try:
         connection.request("POST", path, json.dumps(body), headers)
         response = connection.getresponse()
@@ -167,7 +187,7 @@ def dispatch(path: str, body: dict, ctx: dict, deadline: int) -> tuple[int, dict
                 time.sleep(0.9)
             with LOCK:
                 if time.monotonic_ns() >= deadline:
-                    return failure(ctx, "expired_before_reservation", "Caller deadline expired before stock mutation; no reservation was created.", 504)
+                    return failure(ctx, "expired_before_reservation", "Receiver-local RPC budget expired before stock mutation; no reservation was created.", 504)
                 if order not in STATE["reservations"]:
                     if STATE["stock"] < quantity:
                         return failure(ctx, "stock_exhausted", "Insufficient remaining stock.", 409)
@@ -220,6 +240,65 @@ class ServiceServer(ThreadingHTTPServer):
         self.pool.shutdown(wait=True)
 
 
+def single_header(headers, name: str) -> str | None:
+    values = headers.get_all(name, [])
+    if len(values) > 1:
+        raise ValueError(f"duplicate {name}")
+    if not values:
+        return None
+    value = values[0]
+    if not isinstance(value, str) or not value or "," in value:
+        raise ValueError(f"invalid {name}")
+    return value
+
+
+def numeric_header(headers, name: str, default: int, *, minimum: int = 0) -> int:
+    value = single_header(headers, name)
+    if value is None:
+        return default
+    if not value.isascii() or not value.isdecimal():
+        raise ValueError(f"invalid {name}")
+    result = int(value)
+    if not minimum <= result < 2**64:
+        raise ValueError(f"invalid {name}")
+    return result
+
+
+def request_context(headers, body: dict) -> tuple[dict, int]:
+    incoming = extract_traceparent(headers)
+    legacy = single_header(headers, "X-Shop-Trace")
+    legacy_trace = numeric_header(headers, "X-Shop-Trace", 0, minimum=1) if legacy is not None else None
+    if incoming is not None and legacy_trace is not None:
+        if incoming.trace_id_hi != 0 or incoming.trace_id_lo != legacy_trace:
+            raise ValueError("conflicting trace identities")
+    if incoming is not None:
+        current = child_traceparent(incoming)
+        parent_span_id = incoming.parent_id
+        context_source = "w3c_traceparent"
+    else:
+        current = new_traceparent()
+        parent_span_id = 0  # A legacy RPC ID does not establish a W3C parent span.
+        context_source = "legacy_shop_trace" if legacy_trace is not None else "local_root"
+        if legacy_trace is not None:
+            current = TraceParent(0, legacy_trace, current.parent_id, current.trace_flags)
+    request_id = single_header(headers, "X-Shop-Request") or body.get("order_id") or str(new_id())
+    if not isinstance(request_id, str) or len(request_id) > 80:
+        raise ValueError("request identity")
+    timeout_ms = numeric_header(headers, "X-Shop-Timeout-Ms", 5000, minimum=1)
+    # Absolute monotonic timestamps cannot be compared across hosts or time
+    # namespaces. Old X-Shop-Deadline is deliberately ignored, even if present.
+    legacy_deadline = single_header(headers, "X-Shop-Deadline")
+    deadline = local_deadline_ns(timeout_ms)
+    ctx = {"rpc_id": numeric_header(headers, "X-Shop-Rpc", new_id(), minimum=1),
+           "trace_id_hi": current.trace_id_hi, "trace_id": current.trace_id_lo,
+           "span_id": current.parent_id, "parent_span_id": parent_span_id,
+           "trace_flags": current.trace_flags, "context_source": context_source,
+           "parent_rpc_id": numeric_header(headers, "X-Shop-Parent", 0),
+           "request_id": request_id, "timeout_ms": timeout_ms,
+           "legacy_deadline_ignored": legacy_deadline is not None}
+    return ctx, deadline
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *_):
         pass
@@ -263,15 +342,7 @@ class Handler(BaseHTTPRequestHandler):
             body = json.loads(self.rfile.read(length) or b"{}")
             if not isinstance(body, dict):
                 raise ValueError("object required")
-            ctx = {"rpc_id": int(self.headers.get("X-Shop-Rpc") or new_id()),
-                   "trace_id": int(self.headers.get("X-Shop-Trace") or new_id()),
-                   "parent_rpc_id": int(self.headers.get("X-Shop-Parent") or 0),
-                   "request_id": self.headers.get("X-Shop-Request") or body.get("order_id") or str(new_id())}
-            if any(not 0 <= ctx[key] < 2**64 for key in ("rpc_id", "trace_id", "parent_rpc_id")):
-                raise ValueError("identifier bounds")
-            if not isinstance(ctx["request_id"], str) or len(ctx["request_id"]) > 80:
-                raise ValueError("request identity")
-            deadline = int(self.headers.get("X-Shop-Deadline") or time.monotonic_ns() + 5_000_000_000)
+            ctx, deadline = request_context(self.headers, body)
         except (ValueError, TypeError, json.JSONDecodeError):
             return self.respond(400, {"code": "invalid_request"})
         span(ctx, self.path, 1)

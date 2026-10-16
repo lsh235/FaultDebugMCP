@@ -66,7 +66,9 @@ def events(directory: Path) -> list[dict]:
 class CollectedService:
     def __init__(self, evidence: Path, name: str, *, role: str, generation: int,
                  ordinal: int, port: int, peers: dict, boundary: Path,
-                 runtime: Path, ledger: Path | None = None):
+                 runtime: Path, ledger: Path | None = None,
+                 extra_env: dict[str, str] | None = None,
+                 session_id: str = SESSION, process_id: str | None = None):
         self.directory = evidence / name
         self.directory.mkdir()
         self.port, self.process, self.pid = port, None, None
@@ -77,7 +79,8 @@ class CollectedService:
             "runtime": str(runtime), "role": role, "generation": generation,
             "ordinal": ordinal, "port": port, "peers": peers,
             "ledger": str(ledger) if ledger else None,
-            "process_id": "retry-client" if role == "retry-client" else "inventory",
+            "process_id": process_id or role, "session_id": session_id,
+            "extra_env": dict(extra_env or {}),
         }
 
     def start(self) -> None:
@@ -157,6 +160,7 @@ def collector_child(spec_path: Path) -> int:
         "SHOP_HOST": "127.0.0.1", "SHOP_PORT": str(spec["port"]),
         "SHOP_EVENT_PATH": str(directory / "events.jsonl"),
     })
+    os.environ.update(spec.get("extra_env", {}))
     os.environ["PYTHONPATH"] = str(ROOT) + (os.pathsep + os.environ["PYTHONPATH"] if os.environ.get("PYTHONPATH") else "")
     if spec["ledger"]:
         os.environ["SHOP_LEDGER_PATH"] = spec["ledger"]
@@ -165,7 +169,7 @@ def collector_child(spec_path: Path) -> int:
     report = run_target(
         [sys.executable, str(ROOT / "test/shop/service.py")], timeout=45,
         artifact_dir=directory, collect_success=True,
-        identity={"session_id": SESSION, "process_id": spec["process_id"],
+        identity={"session_id": spec.get("session_id", SESSION), "process_id": spec["process_id"],
                   "process_generation": spec["generation"], "role": spec["role"]},
     )
     (directory / "collection.json").write_text(json.dumps(report, indent=2) + "\n")

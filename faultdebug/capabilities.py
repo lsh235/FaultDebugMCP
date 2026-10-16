@@ -36,6 +36,11 @@ def get_capabilities() -> dict[str, Any]:
             "external_side_effects_exactly_once": False,
             "automatic_retries": False,
         },
+        "keyed_lock": {
+            "scope": "local_process",
+            "bounded_active_keys": True,
+            "distributed_lock": False,
+        },
         "store_versions": {"base_schema": 2, "incident_tables": "additive-1"},
         "required_tools": [
             "open_fault", "get_thread_trace", "resolve_addresses",

@@ -16,6 +16,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 from faultdebug.aggregate import ArtifactIndex
 from faultdebug.artifact import write_artifact
+from faultdebug.bundle import create_bundle
 from faultdebug.evidence_store import EvidenceStore
 
 
@@ -42,6 +43,16 @@ async def audit(root):
                     'identity': {'schema': 1, 'session_id': 'session-a',
                                  'process_id': 'proc-a', 'process_generation': 1}},
     }))
+    source_root = root / 'source'
+    source_root.mkdir()
+    (source_root / 'main.c').write_text('int main(void) {\n  return 0;\n}\n')
+    source_index = root / 'index.json'
+    source_index.write_text(json.dumps({'functions': [
+        {'id': 'fn-main', 'name': 'main', 'file': 'main.c', 'line': 1,
+         'source_range': {'start': 1, 'end': 3}, 'edges': [], 'unresolved_edges': []},
+    ]}))
+    create_bundle(source_root, root / 'bundles' / 'build-001', index=source_index)
+    source_bundle_path = 'bundles/build-001'
     with EvidenceStore(root / 'evidence.sqlite3') as store:
         for artifact in (capture, declared):
             ingested = store.ingest(artifact)
@@ -76,6 +87,19 @@ async def audit(root):
                     assert page.get('minimum') == 0, name
             direction = tools['get_call_relations'].inputSchema['properties']['direction']
             assert set(direction['enum']) == {'inbound', 'outbound'}
+            for tool_name in ('get_function_source', 'get_call_relations'):
+                schema = tools[tool_name].inputSchema
+                assert 'bundle' in schema['required'], (tool_name, schema)
+                assert schema['properties']['bundle'].get('type') == 'string', (tool_name, schema)
+            for tool_name in ('open_fault', 'get_fault_flow', 'resolve_addresses'):
+                schema = tools[tool_name].inputSchema
+                assert 'bundle' not in schema.get('required', []), (tool_name, schema)
+            source = payload(await session.call_tool('get_function_source', {
+                'name': capture.name, 'function_id': 'fn-main', 'bundle': source_bundle_path}))
+            assert source['resolved'] is True and 'int main' in source['source'], source
+            relations = payload(await session.call_tool('get_call_relations', {
+                'name': capture.name, 'function_id': 'fn-main', 'bundle': source_bundle_path}))
+            assert relations['evidence'] == 'static_index' and relations['direction'] == 'outbound', relations
             caps = payload(await session.call_tool('get_capabilities', {}))
             assert caps['platform_toolchain']['mcp_transport'] == 'stdio'
             opened = payload(await session.call_tool('open_fault', {'name': capture.name}))
@@ -99,6 +123,8 @@ async def audit(root):
                 ('get_fault_flow', {'name': capture.name, 'max_events': 501}),
                 ('get_fault_flow', {'name': capture.name, 'debug_directory': '../outside'}),
                 ('get_call_relations', {'name': capture.name, 'function_id': 'f', 'direction': 'both'}),
+                ('get_function_source', {'name': capture.name, 'function_id': 'fn-main'}),
+                ('get_call_relations', {'name': capture.name, 'function_id': 'fn-main'}),
                 ('list_sessions', {'trust_state': 'made-up'}),
                 ('resolve_addresses', {'name': capture.name, 'addresses': [-1]}),
                 ('resolve_addresses', {'name': capture.name, 'addresses': [1] * 1001}),

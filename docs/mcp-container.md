@@ -93,9 +93,8 @@ contract check, not an estimated TDQS score.
 [Glama's TDQS rubric](https://github.com/glama-ai/tool-definition-quality-score)
 evaluates the definitions collected from a running server. The repository's
 `glama.json` identifies its maintainer. The existing
-[Glama listing](https://glama.ai/mcp/servers/lsh235/FalutDebugMCP) currently retains
-the original repository spelling; the canonical GitHub repository is
-`lsh235/FaultDebugMCP`.
+[Glama listing](https://glama.ai/mcp/servers/lsh235/FaultDebugMCP) uses the
+canonical repository spelling [`lsh235/FaultDebugMCP`](https://github.com/lsh235/FaultDebugMCP).
 
 [Glama's indexing methodology](https://glama.ai/mcp/methodology) describes
 re-scanning after commits/rebuilds. After publishing a change, confirm the listing's
@@ -114,7 +113,7 @@ score is only confirmed after Glama's independent rubric/coherence evaluation.
 
 Glama generates its own Dockerfile from the administrator build spec. Updating
 `Dockerfile.mcp` in GitHub does not change those administrator settings.
-Open the listing's [Dockerfile administration page](https://glama.ai/mcp/servers/lsh235/FalutDebugMCP/admin/dockerfile)
+Open the listing's [Dockerfile administration page](https://glama.ai/mcp/servers/lsh235/FaultDebugMCP/admin/dockerfile)
 and set these fields:
 
 ```json

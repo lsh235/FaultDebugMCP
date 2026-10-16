@@ -29,7 +29,7 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-개발 버전은 **1.3.0a14** (`v1.3.0-alpha.14`)이며, 문서의 증거 기반 구현은
+개발 버전은 **1.3.0a15** (`v1.3.0-alpha.15`)이며, 문서의 증거 기반 구현은
 [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)로 고정했습니다.
 기존 프로젝트용 정적 ELF 점검과 분리된 CMake 적용 경로를 제공합니다.
 `faultdebug self-test`가 설치된 경로의 고정 fixture capture를 확인하고,
@@ -43,12 +43,15 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 경로를 보장할 설계가 준비될 때까지 보류했습니다.
 알파14는 `--fault-report-output PATH`로 검증된 보고서 파일의 저장 위치를 지정하며,
 기존 경로는 덮어쓰지 않고 경로 생략 시 캡처 옆에 생성합니다.
+알파15는 source lookup과 정적 호출 관계 도구가 실제로 요구하는 검증 번들을 MCP
+스키마에서도 필수·비 nullable 값으로 표시해, 불필요한 실패 호출을 줄입니다.
 모든 실행은 명시적 opt-in입니다.
 [기존 프로젝트 적용 안내](docs/existing-project-adoption.md) ·
 [보고서 언어 검토](docs/integration-report-language-review.md) ·
 [이벤트 상한 검토](docs/integration-report-event-limit-review.md) ·
 [보고서 경로 검토](docs/integration-report-output-review.md) ·
-[구현 범위와 검증](docs/releases/v1.3.0-alpha.14.md)
+[MCP 번들 계약 검토](docs/mcp-required-bundle-review.md) ·
+[구현 범위와 검증](docs/releases/v1.3.0-alpha.15.md)
 
 정식 릴리스의 독립 최종 수락, 현재 revision의 전체 core/gRPC profile,
 kind·새 30분 soak는 남아 있습니다. Docker 8/16/32 검증은 이번 알파 기록에 명시한

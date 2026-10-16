@@ -61,9 +61,15 @@ async def audit(root):
             tools = {tool.name: tool for tool in listed.tools}
             assert len(tools) == 25, sorted(tools)
             parameters = 0
+            description_lengths = []
             for name, tool in tools.items():
-                assert tool.description and 30 <= len(tool.description) <= 1600, name
+                assert tool.description and 100 <= len(tool.description) <= 520, name
+                assert "\n" not in tool.description and "  " not in tool.description, name
+                assert len(tool.description.partition(". ")[0]) <= 180, name
+                assert "Use " in tool.description, name
                 assert tool.annotations, name
+                assert tool.annotations.title and tool.annotations.title != name, name
+                description_lengths.append(len(tool.description))
                 hints = tool.annotations
                 assert (hints.readOnlyHint is True and hints.destructiveHint is False
                         and hints.idempotentHint is True and hints.openWorldHint is False), name
@@ -130,6 +136,7 @@ async def audit(root):
         readonly.close()
     return {'status': 'PASS', 'transport': 'stdio', 'tool_count': len(tools),
             'described_parameters': parameters, 'schema_description_coverage_percent': 100,
+            'description_chars': {'min': min(description_lengths), 'max': max(description_lengths)},
             'annotated_tools': len(tools), 'invalid_call_checks': len(invalid),
             'evidence_files_unchanged': True,
             'tdqs': {'status': 'NOT_EVALUATED', 'reason': 'Official score requires Glama rubric evaluation.'},
@@ -146,6 +153,7 @@ def main():
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
     print(f"PASS: {result['tool_count']} stdio tools, {result['described_parameters']} documented parameters; "
+          f"descriptions {result['description_chars']['min']}-{result['description_chars']['max']} chars; "
           f"{result['invalid_call_checks']} invalid calls rejected; evidence unchanged (TDQS not evaluated)")
     return 0
 

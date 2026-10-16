@@ -86,9 +86,11 @@ Run the protocol and read-only audit from the repository root:
 
 This starts a real stdio server, inspects all schema metadata, exercises reads
 and rejected inputs, verifies nullable session selection, and checks that
-captures/stores/indexes remain byte-for-byte unchanged. CI publishes the inspected
-definitions as the `mcp-definition-audit` artifact. This is a deterministic
-contract check, not an estimated TDQS score.
+captures/stores/indexes remain byte-for-byte unchanged. It also keeps every MCP
+description as one compact paragraph (100–520 characters, with a short purpose
+sentence and an explicit selection cue). CI publishes the inspected definitions
+as the `mcp-definition-audit` artifact. These deterministic checks guard the
+contract; they do not estimate or replace Glama's TDQS score.
 
 [Glama's TDQS rubric](https://github.com/glama-ai/tool-definition-quality-score)
 evaluates the definitions collected from a running server. The repository's
@@ -129,16 +131,18 @@ and set these fields:
     "mcp", "--root", "/app/artifacts"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "255395c86809cce886ce58cdc5736b2a4c0f8aaa",
+  "pinnedCommit": "REPLACE_WITH_FULL_MERGED_COMMIT_SHA",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }
 ```
 
-The pinned revision contains the 25-tool metadata update. For a later release,
-replace it with the full SHA of the revision you intend to publish, and check
-the generated Dockerfile's `git checkout` before deploying. A null pin alone
-does not prove that the generated checkout contains your latest changes.
+Replace the `pinnedCommit` example with the full 40-character SHA of the merged
+revision containing the current tool definitions. The previous `255395c` pin is
+the earlier 25-tool metadata baseline; it will not expose later definition
+improvements. Check the generated Dockerfile's `git checkout` before deploying.
+A null pin alone does not prove that the generated checkout contains your latest
+changes.
 
 Python 3.12 matches `requires-python = ">=3.12,<3.13"` in `pyproject.toml`.
 Specifying it in both the runtime selection and `uv sync` avoids relying on
@@ -160,7 +164,9 @@ the new TDQS scan. A successful image build is separate from an official score.
 The settings above were validated locally with Glama's generated Dockerfile
 template and `mcp-proxy@6.7.16`: image build, HTTP MCP initialization, 25-tool
 listing, all 76 parameter descriptions and `get_capabilities` passed. This does
-not confirm a remote Glama deployment or TDQS result.
+not confirm a remote Glama deployment or TDQS result. After a successful
+deployment and release, confirm the listing's scan timestamp, tool count, and
+per-tool score page before reporting any score change.
 
 ### A build fails immediately with HTTP 502
 

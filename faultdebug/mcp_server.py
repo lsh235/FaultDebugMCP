@@ -1,4 +1,5 @@
 """Read-only MCP facade over captured artifacts."""
+from inspect import cleandoc
 from pathlib import Path
 from typing import Annotated, Literal
 
@@ -87,24 +88,28 @@ def make_server(root: Path):
         "Paths are relative to --root. Keep observed, derived, static_candidates, unresolved and hypotheses "
         "distinct. Source citations need a verified bundle; shared IDs/time order do not prove causality."
     ))
-    @app.tool(annotations=_read_only("Get capabilities"))
+
+    def _tool(title: str):
+        def register(fn):
+            if fn.__doc__:
+                fn.__doc__ = " ".join(cleandoc(fn.__doc__).split())
+            app.add_tool(fn, annotations=_read_only(title))
+            return fn
+        return register
+
+    @_tool("Get capabilities")
     def get_capabilities() -> dict:
-        """Describe supported capture/store versions, evidence classes, platform and query limits.
-
-        Use first to plan an inspection; discover_artifacts locates files and check_store
-        checks a specific database. Returns the bounded capability contract, including
-        required/additional tools and security limitations. Reads no captures and needs
-        no credentials; it does not prove that a particular file or bundle is valid."""
+        """Read supported capture/store versions, evidence classes, and query limits before
+            choosing an inspection workflow. Use discover_artifacts to locate captures
+            or check_store to inspect a database. This returns the server's bounded
+            read-only contract; it does not validate a particular capture or bundle."""
         return capability_contract()
-    @app.tool(annotations=_read_only("Check store"))
+    @_tool("Check store")
     def check_store(db: StorePath = "evidence.sqlite3") -> dict:
-        """Inspect one SQLite evidence store's health and migration compatibility without repair.
-
-        Use before list_sessions or list_incidents, especially for a missing/corrupt DB;
-        get_provenance instead retrieves artifact trust records. Returns status, read_only,
-        schema compatibility and diagnostics; STORE_PATH_INVALID is an error payload.
-        An absent store is reported without creation. No migration or credential lookup
-        occurs; use the evidence CLI separately if the returned diagnostics require repair."""
+        """Check the health and migration compatibility of one SQLite evidence store before
+            querying it. Use get_provenance for stored trust records. An absent database
+            is reported without creation; this tool never migrates or repairs it, and an
+            invalid path returns STORE_PATH_INVALID."""
         try:
             path = _relative(root, db)
         except ValueError as exc:
@@ -114,52 +119,40 @@ def make_server(root: Path):
             return {"schema": 2, "status": "error", "read_only": True,
                     "error": {"code": "STORE_PATH_INVALID", "message": "evidence store is outside the allowlisted root"}}
         return EvidenceStore.inspect_health(path)
-    @app.tool(annotations=_read_only("Open fault"))
+    @_tool("Open fault")
     def open_fault(name: CaptureName, bundle: BundlePath = None) -> dict:
-        """Decode one capture's process, thread, crash and integrity records for initial triage.
-
-        Use after discover_artifacts; get_fault_flow instead produces a bounded execution
-        view and get_evidence_summary gives a compact RPC evidence inventory. Returns the
-        decoded capture and, if supplied, a verified bundle marker (not source lines).
-        Names are relative to --root. Invalid paths, malformed captures or failed bundle
-        verification produce MCP tool errors; partial captures retain their loss flags."""
+        """Decode one capture's process, thread, crash, and integrity records for initial triage.
+            Use after discover_artifacts; choose get_fault_flow for a bounded execution
+            view or get_evidence_summary for a compact RPC inventory. Partial-capture
+            loss flags remain visible; a supplied bundle is verified, but source lines
+            are not returned."""
         report = _load(root, name)
         if bundle: report["bundle"] = {"path": str(_bundle(root, bundle).root), "verified": True}
         return report
-    @app.tool(annotations=_read_only("Get thread trace"))
+    @_tool("Get thread trace")
     def get_thread_trace(name: CaptureName, tid: Annotated[int | None, Field(ge=0, description="Captured OS thread ID; null includes all thread generations. A reused ID can match more than one thread record.")] = None, page: Page = 0) -> dict:
-        """Read captured thread records and their retained function events from one artifact.
-
-        Use for raw thread histories, not semantic RPCs (get_rpc_trace) or reconstructed
-        nesting (get_fault_flow). Returns items, total, page and page_size; pagination
-        slices thread records, not individual events. tid filters the OS thread ID and
-        may match multiple generations. Invalid captures/paths produce MCP tool errors;
-        an unmatched tid or an exhausted page yields empty items. No live process is queried."""
+        """Read raw thread records and retained function events from one capture. Use get_rpc_trace
+            for semantic RPC observations or get_fault_flow for reconstructed nesting.
+            Pagination slices thread records, not events; a reused OS thread ID can
+            match multiple generations."""
         rows = thread_trace(_load(root, name), tid)
         return {"items": rows[page * 200:(page + 1) * 200], "page": page, "page_size": 200, "total": len(rows)}
-    @app.tool(annotations=_read_only("Get fault flow"))
+    @_tool("Get fault flow")
     def get_fault_flow(name: CaptureName, bundle: BundlePath = None, max_events: Annotated[int, Field(ge=1, le=500, description="Maximum last retained pre-crash function events per thread (1–500); truncates the view, not the underlying capture.")] = 80) -> dict:
-        """Build a bounded per-thread fault-flow model with recorded nesting, fault context and gaps.
-
-        Use for an execution-view explanation; get_thread_trace instead returns raw
-        thread records, and get_incident_report joins RPC evidence across captures.
-        Returns capture, threads, crashes, edges, sources and gaps without writing
-        HTML/Markdown. max_events limits the last retained pre-crash events per thread;
-        view omission differs from capture loss. Without a verified bundle, source
-        citations remain unavailable. Invalid inputs produce MCP tool errors."""
+        """Build a bounded execution-flow view from one capture's recorded nesting, crash context,
+            and gaps. Use get_thread_trace for raw records or get_incident_report to
+            join RPC evidence across captures. max_events truncates this view, not the
+            capture; source citations require a verified bundle."""
         from .fault_report import build_fault_report
         return build_fault_report(_load(root, name), bundle=_bundle(root, bundle) if bundle else None,
                                   max_events=max_events)
-    @app.tool(annotations=_read_only("Get rpc trace"))
+    @_tool("Get rpc trace")
     def get_rpc_trace(name: CaptureName, page: Page = 0) -> dict:
-        """Decode one capture's semantic RPC observations, static candidates and unresolved limits.
-
-        Use to inspect recorded request/response boundaries; get_thread_trace is for
-        function events and get_process_relations matches endpoints across captures.
-        Returns observed (paged), total, page, page_size, static_candidates and unresolved.
-        Only observed RPC rows are paged; uncertainty is retained on every page. Missing
-        RPC instrumentation yields unresolved evidence rather than invented edges.
-        Malformed captures, ambiguous RPC extensions or invalid paths produce MCP tool errors."""
+        """Read semantic RPC observations, static candidates, and unresolved limits from one
+            capture. Use get_thread_trace for function events or get_process_relations
+            to match endpoints across captures. Only observed RPC rows are paged;
+            missing instrumentation stays unresolved rather than becoming an inferred
+            edge."""
         decoded = rpc_trace(_load(root, name))
         page = max(0, page)
         decoded["total"] = len(decoded["observed"])
@@ -168,45 +161,34 @@ def make_server(root: Path):
         decoded["page"] = page
         decoded["page_size"] = 200
         return decoded
-    @app.tool(annotations=_read_only("Collect faults"))
+    @_tool("Collect faults")
     def collect_faults(names: CaptureNames, trace_id: TraceId = None, correlation_id: CorrelationId = None, page: Page = 0) -> dict:
-        """Collect process/crash metadata from named captures, grouped by exact context identifiers.
-
-        Use for a filtered artifact inventory; get_incident_report adds RPC evidence and
-        query_artifact_index searches metadata already indexed in SQLite. Both optional
-        ID filters must match when supplied. Returns artifacts (paged), count, groups
-        and filters; count/groups cover all matches, not just the page. Grouping by shared
-        IDs does not prove causal links. Missing or invalid captures fail the call with
-        an MCP tool error; no database ingestion occurs."""
+        """Filter named captures by exact trace/correlation IDs and group matching process and
+            crash metadata. Use get_incident_report to include RPC evidence or
+            query_artifact_index to search an existing SQLite metadata index. Supplied
+            ID filters combine with AND; shared IDs group records but do not prove
+            causality."""
         if len(names) > 1000: raise ValueError("maximum 1000 artifacts")
         paths = [_safe_artifact(root, name) for name in names]
         result = collect_artifacts(paths, trace_id=trace_id, correlation_id=correlation_id)
         start = max(0, page) * 200
         result["artifacts"] = result["artifacts"][start:start + 200]; result["page"] = max(0, page); result["page_size"] = 200
         return result
-    @app.tool(annotations=_read_only("Get timeline"))
+    @_tool("Get timeline")
     def get_timeline(names: CaptureNames) -> dict:
-        """Order captured process-start, crash and explicit IPC events, preserving ambiguous links.
-
-        Use to inspect recorded timing and unique IPC send/receive pairs;
-        get_process_relations also handles semantic RPC endpoint relationships.
-        Returns events, relations, diagnostics and complete/limited status. All supplied
-        captures are included; timestamps are monotonic, so compare only compatible clock
-        domains. Temporal order alone is not causality. Missing/malformed captures produce
-        MCP tool errors; absent IPC pairs stay in diagnostics. No live tracing occurs."""
+        """Order captured process-start, crash, and explicit IPC events across files while
+            retaining ambiguous links. Use get_process_relations to match RPC endpoints
+            across processes. Timestamps are monotonic and comparable only within
+            compatible clock domains; temporal proximity never establishes causality."""
         if len(names) > 1000: raise ValueError("maximum 1000 artifacts")
         reports = [collect_file(_safe_artifact(root, name)) for name in names]
         return build_timeline(reports)
-    @app.tool(annotations=_read_only("Get process relations"))
+    @_tool("Get process relations")
     def get_process_relations(names: CaptureNames, page: Page = 0) -> dict:
-        """Match explicit IPC/RPC endpoint evidence across named captures into process relationships.
-
-        Use for cross-process links; get_session_manifest groups participants and
-        get_timeline orders captured timing. Returns observed (paged), total, page,
-        page_size, static_candidates and unresolved; only observed relations are paged.
-        A shared PID, session ID or nearby timestamp never creates a causal edge.
-        Missing endpoint evidence remains unresolved; invalid captures/paths produce
-        MCP tool errors. Reads captures directly without consulting an evidence store."""
+        """Match explicit IPC/RPC endpoint evidence across captures into process relationships. Use
+            get_timeline for event order or get_session_manifest for participants plus
+            broader evidence classes. Shared PIDs, session IDs, or nearby timestamps
+            never create an edge; missing endpoint evidence stays unresolved."""
         if len(names) > 1000: raise ValueError("maximum 1000 artifacts")
         result = process_relations([collect_file(_safe_artifact(root, name)) for name in names])
         page = max(0, page)
@@ -216,27 +198,19 @@ def make_server(root: Path):
         result["page"] = page
         result["page_size"] = 200
         return result
-    @app.tool(annotations=_read_only("Get evidence summary"))
+    @_tool("Get evidence summary")
     def get_evidence_summary(name: CaptureName) -> dict:
-        """Summarize RPC evidence counts and limits for one capture without returning full histories.
-
-        Use for a compact triage inventory before get_rpc_trace or get_fault_flow;
-        get_incident_report instead combines multiple captures. Returns status,
-        artifact/observed/static-candidate counts and unresolved rows; evidence classes
-        remain separate. Empty/missing RPC evidence is reported explicitly, not interpreted
-        as successful communication. Invalid capture paths or decode failures produce
-        MCP tool errors. No target execution or evidence ingestion occurs."""
+        """Summarize RPC evidence counts and gaps for one capture without returning full histories.
+            Use before get_rpc_trace or get_fault_flow; choose get_incident_report to
+            combine captures. Empty RPC evidence remains unknown and is not treated as
+            successful communication."""
         return evidence_summary([_load(root, name)])
-    @app.tool(annotations=_read_only("Get incident report"))
+    @_tool("Get incident report")
     def get_incident_report(names: CaptureNames, page: Page = 0) -> dict:
-        """Project a combined RPC incident report directly from named captures, without a stored incident ID.
-
-        Use for ad hoc multi-capture analysis; get_incident_slice fetches an agent-declared
-        incident already in SQLite, and get_evidence_summary is a single-capture inventory.
-        Returns observed RPC events/process relations, static_candidates, unresolved and
-        field availability. page slices only observed.rpc_events in batches of 200;
-        total_rpc_events counts the full set. Inferences never become root-cause proof.
-        Invalid captures/paths produce MCP tool errors; report files are not written."""
+        """Build an ad hoc multi-capture RPC incident report from capture names without a stored
+            incident ID. Use get_incident_slice for an incident already declared in
+            SQLite or get_evidence_summary for one capture. Only observed RPC events are
+            paged; inferred relations are not root-cause proof."""
         if len(names) > 1000: raise ValueError("maximum 1000 artifacts")
         result = incident_report([collect_file(_safe_artifact(root, name)) for name in names])
         page = max(0, page)
@@ -246,16 +220,12 @@ def make_server(root: Path):
         result["page_size"] = 200
         result["total_rpc_events"] = len(events)
         return result
-    @app.tool(annotations=_read_only("Get session manifest"))
+    @_tool("Get session manifest")
     def get_session_manifest(names: CaptureNames, page: Page = 0) -> dict:
-        """Build a runtime-session manifest with participants and separate cross-process evidence classes.
-
-        Use to understand capture membership without an evidence store; list_sessions
-        queries stored session summaries and get_process_participants omits the detailed
-        RPC projection. Returns session, participants (paged), total_participants,
-        observed, derived, static_candidates and unresolved. Only participants are paged;
-        shared/inferred session identity does not establish causality. Conflicting or
-        missing identity remains unresolved; invalid captures produce MCP tool errors."""
+        """Build a session manifest directly from captures, with participants and separate
+            observed, derived, static, and unresolved relations. Use list_sessions for
+            stored summaries or get_process_participants for an identity-only inventory.
+            Shared or inferred session identity does not establish causality."""
         if len(names) > 1000: raise ValueError("maximum 1000 artifacts")
         reports = [collect_file(_safe_artifact(root, name)) for name in names]
         result = session_manifest(reports, artifact_refs=names)
@@ -266,16 +236,13 @@ def make_server(root: Path):
         result["page_size"] = 200
         result["total_participants"] = len(participants)
         return result
-    @app.tool(annotations=_read_only("Get process participants"))
+    @_tool("Get process participants")
     def get_process_participants(names: CaptureNames, page: Page = 0) -> dict:
-        """List captured process identities, generations and collector status from named artifacts.
-
-        Use for a participant inventory; get_session_manifest additionally includes RPC
-        and derived relation projections. Returns session, status, participants (paged),
-        total_participants and unresolved identity limits. OS PIDs may be reused; prefer
-        declared runtime process IDs/generations when available. This reads captures,
-        not SQLite or live processes. Missing/malformed captures or invalid paths
-        produce MCP tool errors; an exhausted participant page returns an empty list."""
+        """List process identities, generations, and collector status from named captures. Use
+            get_session_manifest when RPC and relation projections are needed, or
+            list_sessions for stored summaries. PIDs may be reused, so prefer declared
+            runtime IDs and generations; this reads captures, not SQLite or live
+            processes."""
         if len(names) > 1000: raise ValueError("maximum 1000 artifacts")
         reports = [collect_file(_safe_artifact(root, name)) for name in names]
         result = process_participants(reports, artifact_refs=names)
@@ -286,18 +253,14 @@ def make_server(root: Path):
         result["page_size"] = 200
         result["total_participants"] = len(participants)
         return result
-    @app.tool(annotations=_read_only("List sessions"))
+    @_tool("List sessions")
     def list_sessions(db: StorePath = "evidence.sqlite3", start_ns: StartNs = None,
                       end_ns: EndNs = None, trust_state: TrustState = None,
                       page: Page = 0) -> dict:
-        """List runtime session summaries from an existing SQLite evidence store.
-
-        Use after check_store to obtain session IDs before get_session; get_session_manifest
-        instead constructs a manifest directly from named captures. Returns sessions,
-        total, page and page_size, including an unassigned group when present.
-        Time filters apply to captured process start times, not wall-clock time; trust
-        filters require matching stored provenance. Empty matches yield an empty list.
-        Invalid/missing stores or query failures produce MCP tool errors; no migration occurs."""
+        """List session summaries from an existing SQLite evidence store. Use after check_store;
+            use get_session to read one session or get_session_manifest to build a
+            manifest from captures. Time bounds apply to captured process starts, trust
+            filters require stored provenance, and no migration occurs."""
         store = EvidenceStore(_safe_store(root, db), readonly=True)
         try:
             return store.list_sessions(start_ns=start_ns, end_ns=end_ns,
@@ -306,19 +269,14 @@ def make_server(root: Path):
             raise ValueError(str(exc)) from exc
         finally:
             store.close()
-    @app.tool(annotations=_read_only("Get session"))
+    @_tool("Get session")
     def get_session(session_id: SessionId, db: StorePath = "evidence.sqlite3",
                     start_ns: StartNs = None, end_ns: EndNs = None,
                     trust_state: TrustState = None, page: Page = 0) -> dict:
-        """Read one stored runtime session's artifacts, participants, evidence classes and provenance.
-
-        Use an ID from list_sessions; null selects only artifacts without a session ID,
-        not all sessions. get_incident_slice instead narrows to one declared incident.
-        Returns session, artifacts (paged), total_artifacts, observed, derived,
-        static_candidates, unresolved, hypotheses and provenance. Pagination applies
-        to artifacts; evidence rows for selected artifacts are returned together.
-        Time filters use captured process starts. An unknown ID gives empty artifacts;
-        invalid stores/queries produce MCP tool errors without migration."""
+        """Read artifacts, participants, evidence classes, and provenance for one stored session.
+            Obtain IDs from list_sessions; null selects only unassigned artifacts. Use
+            get_incident_slice for a declared incident. Pagination slices artifacts,
+            while evidence for selected artifacts is returned together."""
 
         store = EvidenceStore(_safe_store(root, db), readonly=True)
         try:
@@ -328,18 +286,15 @@ def make_server(root: Path):
             raise ValueError(str(exc)) from exc
         finally:
             store.close()
-    @app.tool(annotations=_read_only("Get provenance"))
+    @_tool("Get provenance")
     def get_provenance(db: StorePath = "evidence.sqlite3", session_id: SessionId = None,
                        artifact_id: Annotated[int | None, Field(ge=1, description="Exact numeric artifact row ID from get_session/get_incident_slice; null includes all matching artifact rows.")] = None, trust_state: ProvenanceTrust = None,
                        page: Page = 0) -> dict:
-        """Read stored artifact hashes, build identities, trust reasons and verification declarations.
-
-        Use to audit evidence origin before interpreting get_session/get_incident_slice;
-        check_store checks database health instead. Returns provenance, total, page and
-        page_size. Optional session/artifact/trust filters combine with AND; null session
-        means all valid artifacts, unlike get_session. Quarantined artifacts are excluded.
-        This reports stored verification, not a fresh re-hash or root-cause confidence.
-        Invalid stores/query failures produce MCP tool errors; nothing is reindexed."""
+        """Read stored artifact hashes, build identities, trust reasons, and verification
+            declarations. Use to audit origin before interpreting a session or incident;
+            check_store inspects database health instead. This reports stored
+            verification, not a fresh re-hash or root-cause confidence, and does not
+            reindex."""
         store = EvidenceStore(_safe_store(root, db), readonly=True)
         try:
             return store.get_provenance(session_id=session_id, artifact_id=artifact_id,
@@ -348,18 +303,14 @@ def make_server(root: Path):
             raise ValueError(str(exc)) from exc
         finally:
             store.close()
-    @app.tool(annotations=_read_only("List incidents"))
+    @_tool("List incidents")
     def list_incidents(db: StorePath = "evidence.sqlite3", session_id: SessionId = None,
                        start_ns: StartNs = None, end_ns: EndNs = None,
                        trust_state: TrustState = None, page: Page = 0) -> dict:
-        """List agent-declared incident summaries already persisted in a SQLite evidence store.
-
-        Use to obtain incident IDs before get_incident_slice or get_unresolved;
-        get_incident_report instead derives an ad hoc report from capture filenames.
-        Returns incidents, total, page and page_size; time bounds filter incident
-        first_seen_ns, not process-start times. Filters combine with AND and empty
-        matches return an empty list. Failures return error.code=INCIDENT_QUERY_ERROR.
-        The query neither declares incidents nor infers root cause; no migration occurs."""
+        """List agent-declared incident summaries already persisted in SQLite. Use returned IDs
+            with get_incident_slice or get_unresolved; choose get_incident_report for an
+            ad hoc view of capture files. Time bounds filter incident first_seen_ns.
+            This query neither declares incidents nor infers root cause."""
         try:
             store = EvidenceStore(_safe_store(root, db), readonly=True)
             try:
@@ -369,18 +320,14 @@ def make_server(root: Path):
                 store.close()
         except (EvidenceStoreError, ValueError) as exc:
             return {"schema": 2, "error": {"code": "INCIDENT_QUERY_ERROR", "message": str(exc)}}
-    @app.tool(annotations=_read_only("Get incident slice"))
+    @_tool("Get incident slice")
     def get_incident_slice(incident_id: IncidentId, db: StorePath = "evidence.sqlite3",
                            trust_state: TrustState = None, page: Page = 0) -> dict:
-        """Read artifact, process, RPC and source-reference evidence for one stored declared incident.
-
-        Use an ID from list_incidents; get_incident_report uses filenames instead, and
-        get_unresolved returns only gaps. Returns incident, artifacts (paged),
-        participants, observed, derived, static_candidates, unresolved, hypotheses and
-        source_references. Each page includes evidence for up to 200 artifacts, capped
-        at 1,000 observed events; inspect event_truncated/event_total before concluding
-        completeness. Source references are not verified citations. Unknown IDs/store
-        failures return error.code=INCIDENT_QUERY_ERROR without modifying the store."""
+        """Read one declared incident's stored artifact, process, RPC, and source-reference
+            evidence. Use an incident ID from list_incidents; get_incident_report builds
+            an ad hoc view from capture names instead. Event output may be capped at
+            1,000; check event_truncated/event_total before claiming completeness.
+            Source references are not verified citations."""
 
         try:
             store = EvidenceStore(_safe_store(root, db), readonly=True)
@@ -390,17 +337,13 @@ def make_server(root: Path):
                 store.close()
         except (EvidenceStoreError, ValueError) as exc:
             return {"schema": 2, "error": {"code": "INCIDENT_QUERY_ERROR", "message": str(exc)}}
-    @app.tool(annotations=_read_only("Get unresolved"))
+    @_tool("Get unresolved")
     def get_unresolved(incident_id: IncidentId, db: StorePath = "evidence.sqlite3", page: Page = 0) -> dict:
-        """Read only unresolved evidence and capture-limit rows for one stored incident.
-
-        Use to explain missing proof after get_incident_slice; get_source_evidence
-        instead verifies source references against a bundle. Returns incident, unresolved,
-        page, page_size and total_artifacts. Pagination follows incident artifacts,
-        not individual gap rows; one page may have no gaps while later pages do.
-        Includes event_limit_reached when the incident projection truncates observations.
-        Unknown IDs or invalid stores return error.code=INCIDENT_QUERY_ERROR;
-        this does not repair missing evidence."""
+        """Read only unresolved evidence and capture-limit rows for one stored incident. Use after
+            get_incident_slice to explain remaining gaps; use get_source_evidence to
+            verify source references against a bundle. Pagination follows incident
+            artifacts, so inspect later pages; this tool does not repair missing
+            evidence."""
         try:
             store = EvidenceStore(_safe_store(root, db), readonly=True)
             try:
@@ -409,19 +352,15 @@ def make_server(root: Path):
                 store.close()
         except (EvidenceStoreError, ValueError) as exc:
             return {"schema": 2, "error": {"code": "INCIDENT_QUERY_ERROR", "message": str(exc)}}
-    @app.tool(annotations=_read_only("Get source evidence"))
+    @_tool("Get source evidence")
     def get_source_evidence(incident_id: IncidentId, bundle: RequiredBundlePath,
                             db: StorePath = "evidence.sqlite3",
                             function_ids: Annotated[list[FunctionId] | None, Field(max_length=100, description="Up to 100 exact index IDs to request in addition to incident references. Null/empty uses stored references; IDs outside the bundle stay unresolved.")] = None, page: Page = 0) -> dict:
-        """Verify one stored incident's source references against a supplied immutable bundle.
-
-        Use after get_incident_slice to obtain citation paths/line ranges/hashes; get_function_source
-        looks up one indexed function without a stored incident. Returns citations,
-        unresolved verification failures, resolved and pagination metadata. Null or empty
-        function_ids uses declared references; an explicit list additionally requests
-        those bundle functions. At most 100 IDs are accepted. Bundle paths/hashes must
-        verify; missing/mismatched inputs return error.code=SOURCE_EVIDENCE_ERROR or
-        unresolved rows. Current-worktree source is never substituted."""
+        """Verify stored incident source references against a supplied immutable bundle and return
+            citation paths, line ranges, and hashes. Use after get_incident_slice;
+            choose get_function_source for one indexed function without an incident.
+            Null/empty function_ids uses declared references; current-worktree files are
+            never substituted."""
         try:
             loaded = _bundle(root, bundle)
             store = EvidenceStore(_safe_store(root, db), readonly=True)
@@ -432,17 +371,12 @@ def make_server(root: Path):
                 store.close()
         except (EvidenceStoreError, ValueError) as exc:
             return {"schema": 2, "error": {"code": "SOURCE_EVIDENCE_ERROR", "message": str(exc)}}
-    @app.tool(annotations=_read_only("Discover artifacts"))
+    @_tool("Discover artifacts")
     def discover_artifacts(pattern: Annotated[str, Field(min_length=1, description="Root-relative recursive filename glob, e.g. fault-*.fault or *.json. No absolute paths or parent traversal; at most 10,000 matches.")] = "fault-*.fault", include_json: Annotated[bool, Field(description="With default fault-*.fault, also discover fault-*.json; with a custom pattern this does not add another glob.")] = False, page: Page = 0) -> dict:
-        """Recursively discover and validate captures beneath the configured artifact root.
-
-        Use first when filenames are unknown; query_artifact_index searches an existing
-        SQLite index and open_fault decodes a selected capture. Returns artifacts (paged),
-        total/count, valid and invalid counts; malformed files remain FAIL rows rather
-        than disappearing. Scans at most 10,000 matches. include_json adds fault-*.json
-        only with the default fault-*.fault pattern; use *.json for a custom JSON glob.
-        Invalid roots/patterns or exceeding the scan limit produce MCP tool errors;
-        no index is created."""
+        """Find and validate capture files recursively beneath the configured artifact root. Use
+            first when filenames are unknown; choose query_artifact_index for an
+            existing index or open_fault to decode one capture. Malformed files remain
+            invalid result rows, and scans are capped at 10,000 matches."""
         if Path(pattern).is_absolute() or ".." in Path(pattern).parts:
             raise ValueError("pattern must stay beneath the allowlisted root")
         result = inspect_spool(root, pattern=pattern, include_json=include_json, limit=10000)
@@ -453,16 +387,12 @@ def make_server(root: Path):
         result["page"] = page
         result["page_size"] = 200
         return result
-    @app.tool(annotations=_read_only("Query artifact index"))
+    @_tool("Query artifact index")
     def query_artifact_index(name: Annotated[str, Field(min_length=1, description="Existing root-relative .sqlite or .db legacy artifact index created by artifact-index CLI; not a schema-v2 evidence store.")], trace_id: TraceId = None, correlation_id: CorrelationId = None, page: Page = 0) -> dict:
-        """Query capture payloads from an existing legacy SQLite artifact metadata index.
-
-        Use to filter previously indexed captures by exact trace/correlation IDs;
-        discover_artifacts scans files and list_sessions queries a schema-v2 evidence
-        store instead. Returns artifacts, count, page and page_size; count is the page
-        length (no full total). Both ID filters combine with AND. Reads the DB in SQLite
-        read-only/query-only mode; no CREATE TABLE or migration occurs. Missing files,
-        wrong schemas or query failures produce MCP tool errors."""
+        """Search an existing legacy SQLite capture-metadata index by exact trace/correlation IDs.
+            Use discover_artifacts to scan files or list_sessions to query a schema-v2
+            evidence store. Filters combine with AND; count reports this page's rows,
+            and the database is opened read-only."""
         path = _relative(root, name)
         if root.resolve() not in path.parents or path.suffix not in (".sqlite", ".db") or not path.is_file(): raise ValueError("index is outside the allowlisted root or missing")
         index = ArtifactIndex(path, readonly=True)
@@ -470,46 +400,34 @@ def make_server(root: Path):
             rows = index.query(trace_id=trace_id, correlation_id=correlation_id, limit=200, offset=max(page, 0) * 200)
             return {"schema": 1, "count": len(rows), "page": max(page, 0), "page_size": 200, "artifacts": rows}
         finally: index.close()
-    @app.tool(annotations=_read_only("Resolve addresses"))
+    @_tool("Resolve addresses")
     def resolve_addresses(name: CaptureName, addresses: Annotated[list[Annotated[int, Field(ge=0, le=18446744073709551615)]], Field(max_length=1000, description="Up to 1,000 absolute runtime instruction addresses as JSON integers, e.g. [4198400]; preserve uint64 precision, do not pass hex strings or offsets.")], bundle: BundlePath = None) -> dict:
-        """Resolve captured instruction addresses against module Build IDs and available ELF symbols.
-
-        Use to obtain verified symbol/function IDs before get_function_source;
-        get_fault_flow instead resolves a bounded execution view. Returns items with
-        per-address resolved status and explicit failure reasons; one unresolved item
-        does not fail the others. Addresses are absolute runtime integers, not module
-        offsets or hex strings. May read recorded local ELF paths and run local
-        llvm-symbolizer with network lookup disabled; no target code is executed.
-        Invalid capture/bundle paths produce MCP tool errors."""
+        """Resolve absolute captured instruction addresses using module Build IDs and available ELF
+            symbols. Use returned function IDs with get_function_source; choose
+            get_fault_flow for a bounded view of a capture. Addresses are JSON integers,
+            not hex strings or offsets; unresolved items retain individual reasons, and
+            local symbolization performs no network lookup or target execution."""
         if len(addresses) > 1000: raise ValueError("maximum 1000 addresses")
         loaded = _bundle(root, bundle) if bundle else None
         return {"items": resolve_address_records(_load(root, name), addresses, bundle=loaded)}
-    @app.tool(annotations=_read_only("Get function source"))
+    @_tool("Get function source")
     def get_function_source(name: CaptureName, function_id: FunctionId, bundle: Annotated[str | None, Field(description="Verified root-relative source bundle directory; MUST be supplied for this lookup despite the nullable default. Missing bundle fails the call.")] = None) -> dict:
-        """Read exact source lines for one indexed function from a verified immutable bundle.
-
-        Use a function ID from resolve_addresses or the bundle index; get_source_evidence
-        verifies references for a stored incident, while get_call_relations returns
-        static neighbors. Returns resolved, function_id, file, start_line, end_line and
-        source text. A bundle must be supplied even though the argument defaults to null;
-        without it the call fails. Capture decoding and bundle hashes are checked, but
-        this lookup does not itself match the capture's Build ID to that function.
-        Missing source/IDs or invalid inputs produce MCP tool errors."""
+        """Read exact source lines for one function from a verified immutable bundle. Use a
+            function ID from resolve_addresses or the bundle index; choose
+            get_source_evidence for stored incident references or get_call_relations for
+            static neighbors. A bundle is required; this lookup does not match the
+            capture Build ID to the function."""
         _load(root, name)
         loaded = _bundle(root, bundle) if bundle else None
         if loaded is None: raise ValueError("bundle is required for verified source lookup")
         return verified_function_source(function_id, loaded)
-    @app.tool(annotations=_read_only("Get call relations"))
+    @_tool("Get call relations")
     def get_call_relations(name: CaptureName, function_id: FunctionId, direction: Annotated[Literal["outbound", "inbound"], Field(description="outbound: indexed callees/unresolved edges of this function; inbound: indexed callers whose edge targets this exact function ID.")] = "outbound", bundle: Annotated[str | None, Field(description="Verified root-relative source bundle directory; MUST be supplied for this lookup despite the nullable default. Missing bundle fails the call.")] = None) -> dict:
-        """Read inbound callers or outbound call candidates for one function in a verified static index.
-
-        Use for source call hypotheses; get_fault_flow reconstructs recorded nesting and
-        get_process_relations joins runtime IPC/RPC evidence. Returns function_id,
-        direction, relations, evidence=static_index and bundle. Outbound includes unresolved
-        edges; inbound includes indexed callers with matching callee IDs. A bundle must
-        be supplied despite the nullable default. No runtime execution is proven, and
-        capture/function Build-ID matching requires resolve_addresses. Missing IDs,
-        unverified bundles or invalid directions produce MCP tool errors."""
+        """Read inbound callers or outbound call hypotheses for one function from a verified static
+            index. Use get_fault_flow for recorded runtime nesting or
+            get_process_relations for IPC/RPC links. A verified bundle is required;
+            outbound results can include unresolved edges, and no runtime execution or
+            capture/function Build-ID match is proven."""
         _load(root, name)
         loaded = _bundle(root, bundle) if bundle else None
         if loaded is None: raise ValueError("bundle is required for verified call relations")

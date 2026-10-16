@@ -10,8 +10,13 @@ This roadmap describes work beyond v0.1.0. It is not a promise of delivery dates
   lab RPC/client/server mapping, optional boot/time-namespace provenance,
   validated generations and receiver-local relative deadlines. See
   [milestone evidence and remaining work](docs/releases/v1.3.0-alpha.1.md).
-- The remaining stage F work (general attempt pairing, native clock metadata,
-  container/Pod lifecycle provenance), G (chaos/durable retry oracle), H
+- `v1.3.0-alpha.2` extends F/G with explicit application operation/attempt labels,
+  a reusable local SQLite mutation/result ledger, and actual cross-process native
+  HTTP response loss, restart/replay and compensation controls. Fixed fresh/replay
+  workload measurements describe cost and avoided mutations. See
+  [scope and verification](docs/releases/v1.3.0-alpha.2.md).
+- The remaining stage F work (general native attempt pairing, native clock metadata,
+  container/Pod lifecycle provenance), G (broader Docker/network fault profiles), H
   (8/16/32 scale and measured retained snapshots), I (general viewer/drill-down)
   and J (full package/hosted/soak and independent stable acceptance) stay open.
 

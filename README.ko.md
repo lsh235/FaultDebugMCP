@@ -29,11 +29,13 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-개발 버전은 **1.3.0a1** (`v1.3.0-alpha.1`)이며, 문서의 증거 기반 구현은
+개발 버전은 **1.3.0a2** (`v1.3.0-alpha.2`)이며, 문서의 증거 기반 구현은
 [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)로 고정했습니다.
-이번 알파는 W3C traceparent v00의 128비트 전달, 실험 서비스의 명시적 RPC/span 연결,
-프로세스·시계 출처와 수신자 기준 상대 timeout을 제공합니다.
-[전달 계약](docs/http-context.md) · [구현 범위와 검증](docs/releases/v1.3.0-alpha.1.md)
+이번 알파는 논리 작업·시도 번호, 재사용 가능한 SQLite 재시도 원장,
+별도 프로세스 간 HTTP 응답 유실·재시작 검증을 추가합니다. 저장된 재고 작업을
+재시도하면 결과를 재사용하며 재고를 다시 차감하지 않습니다.
+[전달 계약](docs/http-context.md) · [재시도 계약](docs/http-retry.md) ·
+[구현 범위와 검증](docs/releases/v1.3.0-alpha.2.md)
 
 정식 릴리스의 독립 최종 수락, 현재 revision의 전체 core/gRPC profile,
 Docker 규모·kind·새 30분 soak는 남아 있습니다. 이전 revision의 PASS를 현재 코드의

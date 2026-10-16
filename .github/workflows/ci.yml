@@ -45,6 +45,7 @@ jobs:
           python test/http_context_contract.py
           python test/process_clock_contract.py
           python test/shop_http_context.py
+          python test/retry_ledger_contract.py
       - name: Test cross-service report and container PID identities
         run: python test/service_report_test.py
 
@@ -79,6 +80,16 @@ jobs:
           test -x build-ci/test/fd_c_chain
       - name: Test real HTTP context with native recorder
         run: python3 test/shop_http_context.py --boundary build-ci/test/shop/libshop_boundary.so --runtime-dir build-ci
+      - name: Test cross-process HTTP response loss, durable retry and restart
+        run: python3 test/shop_http_retry.py --boundary build-ci/test/shop/libshop_boundary.so --runtime-dir build-ci --output build-ci/http-retry.json
+      - name: Upload HTTP retry evidence
+        uses: actions/upload-artifact@v4
+        with:
+          name: http-retry-evidence
+          path: |
+            build-ci/http-retry.json
+            build-ci/http-retry-evidence/
+          if-no-files-found: error
       - name: Record toolchain versions
         run: |
           clang-18 --version

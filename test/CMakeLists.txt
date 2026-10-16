@@ -61,11 +61,17 @@ if(UNIX AND NOT APPLE)
     COMMAND ${FAULTDEBUG_VALIDATION_PYTHON} "${CMAKE_CURRENT_SOURCE_DIR}/http_context_contract.py")
   add_test(NAME fd_python_process_clock
     COMMAND ${FAULTDEBUG_VALIDATION_PYTHON} "${CMAKE_CURRENT_SOURCE_DIR}/process_clock_contract.py")
+  add_test(NAME fd_python_retry_ledger
+    COMMAND ${FAULTDEBUG_VALIDATION_PYTHON} "${CMAKE_CURRENT_SOURCE_DIR}/retry_ledger_contract.py")
   if(FAULTDEBUG_BUILD_SHOP)
     add_test(NAME fd_python_shop_http_context
       COMMAND ${FAULTDEBUG_VALIDATION_PYTHON} "${CMAKE_CURRENT_SOURCE_DIR}/shop_http_context.py"
         --boundary $<TARGET_FILE:shop_boundary> --runtime-dir "${CMAKE_BINARY_DIR}")
     set_tests_properties(fd_python_shop_http_context PROPERTIES TIMEOUT 60)
+    add_test(NAME fd_python_shop_http_retry
+      COMMAND ${FAULTDEBUG_VALIDATION_PYTHON} "${CMAKE_CURRENT_SOURCE_DIR}/shop_http_retry.py"
+        --boundary $<TARGET_FILE:shop_boundary> --runtime-dir "${CMAKE_BINARY_DIR}")
+    set_tests_properties(fd_python_shop_http_retry PROPERTIES TIMEOUT 120)
   endif()
   add_test(NAME fd_python_decoder_capacity
     COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/decoder_capacity.py"

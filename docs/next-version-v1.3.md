@@ -10,6 +10,12 @@ P1-01/P1-02의 첫 범위(traceparent v00, 명시적 RPC/span 연결, 세대·�
 lifecycle 및 전체 P1 수락은 남아 있다. 아래 원래 matrix는 전체 정식 수락 기준이며,
 [이번 알파의 범위와 실제 검증](releases/v1.3.0-alpha.1.md)을 함께 읽는다.
 
+같은 날 `1.3.0a2`에서는 별도 프로세스의 native HTTP 연결, 명시적 논리 작업·시도 번호,
+로컬 SQLite mutation/result 원장과 응답 유실 후 재시작·재시도 대조군을 추가했다.
+고정 fresh/replay workload의 비용과 실제 변경 횟수를 기록한다.
+이는 P1-01/03/04의 제한된 구현이며 전체 matrix 수락을 뜻하지 않는다.
+[alpha.2 범위와 검증](releases/v1.3.0-alpha.2.md)을 참조한다.
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,

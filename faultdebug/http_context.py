@@ -42,9 +42,13 @@ class TraceParent:
             raise ValueError("parent ID must be nonzero")
 
     def to_header(self) -> str:
-        """Serialize exactly 55 lowercase ASCII characters, without whitespace."""
+        """Serialize version 00, clearing reserved outgoing flag bits.
+
+        The parsed trace_flags byte remains available on this object for
+        evidence; only the sampled bit is permitted in an outgoing v00 field.
+        """
         return (f"00-{self.trace_id_hi:016x}{self.trace_id_lo:016x}-"
-                f"{self.parent_id:016x}-{self.trace_flags:02x}")
+                f"{self.parent_id:016x}-{self.trace_flags & 0x01:02x}")
 
 
 def parse_traceparent(value: str) -> TraceParent:
@@ -108,11 +112,12 @@ def new_traceparent() -> TraceParent:
 
 
 def child_traceparent(parent: TraceParent) -> TraceParent:
-    """Preserve trace/flags and generate a distinct nonzero sender span ID.
+    """Preserve trace/sampled bit and create a distinct nonzero sender span ID.
 
+    The outgoing context clears reserved v00 flags; the input stays unchanged.
     This transforms context only; it neither records nor proves a native edge.
     """
     if not isinstance(parent, TraceParent):
         raise TypeError("parent must be a TraceParent")
     return TraceParent(parent.trace_id_hi, parent.trace_id_lo,
-                       _new_span_id(parent.parent_id), parent.trace_flags)
+                       _new_span_id(parent.parent_id), parent.trace_flags & 0x01)

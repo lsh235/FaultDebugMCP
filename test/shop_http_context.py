@@ -124,6 +124,14 @@ class ProductionShopHTTPTests(unittest.TestCase):
             self.assertEqual(row["trace_flags"], 0)
             self.assertEqual(row["parent_span_id"], 0x4444444444444444)
             self.assertNotEqual(row["span_id"], row["parent_span_id"])
+        for raw_flags, current_flags in ((0xFE, 0), (0xFF, 1)):
+            # Use a literal wire value: the serializer correctly clears v00's
+            # reserved bits, so it cannot create this adversarial input.
+            incoming = f"00-{HI_A:016x}{LO:016x}-4444444444444444-{raw_flags:02x}"
+            self.assertEqual(self.request([("traceparent", incoming)])[0], 200)
+            current = self.events("server_begin")[-1]
+            self.assertEqual(current["trace_flags"], current_flags)
+            self.assertEqual((current["trace_id_hi"], current["trace_id"]), (HI_A, LO))
 
     def test_duplicate_invalid_and_conflicting_headers_are_rejected(self):
         header = TraceParent(HI_A, LO, 9, 0).to_header()

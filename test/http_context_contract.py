@@ -111,7 +111,7 @@ class HttpContextTests(unittest.TestCase):
                          "00-00000000000000010000000000000000-0000000000000007-00")
         self.assertEqual([call.args for call in random.call_args_list], [(128,), (128,), (64,), (64,)])
 
-    def test_child_preserves_unsampled_and_other_flag_bits(self):
+    def test_child_preserves_sampled_bit_and_clears_reserved_bits(self):
         for flags in (0, 1, 2, 0xFE, 0xFF):
             parent = TraceParent(0x4BF92F3577B34DA6, 0xA3CE929D0E0E4736, 7, flags)
             with patch("faultdebug.http_context.secrets.randbits", side_effect=[0, 7, 9]):
@@ -119,12 +119,33 @@ class HttpContextTests(unittest.TestCase):
             self.assertEqual((child.trace_id_hi, child.trace_id_lo),
                              (0x4BF92F3577B34DA6, 0xA3CE929D0E0E4736))
             self.assertEqual(child.parent_id, 9)
-            self.assertEqual(child.trace_flags, flags)
-            self.assertTrue(child.to_header().endswith(f"-{flags:02x}"))
+            self.assertEqual(child.trace_flags, flags & 1)
+            self.assertTrue(child.to_header().endswith(f"-{flags & 1:02x}"))
             self.assertEqual(parent.parent_id, 7)
+            self.assertEqual(parent.trace_flags, flags)
         for parent in (None, VECTOR, {}, True):
             with self.subTest(parent=parent), self.assertRaises(TypeError):
                 child_traceparent(parent)
+
+    def test_reserved_v00_flags_are_retained_as_input_and_cleared_on_output(self):
+        # Independent wire expectations from W3C v00's reserved-bit rule.
+        cases = [
+            ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-fe", 254,
+             "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-00"),
+            ("00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-ff", 255,
+             "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01"),
+        ]
+        for incoming, raw_flags, outgoing in cases:
+            with self.subTest(incoming=incoming):
+                context = parse_traceparent(incoming)
+                self.assertEqual(context.trace_flags, raw_flags)
+                self.assertEqual(context.to_header(), outgoing)
+                self.assertEqual(context.trace_flags, raw_flags)
+                with patch("faultdebug.http_context.secrets.randbits", return_value=9):
+                    child = child_traceparent(context)
+                self.assertEqual(child.to_header(), outgoing[:36] + "0000000000000009" + outgoing[52:])
+                self.assertEqual(child.trace_flags, 0 if raw_flags == 254 else 1)
+                self.assertEqual(context.trace_flags, raw_flags)
 
     def test_random_contexts_have_nonzero_ids(self):
         for _ in range(16):

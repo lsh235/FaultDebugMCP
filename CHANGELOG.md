@@ -8,7 +8,7 @@ Identity-transport development milestone; Python package `1.3.0a1` and native
 project `1.3.0`. This is the first part of the v1.3 plan, not stable acceptance.
 
 - Add a strict, dependency-free version-00 W3C traceparent adapter preserving all
-  128 trace bits and flags, rejecting ambiguous/duplicate context explicitly.
+  128 trace bits and the sampled flag, rejecting ambiguous/duplicate context explicitly.
 - Use it in the real HTTP shopping lab with explicit numeric RPC correlation and
   separate client/server span IDs. Headers and app logs remain application evidence.
 - Record optional local Linux boot/time-namespace clock provenance; keep unknown

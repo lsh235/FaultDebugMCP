@@ -39,11 +39,17 @@ adapter's boundary contract, rather than a claim of a complete W3C SDK.
 
 `new_traceparent()` uses cryptographic randomness to create a nonzero 128-bit
 trace ID and nonzero 64-bit span ID, with flags `00`.
-`child_traceparent(parent)` preserves the full trace ID and every flag bit,
-and generates a nonzero span ID distinct from the supplied `parent_id`.
+`parse_traceparent()` retains the raw incoming flags byte on `trace_flags` for
+evidence. For outgoing version 00 fields, `to_header()` clears reserved bits
+and emits only the sampled bit (`trace_flags & 0x01`), without changing the
+stored input. Thus incoming `fe` serializes as `00`, and `ff` as `01`.
+`child_traceparent(parent)` preserves the full trace ID and sampled bit,
+clears reserved flag bits in the new context, and generates a nonzero span ID
+distinct from the supplied `parent_id`. Its input object remains unchanged.
 The sampled bit is a propagation hint. Flags `00` remain valid and do not
 cause the adapter to drop context; no flag establishes that an event was
-recorded. Unknown flag bits are retained without assigning them semantics.
+recorded. Reserved incoming bits remain inspectable as input evidence; they
+are not forwarded in an outgoing v00 field.
 
 HTTP context is untrusted correlation input. Possession of a matching trace
 or span ID does not prove a call occurred, identify the caller, or establish

@@ -36,6 +36,10 @@ This roadmap describes work beyond v0.1.0. It is not a promise of delivery dates
   isolated opt-in CMake integration, immutable source/build evidence, and an
   actual external-project acceptance harness. It does not modify or reuse the
   original source/build tree. See [alpha7 scope and validation](docs/releases/v1.3.0-alpha.7.md).
+- `v1.3.0-alpha.8` adds an installed-package capture self-test: a fixed C fixture
+  is compiled and run outside the checkout, then its temporary artifact is
+  checked for complete, loss-free events. This is not user-project validation
+  or source-resolution proof. See [alpha8 scope and validation](docs/releases/v1.3.0-alpha.8.md).
 - The remaining stage F work (general native attempt pairing, native clock metadata,
   container/Pod lifecycle provenance), G (broader Docker/network fault profiles), H
   (8/16/32 scale and measured retained snapshots), I (general viewer/drill-down)

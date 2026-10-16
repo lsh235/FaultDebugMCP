@@ -124,6 +124,9 @@ if(UNIX AND NOT APPLE)
   add_test(NAME fd_python_soak_telemetry_contract
     COMMAND ${FAULTDEBUG_VALIDATION_PYTHON}
       "${CMAKE_CURRENT_SOURCE_DIR}/soak_telemetry_contract.py")
+  add_test(NAME fd_python_self_test_prerequisites
+    COMMAND ${FAULTDEBUG_VALIDATION_PYTHON}
+      "${CMAKE_CURRENT_SOURCE_DIR}/self_test_prerequisites.py")
   add_test(NAME fd_python_existing_project_adoption
     COMMAND ${FAULTDEBUG_VALIDATION_PYTHON}
       "${CMAKE_CURRENT_SOURCE_DIR}/existing_project_adoption.py"

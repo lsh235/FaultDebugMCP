@@ -58,6 +58,17 @@ revision is not inferred from a local hash. See
 [the alpha7 record](releases/v1.3.0-alpha.7.md) and
 [the adoption guide](existing-project-adoption.md).
 
+### Alpha8 follow-up: installed capture self-test
+
+`faultdebug self-test` checks an installed package and native runtime by
+compiling and running a fixed generated C fixture in a temporary directory,
+then validating that the stored trace is complete, stable and loss-free. Hosted
+CI runs the installed wheel from outside the checkout and uploads the JSON
+report. This demonstrates a bounded first capture; it does not validate a
+user project, symbols, production performance, or the remaining stable gates.
+See [the alpha8 record](releases/v1.3.0-alpha.8.md) and
+[the research decision](self-test-research.md).
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,

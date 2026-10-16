@@ -279,6 +279,16 @@ def main() -> int:
             raise SystemExit(f"debug-package: {exc}") from exc
         print(json.dumps(result, sort_keys=True)); return 0
     debug_package.set_defaults(func=debug_package_cmd)
+    debug_verify = sub.add_parser("debug-verify", help="verify hashes and Build-ID pairing in a separate-debug package")
+    debug_verify.add_argument("package", type=__import__('pathlib').Path)
+    def debug_verify_cmd(n):
+        from .debug_package import verify_debug_package
+        try:
+            result = verify_debug_package(n.package)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            raise SystemExit(f"debug-verify: {exc}") from exc
+        print(json.dumps(result, sort_keys=True)); return 0
+    debug_verify.set_defaults(func=debug_verify_cmd)
     ins = sub.add_parser("inspect", help="inspect a captured fault artifact")
     ins.add_argument("artifact")
     ins.add_argument("--bundle")

@@ -37,6 +37,14 @@ existing destination. The command verifies the input, runtime, and sidecar
 Build IDs before publishing the package. Scope and validation are recorded in
 [the alpha5 record](releases/v1.3.0-alpha.5.md).
 
+### Alpha6 follow-up: verify copied debug packages
+
+`faultdebug debug-verify` checks package hashes against the manifest, rejects
+unsafe or symlinked paths, and confirms that runtime and debug ELFs retain the
+manifest Build ID. It is a read-only consistency check; neither the Build ID nor
+an unsigned manifest authenticates the package creator. See
+[the alpha6 record](releases/v1.3.0-alpha.6.md).
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,

@@ -28,6 +28,10 @@ This roadmap describes work beyond v0.1.0. It is not a promise of delivery dates
   Build-ID-verified stripped runtime plus `.build-id` debug root from one linked
   ELF. The output is directly consumable by alpha4's local debug-directory
   resolver. See [alpha5 scope and validation](docs/releases/v1.3.0-alpha.5.md).
+- `v1.3.0-alpha.6` adds read-only `faultdebug debug-verify` for manifest file
+  hashes, package path safety, DWARF sections, and runtime/debug Build-ID parity.
+  It checks internal consistency, not authenticity or source provenance. See
+  [alpha6 scope and validation](docs/releases/v1.3.0-alpha.6.md).
 - The remaining stage F work (general native attempt pairing, native clock metadata,
   container/Pod lifecycle provenance), G (broader Docker/network fault profiles), H
   (8/16/32 scale and measured retained snapshots), I (general viewer/drill-down)

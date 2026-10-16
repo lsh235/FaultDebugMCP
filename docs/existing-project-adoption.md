@@ -73,6 +73,34 @@ It stores combined command output in `.faultdebug-adopt/build.log` and returns
 the bundle path. This opt-in never runs the application; launch remains a
 separate reviewed step. Without the flag, behavior remains plan-only.
 
+For a bounded first application capture, request the separate launch opt-in and
+pass each application argument as its own value:
+
+```sh
+python -m faultdebug.cli integrate \
+  --source-root /absolute/project \
+  --build-dir /absolute/project-faultdebug-capture-build \
+  --target server \
+  --faultdebug-prefix "$HOME/.local/faultdebug" \
+  --profile recommended \
+  --cmake-arg=-DCMAKE_C_COMPILER=clang-18 \
+  --cmake-arg=-DCMAKE_CXX_COMPILER=clang++-18 \
+  --execute-build --execute-target \
+  --target-arg=--config \
+  --target-arg='/absolute/project/config with spaces.yaml' \
+  --json
+```
+
+Each `--target-arg` accepts exactly one argument; quote values containing
+spaces, and use the equals form when an argument begins with `-`. The target is
+launched only after configure/build/index/bundle pass. PASS requires one valid
+`.fault` artifact with a complete, stable, non-empty, loss-free trace and a
+zero target exit. A nonzero target may still leave a useful crash artifact but
+does not pass the smoke contract. Application code runs as the current user;
+this is not a sandbox. Use this for a bounded smoke workload. For a service or
+long-running process, manage its lifecycle separately and use the generated
+launch stage when ready.
+
 The main target must be a project-owned executable. Targets in nested
 `add_subdirectory()` directories and custom executable output directories are
 supported. Aliases, imported targets, generator-expression source selections,

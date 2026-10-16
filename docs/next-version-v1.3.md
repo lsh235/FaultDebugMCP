@@ -79,6 +79,16 @@ resulting bundle. The target launch stage is never included. The default
 [alpha9 record](releases/v1.3.0-alpha.9.md) and
 [the research decision](integration-execute-build-research.md).
 
+### Alpha10 follow-up: explicit first target capture
+
+`faultdebug integrate --execute-target` is a second explicit opt-in that must
+be combined with `--execute-build`. After the verified build and bundle, it
+passes repeated `--target-arg` values to the generated run stage and accepts
+only one complete, stable, non-empty, loss-free capture from a zero-exit target.
+The default remains plan-only, and `--execute-build` alone still never launches
+the target. See the [alpha10 record](releases/v1.3.0-alpha.10.md) and
+[the research decision](integration-execute-target-research.md).
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,

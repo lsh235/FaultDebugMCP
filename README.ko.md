@@ -29,15 +29,16 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-개발 버전은 **1.3.0a9** (`v1.3.0-alpha.9`)이며, 문서의 증거 기반 구현은
+개발 버전은 **1.3.0a10** (`v1.3.0-alpha.10`)이며, 문서의 증거 기반 구현은
 [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)로 고정했습니다.
 기존 프로젝트용 정적 ELF 점검과 분리된 CMake 적용 경로를 제공합니다.
 `faultdebug self-test`가 설치된 경로의 고정 fixture capture를 확인하고,
-이번 알파의 `faultdebug integrate --execute-build`는 명시적으로 요청했을 때만 격리된 configure/build/index/bundle 단계를 실행합니다.
-대상 프로그램 실행은 포함하지 않습니다.
+알파9의 `faultdebug integrate --execute-build`는 격리된 configure/build/index/bundle 단계를 명시적으로 실행합니다.
+알파10은 별도 `--execute-target` opt-in과 반복형 `--target-arg`를 추가해
+앱을 실행하고 complete/stable/loss-free 캡처 하나를 검증합니다. 두 동작 모두 기본적으로 실행하지 않습니다.
 [기존 프로젝트 적용 안내](docs/existing-project-adoption.md) ·
-[실행 조사](docs/integration-execute-build-research.md) ·
-[구현 범위와 검증](docs/releases/v1.3.0-alpha.9.md)
+[실행 조사](docs/integration-execute-target-research.md) ·
+[구현 범위와 검증](docs/releases/v1.3.0-alpha.10.md)
 
 정식 릴리스의 독립 최종 수락, 현재 revision의 전체 core/gRPC profile,
 kind·새 30분 soak는 남아 있습니다. Docker 8/16/32 검증은 이번 알파 기록에 명시한

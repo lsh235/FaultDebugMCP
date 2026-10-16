@@ -90,12 +90,18 @@ set_target_properties(adoption_app PROPERTIES RUNTIME_OUTPUT_DIRECTORY "${CMAKE_
 ''')
         (source / "app/main.c").write_text('''#include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 int adoption_library(int crash);
 int vendor_value(void);
 int main(int argc, char **argv) {
   const char *marker = getenv("ADOPTION_EXECUTION_MARKER");
   if (marker) { FILE *f = fopen(marker, "w"); if (f) fclose(f); }
-  int value = adoption_library(argc > 1) + vendor_value();
+  if (argc > 1 && strcmp(argv[1], "--fixture-arg") == 0) {
+    if (argc != 3 || strcmp(argv[2], "value with spaces") != 0) return 8;
+    puts("ADOPTION_ARGUMENT=value with spaces");
+  }
+  int crash = argc > 1 && strcmp(argv[1], "--crash") == 0;
+  int value = adoption_library(crash) + vendor_value();
   printf("ADOPTION_RESULT=%d\\n", value);
   return value == 42 ? 0 : 1;
 }
@@ -183,6 +189,43 @@ __attribute__((noinline)) int adoption_library(int crash) {
         assert tree_hashes(self.original_build) == self.build_before
         return {"stages": execution["stages"], "bundle": execution["bundle"],
                 "target_launch": execution["target_launch"], "original_inputs_unchanged": True}
+
+    def execute_target(self):
+        build = self.root / "execute-target integration"
+        marker = self.root / "execute-target-was-run"
+        args = self.plan_args[:]
+        args[args.index("--build-dir") + 1] = str(build)
+        args.insert(args.index("--json"), "--execute-build")
+        args.insert(args.index("--json"), "--execute-target")
+        args.extend(["--target-arg=--fixture-arg", "--target-arg=value with spaces"])
+        self.env["ADOPTION_EXECUTION_MARKER"] = str(marker)
+        try:
+            result, report = self.cli_json(*args, expected=0)
+        finally:
+            self.env.pop("ADOPTION_EXECUTION_MARKER", None)
+        execution = report.get("execution", {})
+        target = execution.get("target_execution", {})
+        assert execution.get("status") == "PASS", execution
+        assert execution.get("overall_status") == "PASS", execution
+        assert execution.get("target_launch") == "RAN", execution
+        assert target.get("status") == "PASS" and target.get("target_returncode") == 0, target
+        capture_summary = target.get("capture", {})
+        assert capture_summary.get("complete") is True and capture_summary.get("snapshot_stable") is True, target
+        assert capture_summary.get("event_count", 0) > 0, target
+        assert capture_summary.get("dropped_count") == 0 and capture_summary.get("rpc_dropped_count") == 0, target
+        assert Path(target["artifact"]).is_file(), target
+        capture = collect_file(Path(target["artifact"]))
+        assert capture.get("complete") is True
+        assert marker.is_file(), "explicit target execution did not reach the application"
+        assert "ADOPTION_ARGUMENT=value with spaces" in result.stderr, result.stderr[-2000:]
+        assert "$(touch SHELL_INJECTION)" not in str(target)
+        assert not (build / "SHELL_INJECTION").exists(), "target args were interpreted by a shell"
+        assert tree_hashes(self.source) == self.source_before
+        assert tree_hashes(self.original_build) == self.build_before
+        return {"status": target["status"], "target_returncode": target["target_returncode"],
+                "capture": target["capture"], "artifact": target["artifact"],
+                "target_argument_with_spaces": "PASS", "target_marker": str(marker),
+                "original_inputs_unchanged": True}
 
     def rejection(self):
         cases = [self.original_build, self.source / "new-build", self.source.parent]
@@ -484,6 +527,7 @@ def main():
     suite.check("preflight_read_only", suite.preflight, requires=("existing_original_build",))
     suite.check("isolated_plan", suite.plan, requires=("existing_original_build", "installed_runtime"))
     suite.check("integrate_execute_build", suite.execute_build, requires=("isolated_plan",))
+    suite.check("integrate_execute_target", suite.execute_target, requires=("installed_runtime", "existing_original_build"))
     suite.check("unsafe_reuse_rejected", suite.rejection, requires=("isolated_plan",))
     suite.check("nested_profile_and_shell_paths", suite.instrument, requires=("isolated_plan",))
     suite.check("immutable_source_index_and_bundle", suite.captured_sources, requires=("nested_profile_and_shell_paths",))

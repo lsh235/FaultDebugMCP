@@ -51,6 +51,9 @@ This roadmap describes work beyond v0.1.0. It is not a promise of delivery dates
 - `v1.3.0-alpha.11` adds an explicit `--fault-report` handoff after target
   capture, reusing the checksummed artifact and verified source bundle while
   keeping report and target status separate. See [alpha11 scope and validation](docs/releases/v1.3.0-alpha.11.md).
+- `v1.3.0-alpha.12` exposes the existing English/Korean report choice as
+  `--fault-report-language` for that opt-in handoff, without changing the
+  English default. See [alpha12 scope and validation](docs/releases/v1.3.0-alpha.12.md).
 - The remaining stage F work (general native attempt pairing, native clock metadata,
   container/Pod lifecycle provenance), G (broader Docker/network fault profiles), H
   (8/16/32 scale and measured retained snapshots), I (general viewer/drill-down)

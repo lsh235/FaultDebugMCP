@@ -200,6 +200,7 @@ __attribute__((noinline)) int adoption_library(int crash) {
         args.insert(args.index("--json"), "--execute-build")
         args.insert(args.index("--json"), "--execute-target")
         args.insert(args.index("--json"), "--fault-report")
+        args.insert(args.index("--json"), "--fault-report-language=ko")
         args.extend(["--target-arg=--fixture-arg", "--target-arg=value with spaces"])
         self.env["ADOPTION_EXECUTION_MARKER"] = str(marker)
         try:
@@ -218,9 +219,12 @@ __attribute__((noinline)) int adoption_library(int crash) {
         report_model = json.loads((report_dir / "report.json").read_text())
         assert report_model["bundle"]["verified"] is True
         assert report_model["artifact"]["checksum_verified"] is True
+        assert report_model["language"] == "ko"
         assert report_model["crashes"] == []
         assert {path.name for path in report_dir.iterdir()} == {
             "report.json", "report.md", "report.html"}
+        assert "장애 레코드 없음" in (report_dir / "report.md").read_text()
+        assert "장애 실행 흐름" in (report_dir / "report.html").read_text()
         capture_summary = target.get("capture", {})
         assert capture_summary.get("complete") is True and capture_summary.get("snapshot_stable") is True, target
         assert capture_summary.get("event_count", 0) > 0, target
@@ -255,6 +259,7 @@ __attribute__((noinline)) int adoption_library(int crash) {
         assert crash_report.get("status") == "PASS", crash_execution
         assert crash_execution.get("overall_status") == "FAIL", crash_execution
         crash_model = json.loads((Path(crash_report["output"]) / "report.json").read_text())
+        assert crash_model["language"] == "en", crash_model
         assert len(crash_model["crashes"]) == 1, crash_model["crashes"]
         assert crash_model["crashes"][0]["signal"] == 11, crash_model["crashes"]
         assert crash_model["crashes"][0]["source_verified"] is True, crash_model["crashes"]

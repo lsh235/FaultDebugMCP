@@ -107,7 +107,9 @@ uses the exact artifact and verified bundle from that run. A nonzero target can
 still have a report if it produced a validated capture, while target and
 combined execution remain failed. Existing or symlinked report destinations
 are never replaced. No-crash captures remain explicitly no-crash, and the
-report does not infer a root cause.
+report does not infer a root cause. Choose Korean with
+`--fault-report-language=ko`; English remains the default. This language option
+requires `--fault-report` and affects the JSON, Markdown and HTML report files.
 
 The main target must be a project-owned executable. Targets in nested
 `add_subdirectory()` directories and custom executable output directories are

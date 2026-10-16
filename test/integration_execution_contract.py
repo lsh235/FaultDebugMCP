@@ -75,6 +75,8 @@ def main() -> int:
     _assert_cli_rejects("--execute-target", message="--execute-target requires --execute-build")
     _assert_cli_rejects("--target-arg=unexpected", message="--target-arg requires --execute-target")
     _assert_cli_rejects("--fault-report", message="--fault-report requires --execute-target")
+    _assert_cli_rejects("--fault-report-language=ko",
+                         message="--fault-report-language requires --fault-report")
     with tempfile.TemporaryDirectory(prefix="faultdebug-integration-execute-") as raw:
         root = Path(raw)
         source = root / "source"
@@ -134,17 +136,19 @@ def main() -> int:
         assert len(list(target_artifacts.glob("*.fault"))) == 1
         assert not target_marker.exists(), "application arguments were interpreted by a shell"
 
-        target_report = write_integration_fault_report(target_result, target_build_result)
+        target_report = write_integration_fault_report(
+            target_result, target_build_result, language="ko")
         assert target_report["status"] == "PASS", target_report
         assert target_report["crashes"] == 0, target_report
         target_report_dir = Path(target_report["output"])
         report_model = json.loads((target_report_dir / "report.json").read_text())
         assert report_model["bundle"]["verified"] is True
         assert report_model["artifact"]["checksum_verified"] is True
+        assert report_model["language"] == "ko"
         assert report_model["crashes"] == []
         assert {path.name for path in target_report_dir.iterdir()} == {
             "report.json", "report.md", "report.html"}
-        assert "No crash record" in (target_report_dir / "report.md").read_text()
+        assert "장애 레코드 없음" in (target_report_dir / "report.md").read_text()
         assert write_integration_fault_report(target_result, target_build_result)["status"] == "FAIL"
         symlink_artifacts = root / "symlink-artifacts"
         symlink_artifacts.mkdir()
@@ -189,7 +193,7 @@ def main() -> int:
         sys.argv = ["faultdebug", "integrate", "--source-root", str(source),
                     "--build-dir", str(target_build), "--target", "app",
                     "--faultdebug-prefix", str(root / "prefix"), "--execute-build",
-                    "--execute-target", "--fault-report", "--json"]
+                    "--execute-target", "--fault-report", "--fault-report-language=ko", "--json"]
         stdout = io.StringIO()
         try:
             with contextlib.redirect_stdout(stdout), \
@@ -210,6 +214,7 @@ def main() -> int:
         assert cli_result["execution"]["fault_report"]["status"] == "PASS", cli_result
         assert cli_result["execution"]["overall_status"] == "FAIL", cli_result
         report_writer.assert_called_once()
+        assert report_writer.call_args.kwargs["language"] == "ko", report_writer.call_args
 
         failed_build = root / "failed-build"
         failed_state = failed_build / ".faultdebug-adopt"

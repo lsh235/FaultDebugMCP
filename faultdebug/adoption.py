@@ -431,7 +431,8 @@ def execute_integration_target(plan: dict, build_result: dict,
                 "error": f"capture verification failed: {exc}"[:512]}
 
 
-def write_integration_fault_report(target_result: dict, build_result: dict) -> dict:
+def write_integration_fault_report(target_result: dict, build_result: dict,
+                                   *, language: str = "en") -> dict:
     """Create a report beside an explicitly requested, verified target capture."""
     if target_result.get("target_launch") != "RAN":
         return {"status": "NOT RUN", "reason": "target was not launched"}
@@ -452,7 +453,7 @@ def write_integration_fault_report(target_result: dict, build_result: dict) -> d
                 "output": str(output)}
     try:
         from .fault_report import write_fault_report
-        report = write_fault_report(artifact, output, bundle=bundle)
+        report = write_fault_report(artifact, output, bundle=bundle, language=language)
     except (OSError, ValueError, KeyError, TypeError) as exc:
         return {"status": "FAIL", "reason": str(exc)[:512], "output": str(output)}
     return {"status": "PASS", **report}

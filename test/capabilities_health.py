@@ -22,6 +22,7 @@ def main() -> int:
     required = {"open_fault", "get_thread_trace", "resolve_addresses",
                 "get_function_source", "get_call_relations"}
     assert set(contract["required_tools"]) == required
+    assert "discover_bundles" in contract["additional_tools"]
     assert {"list_incidents", "get_incident_slice", "get_source_evidence", "get_unresolved"} <= set(contract["v09_tools"])
     assert contract["store_versions"]["base_schema"] == SCHEMA_VERSION
     assert set(contract["evidence_classes"]) == {"observed", "derived", "static_candidates", "unresolved", "hypotheses"}

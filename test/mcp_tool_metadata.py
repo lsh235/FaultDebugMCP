@@ -51,8 +51,15 @@ async def audit(root):
         {'id': 'fn-main', 'name': 'main', 'file': 'main.c', 'line': 1,
          'source_range': {'start': 1, 'end': 3}, 'edges': [], 'unresolved_edges': []},
     ]}))
-    create_bundle(source_root, root / 'bundles' / 'build-001', index=source_index)
-    source_bundle_path = 'bundles/build-001'
+    bundle_directory = root / 'bundles with spaces' / 'build-001'
+    create_bundle(source_root, bundle_directory, index=source_index)
+    source_bundle_path = 'bundles with spaces/build-001'
+    malformed_bundle = root / 'malformed-bundle'
+    malformed_bundle.mkdir()
+    (malformed_bundle / 'bundle.json').write_text('{malformed\n')
+    symlink_bundle = root / 'symlink-bundle'
+    symlink_bundle.mkdir()
+    (symlink_bundle / 'bundle.json').symlink_to(Path(__file__).resolve())
     with EvidenceStore(root / 'evidence.sqlite3') as store:
         for artifact in (capture, declared):
             ingested = store.ingest(artifact)
@@ -71,7 +78,7 @@ async def audit(root):
             assert initialized.instructions and len(initialized.instructions) <= 512
             listed = await session.list_tools()
             tools = {tool.name: tool for tool in listed.tools}
-            assert len(tools) == 26, sorted(tools)
+            assert len(tools) == 27, sorted(tools)
             parameters = 0
             for name, tool in tools.items():
                 assert tool.description and 30 <= len(tool.description) <= 1600, name
@@ -94,6 +101,17 @@ async def audit(root):
             for tool_name in ('open_fault', 'get_fault_flow', 'resolve_addresses'):
                 schema = tools[tool_name].inputSchema
                 assert 'bundle' not in schema.get('required', []), (tool_name, schema)
+            discovered_bundles = payload(await session.call_tool('discover_bundles', {}))
+            assert discovered_bundles['verification'] == 'not_performed', discovered_bundles
+            assert discovered_bundles['total'] == 3, discovered_bundles
+            assert discovered_bundles['candidate_count'] == 2, discovered_bundles
+            assert discovered_bundles['rejected_count'] == 1, discovered_bundles
+            bundle_rows = {row['path']: row for row in discovered_bundles['bundles']}
+            assert bundle_rows[source_bundle_path]['status'] == 'candidate', bundle_rows
+            assert bundle_rows[source_bundle_path]['manifest_bytes'] == (bundle_directory / 'bundle.json').stat().st_size
+            assert bundle_rows['malformed-bundle']['status'] == 'candidate', bundle_rows
+            assert bundle_rows['symlink-bundle']['status'] == 'rejected', bundle_rows
+            source_bundle_path = bundle_rows[source_bundle_path]['path']
             source = payload(await session.call_tool('get_function_source', {
                 'name': capture.name, 'function_id': 'fn-main', 'bundle': source_bundle_path}))
             assert source['resolved'] is True and 'int main' in source['source'], source
@@ -125,6 +143,9 @@ async def audit(root):
                 ('get_call_relations', {'name': capture.name, 'function_id': 'f', 'direction': 'both'}),
                 ('get_function_source', {'name': capture.name, 'function_id': 'fn-main'}),
                 ('get_call_relations', {'name': capture.name, 'function_id': 'fn-main'}),
+                ('get_function_source', {'name': capture.name, 'function_id': 'fn-main',
+                                        'bundle': 'malformed-bundle'}),
+                ('discover_bundles', {'page': -1}),
                 ('list_sessions', {'trust_state': 'made-up'}),
                 ('resolve_addresses', {'name': capture.name, 'addresses': [-1]}),
                 ('resolve_addresses', {'name': capture.name, 'addresses': [1] * 1001}),

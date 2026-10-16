@@ -15,7 +15,7 @@ from faultdebug.mcp_server import make_server
 def main() -> int:
     p = argparse.ArgumentParser(); p.add_argument("--root", type=Path, required=True); p.add_argument("--artifact", required=True); p.add_argument("--bundle", required=True); p.add_argument("--function-id", required=True); ns = p.parse_args()
     server = make_server(ns.root); tools = server._tool_manager._tools
-    expected = {"get_capabilities", "check_store", "open_fault", "get_thread_trace", "get_rpc_trace", "get_process_relations", "get_evidence_summary", "get_incident_report", "get_session_manifest", "get_process_participants", "list_sessions", "get_session", "get_provenance", "list_incidents", "get_incident_slice", "get_source_evidence", "get_unresolved", "discover_artifacts", "resolve_addresses", "get_function_source", "get_call_relations"}
+    expected = {"get_capabilities", "check_store", "open_fault", "get_thread_trace", "get_rpc_trace", "get_process_relations", "get_evidence_summary", "get_incident_report", "get_session_manifest", "get_process_participants", "list_sessions", "get_session", "get_provenance", "list_incidents", "get_incident_slice", "get_source_evidence", "get_unresolved", "discover_artifacts", "discover_bundles", "resolve_addresses", "get_function_source", "get_call_relations"}
     assert expected <= set(tools), sorted(tools)
     descriptions = {name: (tools[name].description or "").strip() for name in expected}
     assert all(len(description) >= 30 for description in descriptions.values()), {
@@ -40,6 +40,9 @@ def main() -> int:
     discovered = tools["discover_artifacts"].fn()
     assert {"artifacts", "count", "valid", "invalid", "page", "page_size"} <= discovered.keys()
     assert discovered["count"] >= 1 and discovered["valid"] >= 1
+    bundles = tools["discover_bundles"].fn()
+    assert {"bundles", "total", "candidate_count", "rejected_count", "verification"} <= bundles.keys()
+    assert bundles["verification"] == "not_performed"
     resolved = tools["resolve_addresses"].fn(ns.artifact, [1], ns.bundle)
     assert len(resolved["items"]) == 1 and "resolved" in resolved["items"][0]
     source = tools["get_function_source"].fn(ns.artifact, ns.function_id, ns.bundle)

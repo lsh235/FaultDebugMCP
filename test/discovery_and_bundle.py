@@ -14,7 +14,7 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from faultdebug.discovery import inspect_spool
-from faultdebug.bundle import BundleError, create_bundle, load_bundle
+from faultdebug.bundle import BundleError, create_bundle, discover_bundle_paths, load_bundle
 
 
 def main() -> int:
@@ -61,6 +61,20 @@ def main() -> int:
             pass
         else:
             raise AssertionError("bundle path traversal was accepted")
+        extra = root / "extra-candidate"
+        extra.mkdir()
+        (extra / "bundle.json").write_text("not parsed by discovery\n")
+        discovered = discover_bundle_paths(root, page=0, page_size=1)
+        assert discovered["total"] >= 2 and discovered["next_page"] == 1, discovered
+        next_page = discover_bundle_paths(root, page=1, page_size=1)
+        assert next_page["page"] == 1 and next_page["total"] == discovered["total"], next_page
+        assert next_page["bundles"] and next_page["bundles"][0]["path"] != discovered["bundles"][0]["path"]
+        try:
+            discover_bundle_paths(root, limit=1)
+        except BundleError:
+            pass
+        else:
+            raise AssertionError("bundle discovery scan limit was not enforced")
         outside.unlink()
     print("discovery-bundle-ok")
     return 0

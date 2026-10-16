@@ -47,7 +47,7 @@ def get_capabilities() -> dict[str, Any]:
             "get_function_source", "get_call_relations",
         ],
         "additional_tools": [
-            "get_capabilities", "check_store", "get_rpc_trace",
+            "get_capabilities", "check_store", "discover_bundles", "get_rpc_trace",
             "get_process_relations", "get_evidence_summary", "get_incident_report",
             "get_session_manifest", "get_process_participants", "list_sessions",
             "get_session", "get_provenance",

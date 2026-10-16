@@ -89,6 +89,15 @@ The default remains plan-only, and `--execute-build` alone still never launches
 the target. See the [alpha10 record](releases/v1.3.0-alpha.10.md) and
 [the research decision](integration-execute-target-research.md).
 
+### Alpha11 follow-up: direct source-verified report handoff
+
+The explicit `integrate --fault-report` option writes the existing
+JSON/Markdown/HTML report next to a validated target artifact, using the build's
+verified bundle. Target failure and report generation remain separate statuses;
+a report cannot turn an unsuccessful target into a PASS. Existing destinations
+are protected. See the [alpha11 record](releases/v1.3.0-alpha.11.md) and
+[feature review](integration-fault-report-review.md).
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,

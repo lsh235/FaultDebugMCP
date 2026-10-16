@@ -431,6 +431,33 @@ def execute_integration_target(plan: dict, build_result: dict,
                 "error": f"capture verification failed: {exc}"[:512]}
 
 
+def write_integration_fault_report(target_result: dict, build_result: dict) -> dict:
+    """Create a report beside an explicitly requested, verified target capture."""
+    if target_result.get("target_launch") != "RAN":
+        return {"status": "NOT RUN", "reason": "target was not launched"}
+    artifact_value = target_result.get("artifact")
+    if not isinstance(artifact_value, str):
+        return {"status": "NOT RUN", "reason": "target produced no verified artifact"}
+    artifact = Path(artifact_value)
+    if artifact.is_symlink() or artifact.suffix != ".fault" or not artifact.is_file():
+        return {"status": "FAIL", "reason": "target artifact is not a regular .fault file"}
+    if artifact.parent.is_symlink() or not artifact.parent.is_dir():
+        return {"status": "FAIL", "reason": "target artifact directory is not a regular directory"}
+    bundle = build_result.get("bundle")
+    if not isinstance(bundle, str) or not bundle:
+        return {"status": "FAIL", "reason": "verified source bundle is unavailable"}
+    output = artifact.parent / f"{artifact.stem}-report"
+    if output.is_symlink() or output.exists():
+        return {"status": "FAIL", "reason": "report output already exists; refusing to replace it",
+                "output": str(output)}
+    try:
+        from .fault_report import write_fault_report
+        report = write_fault_report(artifact, output, bundle=bundle)
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        return {"status": "FAIL", "reason": str(exc)[:512], "output": str(output)}
+    return {"status": "PASS", **report}
+
+
 def _state(path: Path) -> dict:
     value = json.loads(path.read_text())
     if not isinstance(value, dict) or value.get("schema") != SCHEMA:

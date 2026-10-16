@@ -199,6 +199,7 @@ __attribute__((noinline)) int adoption_library(int crash) {
         args[args.index("--build-dir") + 1] = str(build)
         args.insert(args.index("--json"), "--execute-build")
         args.insert(args.index("--json"), "--execute-target")
+        args.insert(args.index("--json"), "--fault-report")
         args.extend(["--target-arg=--fixture-arg", "--target-arg=value with spaces"])
         self.env["ADOPTION_EXECUTION_MARKER"] = str(marker)
         try:
@@ -207,10 +208,19 @@ __attribute__((noinline)) int adoption_library(int crash) {
             self.env.pop("ADOPTION_EXECUTION_MARKER", None)
         execution = report.get("execution", {})
         target = execution.get("target_execution", {})
+        fault_report = execution.get("fault_report", {})
         assert execution.get("status") == "PASS", execution
         assert execution.get("overall_status") == "PASS", execution
         assert execution.get("target_launch") == "RAN", execution
         assert target.get("status") == "PASS" and target.get("target_returncode") == 0, target
+        assert fault_report.get("status") == "PASS", execution
+        report_dir = Path(fault_report["output"])
+        report_model = json.loads((report_dir / "report.json").read_text())
+        assert report_model["bundle"]["verified"] is True
+        assert report_model["artifact"]["checksum_verified"] is True
+        assert report_model["crashes"] == []
+        assert {path.name for path in report_dir.iterdir()} == {
+            "report.json", "report.md", "report.html"}
         capture_summary = target.get("capture", {})
         assert capture_summary.get("complete") is True and capture_summary.get("snapshot_stable") is True, target
         assert capture_summary.get("event_count", 0) > 0, target
@@ -222,10 +232,43 @@ __attribute__((noinline)) int adoption_library(int crash) {
         assert "ADOPTION_ARGUMENT=value with spaces" in result.stderr, result.stderr[-2000:]
         assert "$(touch SHELL_INJECTION)" not in str(target)
         assert not (build / "SHELL_INJECTION").exists(), "target args were interpreted by a shell"
+
+        # A fatal target may still leave a reportable capture, while the CLI
+        # must preserve target and overall failure.
+        crash_build = self.root / "execute-target crash integration"
+        crash_marker = self.root / "execute-target-crash-was-run"
+        crash_args = self.plan_args[:]
+        crash_args[crash_args.index("--build-dir") + 1] = str(crash_build)
+        crash_args.insert(crash_args.index("--json"), "--execute-build")
+        crash_args.insert(crash_args.index("--json"), "--execute-target")
+        crash_args.insert(crash_args.index("--json"), "--fault-report")
+        crash_args.append("--target-arg=--crash")
+        self.env["ADOPTION_EXECUTION_MARKER"] = str(crash_marker)
+        try:
+            _, crash_payload = self.cli_json(*crash_args, expected=1)
+        finally:
+            self.env.pop("ADOPTION_EXECUTION_MARKER", None)
+        crash_execution = crash_payload.get("execution", {})
+        crash_target = crash_execution.get("target_execution", {})
+        crash_report = crash_execution.get("fault_report", {})
+        assert crash_target.get("status") == "FAIL", crash_execution
+        assert crash_report.get("status") == "PASS", crash_execution
+        assert crash_execution.get("overall_status") == "FAIL", crash_execution
+        crash_model = json.loads((Path(crash_report["output"]) / "report.json").read_text())
+        assert len(crash_model["crashes"]) == 1, crash_model["crashes"]
+        assert crash_model["crashes"][0]["signal"] == 11, crash_model["crashes"]
+        assert crash_model["crashes"][0]["source_verified"] is True, crash_model["crashes"]
+        assert crash_marker.is_file(), "fatal target did not reach the application"
+
         assert tree_hashes(self.source) == self.source_before
         assert tree_hashes(self.original_build) == self.build_before
         return {"status": target["status"], "target_returncode": target["target_returncode"],
                 "capture": target["capture"], "artifact": target["artifact"],
+                "fault_report": str(report_dir / "report.json"),
+                "fatal_target_status": crash_target["status"],
+                "fatal_report": str(Path(crash_report["output"]) / "report.json"),
+                "fatal_signal": crash_model["crashes"][0]["signal"],
+                "fatal_source_verified": crash_model["crashes"][0]["source_verified"],
                 "target_argument_with_spaces": "PASS", "target_marker": str(marker),
                 "original_inputs_unchanged": True}
 

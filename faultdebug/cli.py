@@ -271,6 +271,8 @@ def main() -> int:
     ins.add_argument("--bundle")
     ins.add_argument("--tid", type=int)
     ins.add_argument("--address", action="append", default=[], type=lambda value: int(value, 0))
+    ins.add_argument("--debug-directory", action="append", default=[], type=__import__('pathlib').Path,
+                     help="local GNU build-id debug root containing .build-id/xx/rest.debug; may be repeated")
     ins.add_argument("--function-id", help="look up source from the verified bundle index")
     def inspect_cmd(n):
         import json
@@ -280,7 +282,8 @@ def main() -> int:
         report = collect_file(Path(n.artifact))
         result = {"target": report.get("target"), "collector": report.get("collector"), "crashes": report.get("crashes", [])}
         if n.tid is not None: result["threads"] = thread_trace(report, n.tid)
-        resolutions = resolve_addresses(report, n.address, bundle=n.bundle) if n.address else []
+        resolutions = resolve_addresses(report, n.address, bundle=n.bundle,
+                                        debug_directories=n.debug_directory) if n.address else []
         if n.address: result["addresses"] = resolutions
         if n.function_id:
             if not n.bundle: raise SystemExit("--function-id requires --bundle")
@@ -291,6 +294,8 @@ def main() -> int:
     flow = sub.add_parser("fault-report", help="create a document and standalone interactive runtime fault-flow report")
     flow.add_argument("artifact", type=__import__('pathlib').Path)
     flow.add_argument("--bundle", help="verified source/binary bundle")
+    flow.add_argument("--debug-directory", action="append", default=[], type=__import__('pathlib').Path,
+                      help="local GNU build-id debug root containing .build-id/xx/rest.debug; may be repeated")
     flow.add_argument("--output", required=True, type=__import__('pathlib').Path,
                       help="new directory for report.md, report.json and report.html")
     flow.add_argument("--max-events", type=int, default=80, help="last 1–500 pre-crash events per thread")
@@ -299,7 +304,8 @@ def main() -> int:
         from .fault_report import write_fault_report
         try:
             result = write_fault_report(n.artifact, n.output, bundle=n.bundle,
-                                        max_events=n.max_events, language=n.language)
+                                        max_events=n.max_events, language=n.language,
+                                        debug_directories=n.debug_directory)
         except (OSError, ValueError, KeyError, TypeError) as exc:
             raise SystemExit(f"fault-report: {exc}") from exc
         print(json.dumps(result, sort_keys=True)); return 0

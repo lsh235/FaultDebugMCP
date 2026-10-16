@@ -31,6 +31,7 @@ def snapshot(root):
 
 async def audit(root):
     capture = write_artifact({'process': {'pid': 7}, 'threads': [], 'crashes': []}, root, 7)
+    (root / 'debug').mkdir()
     nested = root / 'nested'
     nested.mkdir()
     (nested / 'fault-nested.json').write_text(json.dumps({'process': {'pid': 8}}))
@@ -79,6 +80,8 @@ async def audit(root):
             assert caps['platform_toolchain']['mcp_transport'] == 'stdio'
             opened = payload(await session.call_tool('open_fault', {'name': capture.name}))
             assert opened['process']['pid'] == 7
+            assert payload(await session.call_tool('resolve_addresses', {
+                'name': capture.name, 'addresses': [], 'debug_directory': 'debug'}))['items'] == []
             found = payload(await session.call_tool('discover_artifacts', {'include_json': True}))
             assert 'nested/fault-nested.json' in {row['path'] for row in found['artifacts']}
             indexed = payload(await session.call_tool('query_artifact_index', {'name': 'index.sqlite'}))
@@ -94,10 +97,12 @@ async def audit(root):
                 ('open_fault', {'name': str(capture)}),
                 ('get_thread_trace', {'name': capture.name, 'page': -1}),
                 ('get_fault_flow', {'name': capture.name, 'max_events': 501}),
+                ('get_fault_flow', {'name': capture.name, 'debug_directory': '../outside'}),
                 ('get_call_relations', {'name': capture.name, 'function_id': 'f', 'direction': 'both'}),
                 ('list_sessions', {'trust_state': 'made-up'}),
                 ('resolve_addresses', {'name': capture.name, 'addresses': [-1]}),
                 ('resolve_addresses', {'name': capture.name, 'addresses': [1] * 1001}),
+                ('resolve_addresses', {'name': capture.name, 'addresses': [], 'debug_directory': '/tmp'}),
                 ('collect_faults', {'names': [capture.name] * 1001}),
                 ('get_source_evidence', {'incident_id': 'i', 'bundle': '.', 'function_ids': ['f'] * 101}),
                 ('query_artifact_index', {'name': 'empty.sqlite'}),

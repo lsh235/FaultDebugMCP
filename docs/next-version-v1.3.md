@@ -21,6 +21,14 @@ lifecycle 및 전체 P1 수락은 남아 있다. 아래 원래 matrix는 전체 
 native 8-role 세션과 Docker 8/16/32의 제한된 시나리오를 각각 검증한다.
 [alpha.3 기록](releases/v1.3.0-alpha.3.md)의 범위를 전체 matrix 수락과 구분한다.
 
+### Alpha4 follow-up: separate debug files
+
+`1.3.0a4` extends the source-resolution path for distributions that strip runtime
+ELFs and ship debug data separately. It accepts only an explicitly supplied local
+GNU `.build-id` cache entry whose embedded Build ID matches the captured module.
+This does not close the independent stable gates above. The behavior and limits
+are in [the alpha4 record](releases/v1.3.0-alpha.4.md).
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,

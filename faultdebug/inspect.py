@@ -60,11 +60,14 @@ def _symbolizer() -> str | None:
     return str(local) if local.is_file() else shutil.which("llvm-symbolizer-18") or shutil.which("llvm-symbolizer")
 
 
-def _source_for_address(binary: Path, address: int) -> dict[str, Any] | None:
+def _source_for_address(binary: Path, address: int, debug_directories: list[Path] | None = None) -> dict[str, Any] | None:
     tool = _symbolizer()
     if not tool: return None
     try:
-        proc = subprocess.run([tool, "--no-debuginfod", f"--obj={binary}", "--functions=linkage", "--inlining", hex(address)], text=True, capture_output=True, timeout=3, check=False)
+        debug_args = [arg for root in (debug_directories or []) for arg in ("--debug-file-directory", str(root))]
+        environment = os.environ.copy()
+        environment.pop("LLVM_SYMBOLIZER_OPTS", None)
+        proc = subprocess.run([tool, "--no-debuginfod", *debug_args, f"--obj={binary}", "--functions=linkage", "--inlining", hex(address)], text=True, capture_output=True, timeout=3, check=False, env=environment)
     except (OSError, subprocess.SubprocessError): return None
     lines = [line.strip() for line in proc.stdout.splitlines() if line.strip()]
     if len(lines) < 2: return None
@@ -72,6 +75,37 @@ def _source_for_address(binary: Path, address: int) -> dict[str, Any] | None:
     match = re.match(r"^(.*?):(\d+)(?::(\d+))?$", lines[1])
     if match: result.update({"file": match.group(1), "line": int(match.group(2)), "column": int(match.group(3) or 0)})
     return result
+
+
+def _separate_debug_file(build_id: str, directories: list[Path]) -> Path | None:
+    """Find a matching GNU build-id debug file without network or broad scans."""
+    normalized = build_id.lower()
+    if len(normalized) < 4 or len(normalized) % 2 or not re.fullmatch(r"[0-9a-f]+", normalized):
+        return None
+    relative = Path(".build-id") / normalized[:2] / f"{normalized[2:]}.debug"
+    for directory in directories:
+        candidate = (directory / relative).resolve()
+        if directory not in candidate.parents or not candidate.is_file():
+            continue
+        if _build_id(candidate) == normalized:
+            return candidate
+    return None
+
+
+def _symbol_rows_for_address(binary: Path, address: int, debug_file: Path | None,
+                             cache: dict[Path, list[dict]]) -> list[dict]:
+    rows = cache.get(binary)
+    if rows is None:
+        rows = _symbols(binary)
+        cache[binary] = rows
+    matches = [row for row in rows if row["value"] <= address < row["end"]]
+    if matches or debug_file is None:
+        return matches
+    rows = cache.get(debug_file)
+    if rows is None:
+        rows = _symbols(debug_file)
+        cache[debug_file] = rows
+    return [row for row in rows if row["value"] <= address < row["end"]]
 
 
 def _binary_for_module(module: dict, bundle: SourceBundle | None) -> Path | None:
@@ -95,10 +129,15 @@ def _match_function(rows: list[dict], symbol: dict, source: dict | None) -> tupl
     return (candidates[0], candidates) if len(candidates) == 1 else (None, candidates)
 
 
-def resolve_addresses(report: dict, addresses: list[int], bundle: SourceBundle | str | os.PathLike[str] | None = None, *, kind: str = "address") -> list[dict]:
+def resolve_addresses(report: dict, addresses: list[int], bundle: SourceBundle | str | os.PathLike[str] | None = None, *, kind: str = "address", debug_directories: list[str | os.PathLike[str]] | None = None) -> list[dict]:
     """Resolve PC/function/callsite addresses only against BuildID-matched evidence."""
     if bundle is not None and not isinstance(bundle, SourceBundle): bundle = load_bundle(bundle)
     index_rows = bundle.index_rows() if bundle else list(report.get("functions", []))
+    debug_roots = [Path(value).expanduser().resolve() for value in (debug_directories or [])]
+    if any(not path.is_dir() for path in debug_roots):
+        raise InspectionError("separate debug directories must exist and be directories")
+    symbol_cache: dict[Path, list[dict]] = {}
+    debug_file_cache: dict[str, Path | None] = {}
     out = []
     for address in addresses:
         base: dict[str, Any] = {"address": address, "kind": kind}
@@ -111,15 +150,22 @@ def resolve_addresses(report: dict, addresses: list[int], bundle: SourceBundle |
         expected, actual = str(module.get("build_id", "")).lower(), _build_id(binary)
         if not expected or not actual or expected != actual:
             base.update({"resolved": False, "module": module.get("path"), "build_id": expected, "actual_build_id": actual, "reason": "build_id_mismatch" if actual else "binary_build_id_missing"}); out.append(base); continue
+        debug_file = debug_file_cache.get(actual)
+        if actual not in debug_file_cache:
+            debug_file = _separate_debug_file(actual, debug_roots) if debug_roots else None
+            debug_file_cache[actual] = debug_file
         relative = address - int(module.get("load_bias", 0))
-        symbols = [s for s in _symbols(binary) if s["value"] <= relative < s["end"]]
+        symbols = _symbol_rows_for_address(binary, relative, debug_file, symbol_cache)
         if len(symbols) != 1:
             base.update({"resolved": False, "module": module.get("path"), "build_id": actual, "reason": "missing_symbol" if not symbols else "ambiguous_symbol", "candidates": [s["name"] for s in symbols]}); out.append(base); continue
-        symbol, source = symbols[0], _source_for_address(binary, relative)
+        symbol, source = symbols[0], _source_for_address(binary, relative, debug_roots)
         row, candidates = _match_function(index_rows, symbol, source)
         if index_rows and row is None:
             base.update({"resolved": False, "module": module.get("path"), "build_id": actual, "symbol": symbol["name"], "reason": "ambiguous_function_index" if candidates else "function_not_in_index", "candidates": [c.get("id") for c in candidates]}); out.append(base); continue
         base.update({"resolved": True, "module": module.get("path"), "build_id": actual, "load_bias": int(module.get("load_bias", 0)), "relative_address": relative, "symbol": symbol["name"], "function_id": row.get("id") if row else None})
+        if debug_file is not None:
+            base["debug_file"] = str(debug_file)
+            base["debug_file_build_id"] = actual
         if row:
             base["static_edges"] = list(row.get("edges", []))
             base["static_unresolved_edges"] = list(row.get("unresolved_edges", []))

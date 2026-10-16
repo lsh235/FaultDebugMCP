@@ -20,6 +20,7 @@ from .capabilities import get_capabilities as capability_contract
 CaptureName = Annotated[str, Field(min_length=1, description="Root-relative .fault or decoded .json capture path, e.g. fault-1234.fault; no absolute paths, '..', or escaping symlinks.")]
 CaptureNames = Annotated[list[CaptureName], Field(max_length=1000, description="Capture paths beneath --root, up to 1,000; obtain paths from discover_artifacts. All captures are decoded before the result page is selected.")]
 BundlePath = Annotated[str | None, Field(description="Verified bundle directory beneath --root, e.g. bundles/build-001. Omit/null for capture-only evidence; source citations require a bundle.")]
+DebugDirectory = Annotated[str | None, Field(description="Optional existing root-relative local GNU build-id debug root containing .build-id/xx/rest.debug; no absolute paths, parent traversal, symlink escape, or network lookup.")]
 RequiredBundlePath = Annotated[str, Field(min_length=1, description="Existing verified source/binary bundle directory beneath --root, e.g. bundles/build-001; paths and manifest hashes must verify.")]
 StorePath = Annotated[str, Field(min_length=1, description="Existing root-relative .sqlite, .db, or .sqlite3 evidence store. Created/ingested with the CLI beforehand; MCP never creates or migrates it.")]
 Page = Annotated[int, Field(ge=0, description="Zero-based page, default 0; increment to retrieve the next slice of up to 200 records. See the tool description for the paged collection.")]
@@ -42,6 +43,15 @@ def _relative(root: Path, name: str) -> Path:
     if path != root.resolve() and root.resolve() not in path.parents:
         raise ValueError("path is outside the allowlisted root")
     return path
+
+
+def _debug_directories(root: Path, name: str | None) -> list[Path] | None:
+    if name is None:
+        return None
+    path = _relative(root, name)
+    if (path != root.resolve() and root.resolve() not in path.parents) or not path.is_dir():
+        raise ValueError("debug directory must be an existing directory beneath the allowlisted root")
+    return [path]
 
 
 def _read_only(title: str) -> ToolAnnotations:
@@ -161,7 +171,7 @@ def make_server(root: Path):
         rows = thread_trace(_load(root, name), tid)
         return {"items": rows[page * 200:(page + 1) * 200], "page": page, "page_size": 200, "total": len(rows)}
     @app.tool(annotations=_read_only("Get fault flow"))
-    def get_fault_flow(name: CaptureName, bundle: BundlePath = None, max_events: Annotated[int, Field(ge=1, le=500, description="Maximum last retained pre-crash function events per thread (1–500); truncates the view, not the underlying capture.")] = 80) -> dict:
+    def get_fault_flow(name: CaptureName, bundle: BundlePath = None, max_events: Annotated[int, Field(ge=1, le=500, description="Maximum last retained pre-crash function events per thread (1–500); truncates the view, not the underlying capture.")] = 80, debug_directory: DebugDirectory = None) -> dict:
         """Build a bounded per-thread fault-flow model with recorded nesting, fault context and gaps.
 
         Use for an execution-view explanation; get_thread_trace instead returns raw
@@ -169,10 +179,13 @@ def make_server(root: Path):
         Returns capture, threads, crashes, edges, sources and gaps without writing
         HTML/Markdown. max_events limits the last retained pre-crash events per thread;
         view omission differs from capture loss. Without a verified bundle, source
-        citations remain unavailable. Invalid inputs produce MCP tool errors."""
+        citations remain unavailable. An optional root-relative debug_directory may
+        supply matching separate ELF symbols from a GNU .build-id cache. Invalid paths
+        produce MCP tool errors; network debug lookup is disabled."""
         from .fault_report import build_fault_report
         return build_fault_report(_load(root, name), bundle=_bundle(root, bundle) if bundle else None,
-                                  max_events=max_events)
+                                  max_events=max_events,
+                                  debug_directories=_debug_directories(root, debug_directory))
     @app.tool(annotations=_read_only("Get rpc trace"))
     def get_rpc_trace(name: CaptureName, page: Page = 0) -> dict:
         """Decode one capture's semantic RPC observations, static candidates and unresolved limits.
@@ -494,7 +507,7 @@ def make_server(root: Path):
             return {"schema": 1, "count": len(rows), "page": max(page, 0), "page_size": 200, "artifacts": rows}
         finally: index.close()
     @app.tool(annotations=_read_only("Resolve addresses"))
-    def resolve_addresses(name: CaptureName, addresses: Annotated[list[Annotated[int, Field(ge=0, le=18446744073709551615)]], Field(max_length=1000, description="Up to 1,000 absolute runtime instruction addresses as JSON integers, e.g. [4198400]; preserve uint64 precision, do not pass hex strings or offsets.")], bundle: BundlePath = None) -> dict:
+    def resolve_addresses(name: CaptureName, addresses: Annotated[list[Annotated[int, Field(ge=0, le=18446744073709551615)]], Field(max_length=1000, description="Up to 1,000 absolute runtime instruction addresses as JSON integers, e.g. [4198400]; preserve uint64 precision, do not pass hex strings or offsets.")], bundle: BundlePath = None, debug_directory: DebugDirectory = None) -> dict:
         """Resolve captured instruction addresses against module Build IDs and available ELF symbols.
 
         Use to obtain verified symbol/function IDs before get_function_source;
@@ -503,10 +516,13 @@ def make_server(root: Path):
         does not fail the others. Addresses are absolute runtime integers, not module
         offsets or hex strings. May read recorded local ELF paths and run local
         llvm-symbolizer with network lookup disabled; no target code is executed.
-        Invalid capture/bundle paths produce MCP tool errors."""
+        An optional root-relative debug_directory supplies Build-ID-verified sidecar
+        symbols from .build-id/xx/rest.debug. Invalid paths produce MCP tool errors;
+        no network lookup or file modification occurs."""
         if len(addresses) > 1000: raise ValueError("maximum 1000 addresses")
         loaded = _bundle(root, bundle) if bundle else None
-        return {"items": resolve_address_records(_load(root, name), addresses, bundle=loaded)}
+        return {"items": resolve_address_records(_load(root, name), addresses, bundle=loaded,
+                                                 debug_directories=_debug_directories(root, debug_directory))}
     @app.tool(annotations=_read_only("Get function source"))
     def get_function_source(name: CaptureName, function_id: FunctionId, bundle: Annotated[str | None, Field(description="Verified root-relative source bundle directory; MUST be supplied for this lookup despite the nullable default. Missing bundle fails the call.")] = None) -> dict:
         """Read exact source lines for one indexed function from a verified immutable bundle.

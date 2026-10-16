@@ -42,7 +42,8 @@ def _signal_name(number: int) -> str:
 
 
 def build_fault_report(capture: dict, *, bundle: SourceBundle | str | None = None,
-                       max_events: int = 80, language: str = "en") -> dict:
+                       max_events: int = 80, language: str = "en",
+                       debug_directories: list[str | Path] | None = None) -> dict:
     """Build a bounded, read-only model from an already decoded capture."""
     if not 1 <= max_events <= 500:
         raise ValueError("max_events must be between 1 and 500")
@@ -199,7 +200,8 @@ def build_fault_report(capture: dict, *, bundle: SourceBundle | str | None = Non
         if pc is None:
             gaps.append({"reason": "crash_pc_not_recorded", "crash": item["id"]})
         crashes.append(item)
-    resolutions = resolve_addresses(capture, sorted(addresses), bundle=bundle)
+    resolutions = resolve_addresses(capture, sorted(addresses), bundle=bundle,
+                                    debug_directories=debug_directories)
     resolved = {r["address"]: r for r in resolutions}
     sources = {}
     if bundle:
@@ -269,7 +271,8 @@ def render_markdown(model: dict) -> str:
 
 
 def write_fault_report(artifact: Path, output: Path, *, bundle: str | None = None,
-                       max_events: int = 80, language: str = "en") -> dict:
+                       max_events: int = 80, language: str = "en",
+                       debug_directories: list[str | Path] | None = None) -> dict:
     """Validate an FDAR artifact before atomically publishing a new directory."""
     from .report_view import render_html
     if artifact.suffix != ".fault":
@@ -282,7 +285,8 @@ def write_fault_report(artifact: Path, output: Path, *, bundle: str | None = Non
         captured = Path(staging) / "input.fault"
         captured.write_bytes(data)
         model = build_fault_report(read_artifact(captured), bundle=bundle,
-                                   max_events=max_events, language=language)
+                                   max_events=max_events, language=language,
+                                   debug_directories=debug_directories)
     model["artifact"] = {"path": str(artifact.resolve()), "sha256": hashlib.sha256(data).hexdigest(),
                          "format": "FDAR", "checksum_verified": True}
     documents = {"report.json": json.dumps(model, ensure_ascii=False, indent=2) + "\n",

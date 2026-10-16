@@ -29,13 +29,12 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-개발 버전은 **1.3.0a3** (`v1.3.0-alpha.3`)이며, 문서의 증거 기반 구현은
+개발 버전은 **1.3.0a4** (`v1.3.0-alpha.4`)이며, 문서의 증거 기반 구현은
 [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)로 고정했습니다.
-이번 알파는 같은 주문의 중복 실행을 직렬화하면서 서로 다른 주문은 동시에 진행하는
-bounded keyed lock과 실제 TCP 장애 주입 프록시를 추가합니다. 별도 서비스 프로세스에서
-동시 처리·응답 유실·복구를 검사하고 고정 workload의 비용과 증거 한계를 기록합니다.
-[재시도 계약](docs/http-retry.md) · [동시 처리 계약](docs/http-concurrency.md) ·
-[구현 범위와 검증](docs/releases/v1.3.0-alpha.3.md)
+이번 알파는 별도 배포된 ELF debug 파일의 심볼을 오프라인에서 찾습니다.
+캡처 모듈과 debug 파일의 Build ID가 일치해야 하며 CLI 보고서와 MCP 주소/흐름 검사에서
+동일한 로컬 조회를 사용합니다. [debug 파일 계약](docs/separate-debug-files.md) ·
+[구현 범위와 검증](docs/releases/v1.3.0-alpha.4.md)
 
 정식 릴리스의 독립 최종 수락, 현재 revision의 전체 core/gRPC profile,
 kind·새 30분 soak는 남아 있습니다. Docker 8/16/32 검증은 이번 알파 기록에 명시한

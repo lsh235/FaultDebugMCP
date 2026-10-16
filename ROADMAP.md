@@ -20,6 +20,10 @@ This roadmap describes work beyond v0.1.0. It is not a promise of delivery dates
   independent 8-role native sessions, and bounded Docker 8/16/32 profiles. The
   measured fixed-workload costs and exact scenario limits are recorded in
   [alpha3 validation](docs/releases/v1.3.0-alpha.3.md).
+- `v1.3.0-alpha.4` adds offline symbol lookup from a separate ELF debug file in
+  the GNU `.build-id` layout. It verifies the sidecar Build ID before using its
+  symbols and exposes the same optional lookup to CLI and MCP inspection. See
+  [alpha4 scope and validation](docs/releases/v1.3.0-alpha.4.md).
 - The remaining stage F work (general native attempt pairing, native clock metadata,
   container/Pod lifecycle provenance), G (broader Docker/network fault profiles), H
   (8/16/32 scale and measured retained snapshots), I (general viewer/drill-down)

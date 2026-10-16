@@ -62,6 +62,14 @@ Capture and bundle paths are relative to the configured root; absolute paths,
 parent traversal and escaping symlinks are rejected. Address resolution may read
 recorded local ELF paths and run a local symbolizer with remote lookup disabled.
 
+The pinned MCP Python SDK `mcp==1.30.0` publishes non-empty `outputSchema`
+contracts for `get_capabilities`, `check_store`, `discover_artifacts`, and
+`discover_bundles`.
+Successful calls provide `structuredContent` alongside the existing JSON text;
+the real stdio audit validates both profiles against the published schemas.
+Optional status-specific fields can appear as `null` in `structuredContent`,
+while the text response retains its original keys.
+
 Choose tools by evidence source and question:
 
 | Question | Tools |
@@ -76,9 +84,10 @@ Choose tools by evidence source and question:
 `get_session(session_id=null)` selects only unassigned artifacts; it does not
 list all sessions. `get_thread_trace` pages thread records, `get_rpc_trace` pages
 RPC observations, and store incident/session tools page artifacts. Returned
-counts and truncation flags describe the corresponding collection. The pinned
-MCP SDK does not advertise output schemas; tool descriptions document the
-returned keys and distinguish MCP errors from structured `error.code` payloads.
+counts and truncation flags describe the corresponding collection. Four typed
+output schemas cover stable first-line response contracts; other return details
+remain in descriptions, including the distinction between MCP errors and
+structured `error.code` payloads.
 
 Run the protocol and read-only audit from the repository root:
 
@@ -130,14 +139,15 @@ and set these fields:
     "mcp", "--root", "/app/artifacts", "--tool-profile", "focused"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "1c0be35ef30726dac7b47c5dc473bc37ddf9088e",
+  "pinnedCommit": "c060a3dc6a19aa65c1b78bbab42af8b26579170e",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }
 ```
 
-This full implementation SHA selects the alpha17 `focused` 15-tool first-line
-workflow; omit the profile argument for the complete 27-tool catalog. This
+This full implementation SHA selects the alpha18 `focused` 15-tool first-line
+workflow and its four structured response contracts; omit the profile argument
+for the complete 27-tool catalog. This
 repository example does not update the external Glama setting. The
 previously documented
 `255395c86809cce886ce58cdc5736b2a4c0f8aaa` revision predates it and exposed 25
@@ -145,7 +155,8 @@ tools with 76 described parameters. Alpha15 exposed 26 tools and 83 described
 parameters, with `bundle` required for the two source tools. Alpha16 added the
 read-only `discover_bundles` tool; the full-profile audit exposes 27 tools and
 84 parameters. Alpha17 keeps that behavior while its focused profile publishes
-15 tools. Check the
+15 tools. Alpha18 adds four output schemas and structured results in both
+profiles. Check the
 generated Dockerfile's `git checkout` before deploying. A null pin alone
 does not prove that the generated checkout contains your latest changes.
 
@@ -171,9 +182,9 @@ The old pinned revision was validated locally with Glama's generated Dockerfile
 template and `mcp-proxy@6.7.16`: image build, HTTP MCP initialization, its
 25-tool listing, 76 parameter descriptions and `get_capabilities` passed. The
 alpha15 source revision separately passed the repository's 26-tool/83-parameter
-stdio audit; alpha16's full-profile audit and alpha17's profile audit are in
-their release notes. Neither local result confirms a remote Glama deployment or
-TDQS score. After changing the
+stdio audit; alpha16's full-profile audit, alpha17's profile audit and alpha18's
+structured-result audit are in their release notes. No local result confirms a
+remote Glama deployment or TDQS score. After changing the
 administrator pin, Deploy and release the listing,
 then verify its scan timestamp, required-bundle schemas and official score.
 

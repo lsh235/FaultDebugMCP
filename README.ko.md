@@ -29,7 +29,7 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-개발 버전은 **1.3.0a17** (`v1.3.0-alpha.17`)이며, 문서의 증거 기반 구현은
+개발 버전은 **1.3.0a18** (`v1.3.0-alpha.18`)이며, 문서의 증거 기반 구현은
 [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)로 고정했습니다.
 기존 프로젝트용 정적 ELF 점검과 분리된 CMake 적용 경로를 제공합니다.
 `faultdebug self-test`가 설치된 경로의 고정 fixture capture를 확인하고,
@@ -49,8 +49,11 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 `discover_bundles`를 추가합니다. 후보 탐색은 manifest를 검증하지 않으며 실제 검증은
 source 도구가 수행합니다. 모든 실행은 명시적 opt-in입니다.
 알파17은 `--tool-profile focused`를 추가해 첫 조사에 적합한 15개 MCP 도구만
-노출합니다. 기본 `full` 프로필은 기존 27개 도구를 그대로 제공합니다. Glama의
-도구 수 적합성 항목을 겨냥한 개선이며 공식 점수 상승을 보장하거나 주장하지 않습니다.
+노출합니다. 기본 `full` 프로필은 기존 27개 도구를 그대로 제공합니다.
+알파18은 공식 MCP Python SDK v1.30으로 올리고 capabilities, store health,
+artifact/bundle discovery 네 도구에 검증 가능한 구조화 응답 스키마를 게시합니다.
+기존 텍스트 응답은 유지합니다. 실제 stdio에서 두 프로필의 스키마와 응답을 검증했으며,
+Glama 관리자 pin·배포·재평가와 공식 점수 변화는 확인되지 않았습니다.
 [기존 프로젝트 적용 안내](docs/existing-project-adoption.md) ·
 [보고서 언어 검토](docs/integration-report-language-review.md) ·
 [이벤트 상한 검토](docs/integration-report-event-limit-review.md) ·
@@ -58,7 +61,8 @@ source 도구가 수행합니다. 모든 실행은 명시적 opt-in입니다.
 [MCP 번들 계약 검토](docs/mcp-required-bundle-review.md) ·
 [번들 후보 탐색 검토](docs/mcp-bundle-discovery-review.md) ·
 [MCP 프로필 검토](docs/mcp-profile-review.md) ·
-[구현 범위와 검증](docs/releases/v1.3.0-alpha.17.md)
+[구조화 응답 검토](docs/mcp-output-schema-review.md) ·
+[구현 범위와 검증](docs/releases/v1.3.0-alpha.18.md)
 
 정식 릴리스의 독립 최종 수락, 현재 revision의 전체 core/gRPC profile,
 kind·새 30분 soak는 남아 있습니다. Docker 8/16/32 검증은 이번 알파 기록에 명시한

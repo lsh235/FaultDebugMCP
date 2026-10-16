@@ -156,6 +156,17 @@ existing clients. The official score still requires an external deploy and
 re-scan. See the [alpha17 record](releases/v1.3.0-alpha.17.md),
 [research](mcp-profile-research.md), and [feature review](mcp-profile-review.md).
 
+### Alpha18 follow-up: publish structured outputs for first-line MCP tools
+
+The official MCP Python SDK v1.30 now publishes validated output schemas and
+`structuredContent` for `get_capabilities`, `check_store`, `discover_artifacts`,
+and `discover_bundles`. The existing text response, full 27-tool surface and
+focused 15-tool surface remain. The four actual response variants validate over
+stdio, while Glama's official re-scan and numeric score remain unverified. See
+the [alpha18 record](releases/v1.3.0-alpha.18.md),
+[research](mcp-output-schema-research.md), and
+[feature review](mcp-output-schema-review.md).
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,

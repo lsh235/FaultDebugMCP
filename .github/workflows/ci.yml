@@ -109,6 +109,13 @@ jobs:
           test -x build-ci/test/fd_c_chain
       - name: Existing project adoption acceptance
         run: ctest --test-dir build-ci --output-on-failure -R '^fd_python_(existing_project_adoption|self_test_prerequisites)$'
+      - name: Upload existing-project adoption evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: existing-project-adoption-acceptance
+          path: build-ci/test/existing-project-adoption.json
+          if-no-files-found: warn
       - name: Test real HTTP context with native recorder
         run: python3 test/shop_http_context.py --boundary build-ci/test/shop/libshop_boundary.so --runtime-dir build-ci
       - name: Test cross-process HTTP response loss, durable retry and restart

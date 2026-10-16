@@ -29,13 +29,17 @@ def main() -> int:
     integrate.add_argument("--faultdebug-prefix", required=True, type=__import__('pathlib').Path)
     integrate.add_argument("--profile", choices=("recommended", "minimal", "full", "legacy"), default="recommended")
     integrate.add_argument("--cmake-arg", action="append", default=[], help="configure argument; use --cmake-arg=-DKEY=VALUE")
+    integrate.add_argument("--execute-build", action="store_true",
+                            help="explicitly run the isolated configure/build/index/bundle stages; never launches the target")
     integrate.add_argument("--json", action="store_true", help="print the full versioned command plan")
     def integrate_cmd(n):
-        from .adoption import AdoptionError, prepare_integration
+        from .adoption import AdoptionError, execute_integration_build, prepare_integration
         try:
             plan = prepare_integration(n.source_root, n.build_dir, n.target, n.faultdebug_prefix,
                                        profile=n.profile, cmake_args=n.cmake_arg,
                                        instrument_targets=n.instrument_target)
+            if n.execute_build:
+                plan["execution"] = execute_integration_build(plan)
         except (AdoptionError, OSError) as exc:
             print(json.dumps({"schema": 1, "kind": "faultdebug-integration-plan", "status": "rejected", "reason": str(exc)}, sort_keys=True))
             return 2
@@ -45,7 +49,12 @@ def main() -> int:
             print(f"Prepared isolated integration: {plan['plan']}\nBuild and bundle: {plan['script']}")
             for row in plan["commands"]:
                 print(f"{row['stage']}: {__import__('shlex').join(row['argv'])}")
-        return 0
+            if n.execute_build:
+                execution = plan["execution"]
+                print(f"Build status: {execution['status']}; log: {execution['log']}")
+                if execution.get("bundle"):
+                    print(f"Verified bundle: {execution['bundle']}")
+        return (0 if not n.execute_build or plan["execution"]["status"] == "PASS" else 1)
     integrate.set_defaults(func=integrate_cmd)
     run = sub.add_parser("run", help="launch and collect an instrumented target")
     run.add_argument("--timeout", type=float)

@@ -69,6 +69,16 @@ user project, symbols, production performance, or the remaining stable gates.
 See [the alpha8 record](releases/v1.3.0-alpha.8.md) and
 [the research decision](self-test-research.md).
 
+### Alpha9 follow-up: execute the isolated integration build
+
+`faultdebug integrate --execute-build` explicitly runs the prepared configure,
+build, captured-source index, and bundle stages from argument vectors, writes
+the complete command output to the isolated state directory, and verifies the
+resulting bundle. The target launch stage is never included. The default
+`integrate` command remains prepare-only. See the
+[alpha9 record](releases/v1.3.0-alpha.9.md) and
+[the research decision](integration-execute-build-research.md).
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,

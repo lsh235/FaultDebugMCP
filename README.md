@@ -4,7 +4,7 @@
 > Follow recorded calls across services, inspect the fault location, and see
 > which evidence is missing.
 
-[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.8-orange)](docs/releases/v1.3.0-alpha.8.md)
+[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.9-orange)](docs/releases/v1.3.0-alpha.9.md)
 [![Release gates](https://img.shields.io/github/actions/workflow/status/lsh235/FaultDebugMCP/v12-release-gate.yml?branch=main&label=release%20gates)](https://github.com/lsh235/FaultDebugMCP/actions/workflows/v12-release-gate.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 [![Clang 18](https://img.shields.io/badge/Clang-18-orange)](https://clang.llvm.org/)
@@ -61,15 +61,15 @@ static call-graph candidates as observed execution.
 
 ## Project status
 
-The development package is **1.3.0a8** (`v1.3.0-alpha.8`); the evidence-foundation
+The development package is **1.3.0a9** (`v1.3.0-alpha.9`); the evidence-foundation
 baseline is [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2).
 The existing-project path provides static ELF preflight and isolated opt-in
-CMake integration. This alpha adds `faultdebug self-test`, which builds a fixed
-C fixture with the installed compiler wrapper, records a trace, and checks the
-temporary artifact for complete, loss-free events. It does not run a user
-project or test source resolution. See the [adoption guide](docs/existing-project-adoption.md),
-[self-test research](docs/self-test-research.md), and
-[milestone scope and verification](docs/releases/v1.3.0-alpha.8.md).
+CMake integration. `faultdebug self-test` verifies one bounded installed capture;
+this alpha adds `faultdebug integrate --execute-build` to run only the isolated
+configure/build/index/bundle stages and validate the bundle in one explicit
+command. It never launches the adopted target. See the [adoption guide](docs/existing-project-adoption.md),
+[execution research](docs/integration-execute-build-research.md), and
+[milestone scope and verification](docs/releases/v1.3.0-alpha.9.md).
 
 Final independent stable acceptance, current-revision full core/gRPC profiles,
 kind and fresh 30-minute soak remain pending. Docker 8/16/32 results cover only

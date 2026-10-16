@@ -1,3 +1,3 @@
 """FaultDebug launcher, collector, index, and MCP interfaces."""
 
-__version__ = "1.3.0a6"
+__version__ = "1.3.0a7"

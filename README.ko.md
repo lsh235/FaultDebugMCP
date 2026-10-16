@@ -29,12 +29,11 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-개발 버전은 **1.3.0a6** (`v1.3.0-alpha.6`)이며, 문서의 증거 기반 구현은
+개발 버전은 **1.3.0a7** (`v1.3.0-alpha.7`)이며, 문서의 증거 기반 구현은
 [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)로 고정했습니다.
-이번 알파는 배포된 debug 패키지를 읽기 전용으로 검사합니다. manifest SHA-256, 안전한
-상대 경로, DWARF 데이터와 runtime/debug Build ID 쌍을 확인합니다. Build ID는 연결 신원,
-SHA-256은 manifest와 파일 내용 대조이며 어느 쪽도 서명은 아닙니다.
-[debug 패키지 사용법](docs/debug-package.md) · [구현 범위와 검증](docs/releases/v1.3.0-alpha.6.md)
+이번 알파는 기존 Linux C/C++ 프로젝트용 실행 파일 사전 점검과 분리된 CMake 적용 계획을 제공합니다.
+원래 소스/빌드를 덮어쓰지 않고, 명시한 target만 계측해 실제 실행 trace와 source-verified bundle을 검사합니다.
+[기존 프로젝트 적용 안내](docs/existing-project-adoption.md) · [구현 범위와 검증](docs/releases/v1.3.0-alpha.7.md)
 
 정식 릴리스의 독립 최종 수락, 현재 revision의 전체 core/gRPC profile,
 kind·새 30분 soak는 남아 있습니다. Docker 8/16/32 검증은 이번 알파 기록에 명시한

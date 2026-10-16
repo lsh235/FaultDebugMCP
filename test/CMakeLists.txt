@@ -124,6 +124,11 @@ if(UNIX AND NOT APPLE)
   add_test(NAME fd_python_soak_telemetry_contract
     COMMAND ${FAULTDEBUG_VALIDATION_PYTHON}
       "${CMAKE_CURRENT_SOURCE_DIR}/soak_telemetry_contract.py")
+  add_test(NAME fd_python_existing_project_adoption
+    COMMAND ${FAULTDEBUG_VALIDATION_PYTHON}
+      "${CMAKE_CURRENT_SOURCE_DIR}/existing_project_adoption.py"
+      --build-dir "${CMAKE_BINARY_DIR}"
+      --output "${CMAKE_CURRENT_BINARY_DIR}/existing-project-adoption.json")
   add_test(NAME fd_install_consumer
     COMMAND ${CMAKE_COMMAND}
       -DFAULTDEBUG_BUILD_DIR=${CMAKE_BINARY_DIR}

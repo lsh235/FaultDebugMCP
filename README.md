@@ -4,7 +4,7 @@
 > Follow recorded calls across services, inspect the fault location, and see
 > which evidence is missing.
 
-[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.6-orange)](docs/releases/v1.3.0-alpha.6.md)
+[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.7-orange)](docs/releases/v1.3.0-alpha.7.md)
 [![Release gates](https://img.shields.io/github/actions/workflow/status/lsh235/FaultDebugMCP/v12-release-gate.yml?branch=main&label=release%20gates)](https://github.com/lsh235/FaultDebugMCP/actions/workflows/v12-release-gate.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 [![Clang 18](https://img.shields.io/badge/Clang-18-orange)](https://clang.llvm.org/)
@@ -61,13 +61,13 @@ static call-graph candidates as observed execution.
 
 ## Project status
 
-The development package is **1.3.0a6** (`v1.3.0-alpha.6`); the evidence-foundation
+The development package is **1.3.0a7** (`v1.3.0-alpha.7`); the evidence-foundation
 baseline is [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2).
-This alpha adds a read-only `debug-verify` check for package hashes, safe paths,
-DWARF contents, and runtime/debug Build-ID pairing. Build IDs establish linked
-identity, while SHA-256 checks the files against the package manifest; neither
-is a signature. See the [debug package workflow](docs/debug-package.md) and
-[milestone scope and verification](docs/releases/v1.3.0-alpha.6.md).
+This alpha adds an existing-project path: `faultdebug preflight` checks an ELF
+without launching it, while `faultdebug integrate` prepares a separate opt-in
+CMake build and source-evidence workflow. The original source and build remain
+untouched. See the [adoption guide](docs/existing-project-adoption.md) and
+[milestone scope and verification](docs/releases/v1.3.0-alpha.7.md).
 
 Final independent stable acceptance, current-revision full core/gRPC profiles,
 kind and fresh 30-minute soak remain pending. Docker 8/16/32 results cover only
@@ -126,6 +126,10 @@ the MCP interface are local-only. Remote transport and encryption are not
 provided.
 
 ## Quick start
+
+For an existing project, use the [isolated adoption guide](docs/existing-project-adoption.md):
+`faultdebug preflight` checks an existing ELF without launching it, and
+`faultdebug integrate` prepares a separate CMake build and evidence workflow.
 
 Clone the repository:
 

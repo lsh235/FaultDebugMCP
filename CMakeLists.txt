@@ -94,11 +94,11 @@ install(FILES
   "${CMAKE_CURRENT_BINARY_DIR}/faultdebugConfig.cmake"
   "${CMAKE_CURRENT_BINARY_DIR}/faultdebugConfigVersion.cmake"
   cmake/FaultDebugLegacy.cmake cmake/FaultDebugProvenance.cmake
-  cmake/FaultDebugSelective.cmake
+  cmake/FaultDebugSelective.cmake cmake/FaultDebugAdopt.cmake
   DESTINATION "${FAULTDEBUG_CMAKE_INSTALL_DIR}")
 configure_file(cmake/faultdebug.pc.in "${CMAKE_CURRENT_BINARY_DIR}/faultdebug.pc" @ONLY)
 install(FILES "${CMAKE_CURRENT_BINARY_DIR}/faultdebug.pc"
   DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
 install(FILES cmake/FaultDebugLegacy.cmake cmake/FaultDebugProvenance.cmake
-  cmake/FaultDebugSelective.cmake
+  cmake/FaultDebugSelective.cmake cmake/FaultDebugAdopt.cmake
   DESTINATION ${CMAKE_INSTALL_DATADIR}/faultdebug/cmake)

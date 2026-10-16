@@ -32,6 +32,10 @@ This roadmap describes work beyond v0.1.0. It is not a promise of delivery dates
   hashes, package path safety, DWARF sections, and runtime/debug Build-ID parity.
   It checks internal consistency, not authenticity or source provenance. See
   [alpha6 scope and validation](docs/releases/v1.3.0-alpha.6.md).
+- `v1.3.0-alpha.7` adds an existing-project path: read-only ELF preflight,
+  isolated opt-in CMake integration, immutable source/build evidence, and an
+  actual external-project acceptance harness. It does not modify or reuse the
+  original source/build tree. See [alpha7 scope and validation](docs/releases/v1.3.0-alpha.7.md).
 - The remaining stage F work (general native attempt pairing, native clock metadata,
   container/Pod lifecycle provenance), G (broader Docker/network fault profiles), H
   (8/16/32 scale and measured retained snapshots), I (general viewer/drill-down)

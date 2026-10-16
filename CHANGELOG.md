@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.3.0-alpha.20] - 2026-10-17
+
+- Publish a validated seven-field structured result schema for verified source
+  lookup while retaining the text response and mandatory immutable-bundle check.
+- Keep variable static-index relation rows untyped; official Glama deployment,
+  re-scan and score remain unverified.
+
 ## [1.3.0-alpha.19] - 2026-10-17
 
 - Publish distinct, task-specific top-level MCP display titles for all 27

@@ -196,3 +196,15 @@ class BundleDiscoveryOutput(OutputModel):
     page_size: int
     next_page: int | None
     verification: Literal["not_performed"]
+
+
+class FunctionSourceOutput(OutputModel):
+    """Source lines read from a verified immutable bundle index."""
+
+    resolved: Annotated[Literal[True], Field(description="True only when the indexed function and verified source lines were found.")]
+    function_id: Annotated[str, Field(description="Exact function identifier from the verified bundle index.")]
+    bundle: Annotated[str, Field(description="Root path of the verified immutable source bundle.")]
+    file: Annotated[str, Field(description="Verified source file path containing the indexed function.")]
+    start_line: Annotated[int, Field(description="One-based first source line returned.")]
+    end_line: Annotated[int, Field(description="One-based last source line returned, inclusive.")]
+    source: Annotated[str, Field(description="Exact returned source text for the indexed function range.")]

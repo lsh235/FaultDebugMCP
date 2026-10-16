@@ -139,15 +139,16 @@ and set these fields:
     "mcp", "--root", "/app/artifacts", "--tool-profile", "focused"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "31c42fb4c3f93f2d3bf7f6a9d5a4d3449c83f150",
+  "pinnedCommit": "468efbb08af7acf5b2a4f1e9c84353486d28f550",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }
 ```
 
-This full implementation SHA selects the alpha19 `focused` 15-tool first-line
-workflow, four structured response contracts, and descriptive titles; omit the
-profile argument for the complete 27-tool catalog. This
+This full implementation SHA selects the alpha20 `focused` 15-tool first-line
+workflow, five structured response contracts, and descriptive titles; omit the
+profile argument for the complete 27-tool catalog. It includes a structured
+source result for verified function lookup. This
 repository example does not update the external Glama setting. The
 previously documented
 `255395c86809cce886ce58cdc5736b2a4c0f8aaa` revision predates it and exposed 25
@@ -157,6 +158,7 @@ read-only `discover_bundles` tool; the full-profile audit exposes 27 tools and
 84 parameters. Alpha17 keeps that behavior while its focused profile publishes
 15 tools. Alpha18 adds four output schemas and structured results in both
 profiles. Alpha19 adds descriptive top-level titles to all 27 tool definitions.
+Alpha20 adds a typed source result for `get_function_source`.
 Check the
 generated Dockerfile's `git checkout` before deploying. A null pin alone
 does not prove that the generated checkout contains your latest changes.
@@ -184,8 +186,9 @@ template and `mcp-proxy@6.7.16`: image build, HTTP MCP initialization, its
 25-tool listing, 76 parameter descriptions and `get_capabilities` passed. The
 alpha15 source revision separately passed the repository's 26-tool/83-parameter
 stdio audit; alpha16's full-profile audit, alpha17's profile audit, alpha18's
-structured-result audit and alpha19's title audit are in their release notes.
-No local result confirms a remote Glama deployment or TDQS score. After changing the
+structured-result audit, alpha19's title audit and alpha20's source-schema audit
+are in their release notes. No local result confirms a remote Glama deployment or
+TDQS score. After changing the
 administrator pin, Deploy and release the listing,
 then verify its scan timestamp, required-bundle schemas and official score.
 

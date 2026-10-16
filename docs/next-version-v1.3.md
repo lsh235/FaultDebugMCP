@@ -146,6 +146,16 @@ See the [alpha16 record](releases/v1.3.0-alpha.16.md),
 [research](mcp-bundle-discovery-research.md), and
 [feature review](mcp-bundle-discovery-review.md).
 
+### Alpha17 follow-up: offer a focused MCP tool catalog
+
+The default `full` profile preserves all 27 tools. The opt-in `focused` profile
+exposes 15 tools for capture discovery, fault/incident inspection and verified
+source lookup. This addresses the explicit tool-count dimension in Glama's
+server-coherence rubric while retaining the complete local MCP surface for
+existing clients. The official score still requires an external deploy and
+re-scan. See the [alpha17 record](releases/v1.3.0-alpha.17.md),
+[research](mcp-profile-research.md), and [feature review](mcp-profile-review.md).
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,

@@ -29,7 +29,7 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-개발 버전은 **1.3.0a16** (`v1.3.0-alpha.16`)이며, 문서의 증거 기반 구현은
+개발 버전은 **1.3.0a17** (`v1.3.0-alpha.17`)이며, 문서의 증거 기반 구현은
 [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)로 고정했습니다.
 기존 프로젝트용 정적 ELF 점검과 분리된 CMake 적용 경로를 제공합니다.
 `faultdebug self-test`가 설치된 경로의 고정 fixture capture를 확인하고,
@@ -48,13 +48,17 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 알파16은 검증된 source bundle을 알 수 없을 때 후보 경로를 찾는 읽기 전용
 `discover_bundles`를 추가합니다. 후보 탐색은 manifest를 검증하지 않으며 실제 검증은
 source 도구가 수행합니다. 모든 실행은 명시적 opt-in입니다.
+알파17은 `--tool-profile focused`를 추가해 첫 조사에 적합한 15개 MCP 도구만
+노출합니다. 기본 `full` 프로필은 기존 27개 도구를 그대로 제공합니다. Glama의
+도구 수 적합성 항목을 겨냥한 개선이며 공식 점수 상승을 보장하거나 주장하지 않습니다.
 [기존 프로젝트 적용 안내](docs/existing-project-adoption.md) ·
 [보고서 언어 검토](docs/integration-report-language-review.md) ·
 [이벤트 상한 검토](docs/integration-report-event-limit-review.md) ·
 [보고서 경로 검토](docs/integration-report-output-review.md) ·
 [MCP 번들 계약 검토](docs/mcp-required-bundle-review.md) ·
 [번들 후보 탐색 검토](docs/mcp-bundle-discovery-review.md) ·
-[구현 범위와 검증](docs/releases/v1.3.0-alpha.16.md)
+[MCP 프로필 검토](docs/mcp-profile-review.md) ·
+[구현 범위와 검증](docs/releases/v1.3.0-alpha.17.md)
 
 정식 릴리스의 독립 최종 수락, 현재 revision의 전체 core/gRPC profile,
 kind·새 30분 soak는 남아 있습니다. Docker 8/16/32 검증은 이번 알파 기록에 명시한

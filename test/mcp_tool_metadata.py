@@ -19,6 +19,13 @@ from faultdebug.artifact import write_artifact
 from faultdebug.bundle import create_bundle
 from faultdebug.evidence_store import EvidenceStore
 
+FOCUSED_TOOLS = {
+    'get_capabilities', 'discover_artifacts', 'discover_bundles', 'open_fault',
+    'get_thread_trace', 'get_fault_flow', 'get_rpc_trace', 'get_incident_report',
+    'check_store', 'list_incidents', 'get_incident_slice', 'get_source_evidence',
+    'resolve_addresses', 'get_function_source', 'get_call_relations',
+}
+
 
 def payload(result):
     assert not result.isError, result
@@ -79,6 +86,7 @@ async def audit(root):
             listed = await session.list_tools()
             tools = {tool.name: tool for tool in listed.tools}
             assert len(tools) == 27, sorted(tools)
+            assert FOCUSED_TOOLS <= set(tools), sorted(tools)
             parameters = 0
             for name, tool in tools.items():
                 assert tool.description and 30 <= len(tool.description) <= 1600, name
@@ -94,6 +102,10 @@ async def audit(root):
                     assert page.get('minimum') == 0, name
             direction = tools['get_call_relations'].inputSchema['properties']['direction']
             assert set(direction['enum']) == {'inbound', 'outbound'}
+            full_capabilities = payload(await session.call_tool('get_capabilities', {}))
+            assert full_capabilities['mcp_tool_profile'] == 'full'
+            assert set(full_capabilities['exposed_tools']) == set(tools)
+            assert set(full_capabilities['required_tools']) <= set(tools)
             for tool_name in ('get_function_source', 'get_call_relations'):
                 schema = tools[tool_name].inputSchema
                 assert 'bundle' in schema['required'], (tool_name, schema)
@@ -165,6 +177,34 @@ async def audit(root):
             invalid_path = payload(await session.call_tool('check_store', {'db': '../escape.sqlite'}))
             assert invalid_path['error']['code'] == 'STORE_PATH_INVALID'
     assert snapshot(root) == before, 'MCP calls wrote or created evidence files'
+    focused_params = StdioServerParameters(
+        command=sys.executable,
+        args=['-m', 'faultdebug.cli', 'mcp', '--root', str(root), '--tool-profile', 'focused'],
+        cwd=str(ROOT))
+    async with stdio_client(focused_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            initialized = await session.initialize()
+            assert initialized.instructions and len(initialized.instructions) <= 512
+            focused_listing = await session.list_tools()
+            focused_tools = {tool.name: tool for tool in focused_listing.tools}
+            assert set(focused_tools) == FOCUSED_TOOLS, sorted(focused_tools)
+            assert all(tool.annotations and tool.annotations.readOnlyHint is True
+                       for tool in focused_tools.values())
+            focused_parameters = 0
+            for tool in focused_tools.values():
+                for parameter, schema in tool.inputSchema.get('properties', {}).items():
+                    assert schema.get('description', '').strip(), (tool.name, parameter)
+                    focused_parameters += 1
+            assert focused_parameters == 44, focused_parameters
+            focused_capabilities = payload(await session.call_tool('get_capabilities', {}))
+            assert focused_capabilities['mcp_tool_profile'] == 'focused'
+            assert set(focused_capabilities['exposed_tools']) == FOCUSED_TOOLS
+            assert set(focused_capabilities['required_tools']) <= FOCUSED_TOOLS
+            for category in ('required_tools', 'additional_tools', 'v09_tools'):
+                assert set(focused_capabilities[category]) <= FOCUSED_TOOLS, category
+            hidden_tool = await session.call_tool('get_timeline', {'names': [capture.name]})
+            assert hidden_tool.isError is True, hidden_tool
+    assert snapshot(root) == before, 'focused MCP calls wrote or created evidence files'
     connection = sqlite3.connect(root / 'empty.sqlite')
     try:
         assert connection.execute("SELECT name FROM sqlite_master WHERE type='table'").fetchall() == []
@@ -185,6 +225,8 @@ async def audit(root):
             'annotated_tools': len(tools), 'invalid_call_checks': len(invalid),
             'evidence_files_unchanged': True,
             'tdqs': {'status': 'NOT_EVALUATED', 'reason': 'Official score requires Glama rubric evaluation.'},
+            'focused_tool_count': len(FOCUSED_TOOLS),
+            'focused_parameter_count': focused_parameters,
             'tools': [tool.model_dump(by_alias=True, exclude_none=True) for tool in listed.tools]}
 
 
@@ -197,7 +239,8 @@ def main():
     if args.output:
         args.output.parent.mkdir(parents=True, exist_ok=True)
         args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
-    print(f"PASS: {result['tool_count']} stdio tools, {result['described_parameters']} documented parameters; "
+    print(f"PASS: {result['tool_count']} full-profile tools/{result['described_parameters']} parameters, "
+          f"{result['focused_tool_count']} focused-profile tools/{result['focused_parameter_count']} parameters; "
           f"{result['invalid_call_checks']} invalid calls rejected; evidence unchanged (TDQS not evaluated)")
     return 0
 

@@ -62,6 +62,14 @@ jobs:
         run: docker build -f Dockerfile.mcp -t faultdebug-mcp:ci .
       - name: Check packaged MCP command
         run: docker run --rm faultdebug-mcp:ci --help
+      - name: Verify packaged MCP tool profiles
+        run: |
+          docker run --rm --entrypoint python faultdebug-mcp:ci -c '
+          from pathlib import Path
+          from faultdebug.mcp_server import make_server
+          assert len(make_server(Path("/artifacts"))._tool_manager._tools) == 27
+          assert len(make_server(Path("/artifacts"), tool_profile="focused")._tool_manager._tools) == 15
+          '
 
   clang18-cmake-smoke:
     runs-on: ubuntu-24.04

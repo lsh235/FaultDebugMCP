@@ -9,6 +9,7 @@ from pathlib import Path
 import sqlite3
 import sys
 import tempfile
+import jsonschema
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
@@ -25,11 +26,27 @@ FOCUSED_TOOLS = {
     'check_store', 'list_incidents', 'get_incident_slice', 'get_source_evidence',
     'resolve_addresses', 'get_function_source', 'get_call_relations',
 }
+OUTPUT_SCHEMA_TOOLS = {
+    'get_capabilities', 'check_store', 'discover_artifacts', 'discover_bundles',
+}
 
 
 def payload(result):
     assert not result.isError, result
     return json.loads(next(block.text for block in result.content if block.type == 'text'))
+
+
+def structured_payload(result):
+    assert not result.isError, result
+    structured = getattr(result, 'structuredContent', None)
+    assert isinstance(structured, dict), result
+    return structured
+
+
+def validate_structured_payload(result, output_schema):
+    structured = structured_payload(result)
+    jsonschema.validate(structured, output_schema)
+    return structured
 
 
 def snapshot(root):
@@ -43,6 +60,7 @@ async def audit(root):
     nested = root / 'nested'
     nested.mkdir()
     (nested / 'fault-nested.json').write_text(json.dumps({'process': {'pid': 8}}))
+    (nested / 'fault-malformed.json').write_text('{malformed capture\n')
     declared = root / 'declared.json'
     declared.write_text(json.dumps({
         'session': {'schema': 1, 'session_id': 'session-a', 'participant_id': 'proc-a'},
@@ -87,6 +105,13 @@ async def audit(root):
             tools = {tool.name: tool for tool in listed.tools}
             assert len(tools) == 27, sorted(tools)
             assert FOCUSED_TOOLS <= set(tools), sorted(tools)
+            assert {name for name, tool in tools.items() if tool.outputSchema} == OUTPUT_SCHEMA_TOOLS
+            for name in OUTPUT_SCHEMA_TOOLS:
+                assert tools[name].outputSchema.get('type') == 'object', (name, tools[name].outputSchema)
+            assert 'schema' in tools['get_capabilities'].outputSchema['properties']
+            assert 'artifacts' in tools['discover_artifacts'].outputSchema['properties']
+            assert 'bundles' in tools['discover_bundles'].outputSchema['properties']
+            assert 'error' in tools['check_store'].outputSchema['properties']
             parameters = 0
             for name, tool in tools.items():
                 assert tool.description and 30 <= len(tool.description) <= 1600, name
@@ -102,7 +127,10 @@ async def audit(root):
                     assert page.get('minimum') == 0, name
             direction = tools['get_call_relations'].inputSchema['properties']['direction']
             assert set(direction['enum']) == {'inbound', 'outbound'}
-            full_capabilities = payload(await session.call_tool('get_capabilities', {}))
+            capabilities_result = await session.call_tool('get_capabilities', {})
+            full_capabilities = payload(capabilities_result)
+            assert validate_structured_payload(
+                capabilities_result, tools['get_capabilities'].outputSchema) == full_capabilities
             assert full_capabilities['mcp_tool_profile'] == 'full'
             assert set(full_capabilities['exposed_tools']) == set(tools)
             assert set(full_capabilities['required_tools']) <= set(tools)
@@ -113,7 +141,15 @@ async def audit(root):
             for tool_name in ('open_fault', 'get_fault_flow', 'resolve_addresses'):
                 schema = tools[tool_name].inputSchema
                 assert 'bundle' not in schema.get('required', []), (tool_name, schema)
-            discovered_bundles = payload(await session.call_tool('discover_bundles', {}))
+            bundles_result = await session.call_tool('discover_bundles', {})
+            discovered_bundles = payload(bundles_result)
+            structured_bundles = validate_structured_payload(
+                bundles_result, tools['discover_bundles'].outputSchema)
+            assert structured_bundles['total'] == discovered_bundles['total']
+            assert [(row['path'], row['status']) for row in structured_bundles['bundles']] == [
+                (row['path'], row['status']) for row in discovered_bundles['bundles']]
+            assert any(row['status'] == 'rejected' and row['reason'] == 'symlink_manifest'
+                       for row in structured_bundles['bundles'])
             assert discovered_bundles['verification'] == 'not_performed', discovered_bundles
             assert discovered_bundles['total'] == 3, discovered_bundles
             assert discovered_bundles['candidate_count'] == 2, discovered_bundles
@@ -136,8 +172,18 @@ async def audit(root):
             assert opened['process']['pid'] == 7
             assert payload(await session.call_tool('resolve_addresses', {
                 'name': capture.name, 'addresses': [], 'debug_directory': 'debug'}))['items'] == []
-            found = payload(await session.call_tool('discover_artifacts', {'include_json': True}))
+            artifact_result = await session.call_tool('discover_artifacts', {'include_json': True})
+            found = payload(artifact_result)
+            assert validate_structured_payload(
+                artifact_result, tools['discover_artifacts'].outputSchema) == found
+            assert found['invalid'] >= 1
             assert 'nested/fault-nested.json' in {row['path'] for row in found['artifacts']}
+            empty_discovery_result = await session.call_tool('discover_artifacts', {
+                'pattern': 'no-matches-*.fault'})
+            empty_discovery = payload(empty_discovery_result)
+            assert validate_structured_payload(
+                empty_discovery_result, tools['discover_artifacts'].outputSchema) == empty_discovery
+            assert empty_discovery['total'] == empty_discovery['count'] == 0
             indexed = payload(await session.call_tool('query_artifact_index', {'name': 'index.sqlite'}))
             assert indexed['count'] == 1
             sessions = payload(await session.call_tool('list_sessions', {}))
@@ -172,9 +218,23 @@ async def audit(root):
                 assert result.isError is True, (name, result)
             error = payload(await session.call_tool('get_incident_slice', {'incident_id': 'absent'}))
             assert error['error']['code'] == 'INCIDENT_QUERY_ERROR'
-            health = payload(await session.call_tool('check_store', {'db': 'absent.sqlite'}))
+            health_result = await session.call_tool('check_store', {'db': 'absent.sqlite'})
+            health = payload(health_result)
+            health_structured = validate_structured_payload(
+                health_result, tools['check_store'].outputSchema)
+            assert health_structured['status'] == health['status']
+            assert health_structured['error'] == health['error']
             assert health['read_only'] is True
-            invalid_path = payload(await session.call_tool('check_store', {'db': '../escape.sqlite'}))
+            healthy_result = await session.call_tool('check_store', {'db': 'evidence.sqlite3'})
+            healthy = payload(healthy_result)
+            healthy_structured = validate_structured_payload(
+                healthy_result, tools['check_store'].outputSchema)
+            assert healthy['status'] == healthy_structured['status'] == 'healthy'
+            assert healthy_structured['base_schema']['compatible'] is True
+            invalid_path_result = await session.call_tool('check_store', {'db': '../escape.sqlite'})
+            invalid_path = payload(invalid_path_result)
+            assert validate_structured_payload(
+                invalid_path_result, tools['check_store'].outputSchema)['error'] == invalid_path['error']
             assert invalid_path['error']['code'] == 'STORE_PATH_INVALID'
     assert snapshot(root) == before, 'MCP calls wrote or created evidence files'
     focused_params = StdioServerParameters(
@@ -188,6 +248,7 @@ async def audit(root):
             focused_listing = await session.list_tools()
             focused_tools = {tool.name: tool for tool in focused_listing.tools}
             assert set(focused_tools) == FOCUSED_TOOLS, sorted(focused_tools)
+            assert {name for name, tool in focused_tools.items() if tool.outputSchema} == OUTPUT_SCHEMA_TOOLS
             assert all(tool.annotations and tool.annotations.readOnlyHint is True
                        for tool in focused_tools.values())
             focused_parameters = 0
@@ -196,7 +257,11 @@ async def audit(root):
                     assert schema.get('description', '').strip(), (tool.name, parameter)
                     focused_parameters += 1
             assert focused_parameters == 44, focused_parameters
-            focused_capabilities = payload(await session.call_tool('get_capabilities', {}))
+            focused_capabilities_result = await session.call_tool('get_capabilities', {})
+            focused_capabilities = payload(focused_capabilities_result)
+            assert validate_structured_payload(
+                focused_capabilities_result, focused_tools['get_capabilities'].outputSchema
+            ) == focused_capabilities
             assert focused_capabilities['mcp_tool_profile'] == 'focused'
             assert set(focused_capabilities['exposed_tools']) == FOCUSED_TOOLS
             assert set(focused_capabilities['required_tools']) <= FOCUSED_TOOLS
@@ -224,6 +289,7 @@ async def audit(root):
             'described_parameters': parameters, 'schema_description_coverage_percent': 100,
             'annotated_tools': len(tools), 'invalid_call_checks': len(invalid),
             'evidence_files_unchanged': True,
+            'structured_output_tools': sorted(OUTPUT_SCHEMA_TOOLS),
             'tdqs': {'status': 'NOT_EVALUATED', 'reason': 'Official score requires Glama rubric evaluation.'},
             'focused_tool_count': len(FOCUSED_TOOLS),
             'focused_parameter_count': focused_parameters,
@@ -241,6 +307,7 @@ def main():
         args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
     print(f"PASS: {result['tool_count']} full-profile tools/{result['described_parameters']} parameters, "
           f"{result['focused_tool_count']} focused-profile tools/{result['focused_parameter_count']} parameters; "
+          f"{len(result['structured_output_tools'])} structured-output tools, "
           f"{result['invalid_call_checks']} invalid calls rejected; evidence unchanged (TDQS not evaluated)")
     return 0
 

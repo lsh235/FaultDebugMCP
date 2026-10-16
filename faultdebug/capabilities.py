@@ -17,6 +17,16 @@ def get_capabilities() -> dict[str, Any]:
             "fdar": 1, "shared_memory_abi": 1, "semantic_rpc": 1,
             "session_manifest": 1, "incident_query": 1,
         },
+        "http_context": {
+            "schema": 1,
+            "traceparent_versions": ["00"],
+            "trace_id_bits": 128,
+            "numeric_rpc_mapping": "explicit_application_mapping",
+            "span_identity_is_native_causality": False,
+            "tracestate": False,
+            "clock_provenance": "optional_application_local_boot_and_time_namespace",
+            "cross_clock_deadlines": False,
+        },
         "store_versions": {"base_schema": 2, "incident_tables": "additive-1"},
         "required_tools": [
             "open_fault", "get_thread_trace", "resolve_addresses",

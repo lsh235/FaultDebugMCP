@@ -57,6 +57,16 @@ if(UNIX AND NOT APPLE)
     COMMAND ${FAULTDEBUG_VALIDATION_PYTHON} "${CMAKE_CURRENT_SOURCE_DIR}/service_report_test.py")
   add_test(NAME fd_python_service_identity
     COMMAND ${FAULTDEBUG_VALIDATION_PYTHON} "${CMAKE_CURRENT_SOURCE_DIR}/service_identity_contract.py")
+  add_test(NAME fd_python_http_context
+    COMMAND ${FAULTDEBUG_VALIDATION_PYTHON} "${CMAKE_CURRENT_SOURCE_DIR}/http_context_contract.py")
+  add_test(NAME fd_python_process_clock
+    COMMAND ${FAULTDEBUG_VALIDATION_PYTHON} "${CMAKE_CURRENT_SOURCE_DIR}/process_clock_contract.py")
+  if(FAULTDEBUG_BUILD_SHOP)
+    add_test(NAME fd_python_shop_http_context
+      COMMAND ${FAULTDEBUG_VALIDATION_PYTHON} "${CMAKE_CURRENT_SOURCE_DIR}/shop_http_context.py"
+        --boundary $<TARGET_FILE:shop_boundary> --runtime-dir "${CMAKE_BINARY_DIR}")
+    set_tests_properties(fd_python_shop_http_context PROPERTIES TIMEOUT 60)
+  endif()
   add_test(NAME fd_python_decoder_capacity
     COMMAND ${Python3_EXECUTABLE} "${CMAKE_CURRENT_SOURCE_DIR}/decoder_capacity.py"
       $<TARGET_FILE:fd_threads>)

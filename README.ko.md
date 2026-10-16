@@ -29,10 +29,15 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-최신 후보 버전은 [`v1.2.0-rc.1`](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.1)입니다.
-core와 gRPC 로컬·GitHub Actions 게이트는 통과했지만, 독립 최종 검토는 아직
-실행 전입니다. 30분 soak trace는 344,793개 이벤트 손실과 9,276개의 불안정한
-snapshot을 기록해 불완전합니다. 정식 `v1.2.0` 릴리스로 간주하지 마세요.
+개발 버전은 **1.3.0a1** (`v1.3.0-alpha.1`)이며, 문서의 증거 기반 구현은
+[v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)로 고정했습니다.
+이번 알파는 W3C traceparent v00의 128비트 전달, 실험 서비스의 명시적 RPC/span 연결,
+프로세스·시계 출처와 수신자 기준 상대 timeout을 제공합니다.
+[전달 계약](docs/http-context.md) · [구현 범위와 검증](docs/releases/v1.3.0-alpha.1.md)
+
+정식 릴리스의 독립 최종 수락, 현재 revision의 전체 core/gRPC profile,
+Docker 규모·kind·새 30분 soak는 남아 있습니다. 이전 revision의 PASS를 현재 코드의
+수락으로 옮기지 않습니다. 과거 soak의 손실은 [기존 기록](docs/v1.2-p3-01.md)에 남겼습니다.
 
 ## 빠른 시작
 

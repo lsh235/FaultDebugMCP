@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Verify explicit integration build execution skips application launch."""
+"""Verify explicit integration build and target execution boundaries."""
 from __future__ import annotations
 
 import json
+import contextlib
+import io
 from pathlib import Path
 import sys
 import tempfile
@@ -10,8 +12,10 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from faultdebug.adoption import AdoptionError, execute_integration_build
+from faultdebug.adoption import (AdoptionError, execute_integration_build,
+                                 execute_integration_target)
 from faultdebug.bundle import create_bundle
+from faultdebug.cli import main as cli_main
 
 
 def _stage_command(name: str, *, exit_code: int = 0) -> list[str]:
@@ -23,7 +27,46 @@ def _stage_command(name: str, *, exit_code: int = 0) -> list[str]:
     return [sys.executable, "-c", code]
 
 
+def _target_command(artifact_dir: Path, args_file: Path, *, target_exit: int = 0) -> list[str]:
+    report = {"header": {"status": 0},
+              "threads": [{"event_count": 1, "dropped_count": 0, "events": [{"function": 1}]}],
+              "rpc": {"header": {"dropped_count": 0}, "complete": True},
+              "complete": True, "snapshot_consistency": {"stable": True, "unstable_records": []},
+              "collector": {"ok": True},
+              "target": {"returncode": target_exit, "signal": None}}
+    code = (
+        "import json, os, sys; from pathlib import Path; "
+        f"Path({str(args_file)!r}).write_text(json.dumps(sys.argv[1:])); "
+        f"sys.path.insert(0, {str(ROOT)!r}); "
+        "from faultdebug.artifact import write_artifact; "
+        f"write_artifact({report!r}, Path({str(artifact_dir)!r}), os.getpid(), artifact_stem='target'); "
+        f"raise SystemExit({target_exit})"
+    )
+    return [sys.executable, "-c", code, "--"]
+
+
+def _assert_cli_rejects(*options: str, message: str) -> None:
+    old_argv = sys.argv
+    sys.argv = ["faultdebug", "integrate", "--source-root", "/missing/source",
+                "--build-dir", "/tmp/missing/build", "--target", "app",
+                "--faultdebug-prefix", "/missing/prefix", *options]
+    stderr = io.StringIO()
+    try:
+        with contextlib.redirect_stderr(stderr):
+            try:
+                cli_main()
+            except SystemExit as exc:
+                assert exc.code == 2, exc.code
+            else:
+                raise AssertionError("invalid execution option combination was accepted")
+    finally:
+        sys.argv = old_argv
+    assert message in stderr.getvalue(), stderr.getvalue()
+
+
 def main() -> int:
+    _assert_cli_rejects("--execute-target", message="--execute-target requires --execute-build")
+    _assert_cli_rejects("--target-arg=unexpected", message="--target-arg requires --execute-target")
     with tempfile.TemporaryDirectory(prefix="faultdebug-integration-execute-") as raw:
         root = Path(raw)
         source = root / "source"
@@ -55,6 +98,56 @@ def main() -> int:
                    for name in ("configure", "build", "index", "bundle"))
         assert not run_marker.exists(), "application launch stage was executed"
 
+        target_build = root / "target-build"
+        target_state = target_build / ".faultdebug-adopt"
+        target_state.mkdir(parents=True)
+        (target_state / "plan.json").write_text("{}\n")
+        target_artifacts = target_state / "artifacts"
+        target_args_file = root / "target-args.json"
+        target_marker = target_build / "TARGET_SHELL_INJECTION"
+        target_plan_commands = [
+            {"stage": name, "argv": _stage_command(name)}
+            for name in ("configure", "build", "index", "bundle")
+        ]
+        target_plan_commands.append({"stage": "run", "argv": _target_command(
+            target_artifacts, target_args_file)})
+        target_plan = {**plan, "build_dir": str(target_build), "commands": target_plan_commands}
+        target_build_result = {"status": "PASS", "bundle": str(bundle.root)}
+        target_result = execute_integration_target(
+            target_plan, target_build_result,
+            ["--config", "value with spaces", "$(touch TARGET_SHELL_INJECTION)"])
+        assert target_result["status"] == "PASS", target_result
+        assert target_result["target_launch"] == "RAN"
+        assert target_result["capture"] == {"complete": True, "snapshot_stable": True,
+                                             "event_count": 1, "dropped_count": 0,
+                                             "rpc_dropped_count": 0}
+        assert json.loads(target_args_file.read_text()) == [
+            "--", "--config", "value with spaces", "$(touch TARGET_SHELL_INJECTION)"]
+        assert len(list(target_artifacts.glob("*.fault"))) == 1
+        assert not target_marker.exists(), "application arguments were interpreted by a shell"
+
+        failed_target_build = root / "failed-target-build"
+        failed_target_state = failed_target_build / ".faultdebug-adopt"
+        failed_target_state.mkdir(parents=True)
+        (failed_target_state / "plan.json").write_text("{}\n")
+        failed_target_artifacts = failed_target_state / "artifacts"
+        failed_target_args = root / "failed-target-args.json"
+        failed_target_commands = [
+            {"stage": name, "argv": _stage_command(name)}
+            for name in ("configure", "build", "index", "bundle")
+        ]
+        failed_target_commands.append({"stage": "run", "argv": _target_command(
+            failed_target_artifacts, failed_target_args, target_exit=9)})
+        failed_target_plan = {**plan, "build_dir": str(failed_target_build),
+                              "commands": failed_target_commands}
+        failed_target = execute_integration_target(
+            failed_target_plan, {"status": "PASS", "bundle": str(bundle.root)})
+        assert failed_target["status"] == "FAIL", failed_target
+        assert failed_target["target_launch"] == "RAN"
+        assert failed_target["launcher_returncode"] == 9
+        assert failed_target["target_returncode"] == 9
+        assert Path(failed_target["artifact"]).is_file()
+
         failed_build = root / "failed-build"
         failed_state = failed_build / ".faultdebug-adopt"
         failed_state.mkdir(parents=True)
@@ -73,6 +166,17 @@ def main() -> int:
         assert failed["stages"][-1]["returncode"] == 9
         assert not (failed_build / "stage-index").exists()
         assert not (failed_build / "stage-run").exists()
+        skipped_target = execute_integration_target(failed_plan, failed, ["must-not-run"])
+        assert skipped_target["status"] == "NOT RUN", skipped_target
+        assert not (failed_build / ".faultdebug-adopt/artifacts").exists()
+
+        bad_target_plan = {**target_plan, "commands": target_plan_commands[:-1]}
+        try:
+            execute_integration_target(bad_target_plan, target_build_result)
+        except AdoptionError:
+            pass
+        else:
+            raise AssertionError("unexpected target stage sequence was accepted")
 
         malformed = {**plan, "commands": commands[:-1]}
         try:

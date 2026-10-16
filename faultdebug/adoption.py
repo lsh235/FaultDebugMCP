@@ -345,6 +345,92 @@ def execute_integration_build(plan: dict) -> dict:
             "target_launch": "NOT RUN"}
 
 
+def execute_integration_target(plan: dict, build_result: dict,
+                               target_args: list[str] | None = None) -> dict:
+    """Explicitly launch the verified target and require one complete capture."""
+    if plan.get("kind") != "faultdebug-integration-plan" or plan.get("status") != "prepared":
+        raise AdoptionError("only a freshly prepared integration plan can launch a target")
+    if build_result.get("status") != "PASS" or not build_result.get("bundle"):
+        return {"status": "NOT RUN", "target_launch": "NOT RUN",
+                "reason": "isolated build and bundle did not pass"}
+    try:
+        from .bundle import load_bundle
+        load_bundle(build_result["bundle"])
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        return {"status": "NOT RUN", "target_launch": "NOT RUN",
+                "reason": f"verified bundle is unavailable: {exc}"[:512]}
+    commands = plan.get("commands")
+    expected = ["configure", "build", "index", "bundle", "run"]
+    if not isinstance(commands, list) or [row.get("stage") for row in commands] != expected:
+        raise AdoptionError("integration plan has an unexpected stage sequence")
+    run_argv = commands[-1].get("argv")
+    if (not isinstance(run_argv, list) or not run_argv or
+            any(not isinstance(arg, str) or "\0" in arg for arg in run_argv) or
+            run_argv[-1] != "--"):
+        raise AdoptionError("integration run command is malformed")
+    args = list(target_args or [])
+    if any(not isinstance(arg, str) or "\0" in arg for arg in args):
+        raise AdoptionError("target arguments must be strings without NUL bytes")
+
+    build = Path(plan["build_dir"]).resolve()
+    state = build / ".faultdebug-adopt"
+    artifact_dir = state / "artifacts"
+    if artifact_dir.is_symlink() or (artifact_dir.exists() and not artifact_dir.is_dir()):
+        return {"status": "FAIL", "target_launch": "NOT RUN",
+                "reason": "target artifact directory is not a regular directory",
+                "artifacts_dir": str(artifact_dir)}
+    if artifact_dir.exists() and any(artifact_dir.iterdir()):
+        return {"status": "FAIL", "target_launch": "NOT RUN",
+                "reason": "target artifact directory is not empty; refusing to mix captures",
+                "artifacts_dir": str(artifact_dir)}
+    print("faultdebug: launching selected target through the verified adoption run stage",
+          file=sys.stderr, flush=True)
+    try:
+        completed = subprocess.run([*run_argv, *args], cwd=build, stdout=sys.stderr,
+                                   stderr=sys.stderr, check=False)
+    except OSError as exc:
+        return {"status": "FAIL", "target_launch": "RAN",
+                "error": str(exc)[:512], "artifacts_dir": str(artifact_dir)}
+
+    artifacts = sorted(artifact_dir.glob("*.fault")) if artifact_dir.is_dir() else []
+    if len(artifacts) != 1:
+        return {"status": "FAIL", "target_launch": "RAN",
+                "launcher_returncode": completed.returncode,
+                "reason": f"expected one verified capture artifact, found {len(artifacts)}",
+                "artifacts": [str(path) for path in artifacts],
+                "artifacts_dir": str(artifact_dir)}
+    artifact = artifacts[0]
+    try:
+        from .format import collect_file
+        captured = collect_file(artifact)
+        target = captured.get("target") or {}
+        threads = captured.get("threads") or []
+        event_count = sum(int(row.get("event_count", 0)) for row in threads)
+        dropped_count = sum(int(row.get("dropped_count", 0)) for row in threads)
+        rpc = captured.get("rpc") or {}
+        rpc_header = rpc.get("header") or {}
+        rpc_dropped_count = int(rpc_header.get("dropped_count", 0))
+        complete = captured.get("complete") is True
+        stable = (captured.get("snapshot_consistency") or {}).get("stable") is True
+        collector_ok = (captured.get("collector") or {}).get("ok") is True
+        target_returncode = target.get("returncode")
+        passed = (completed.returncode == 0 and collector_ok and target_returncode == 0 and
+                  complete and stable and event_count > 0 and dropped_count == 0 and
+                  rpc_dropped_count == 0)
+        return {"status": "PASS" if passed else "FAIL", "target_launch": "RAN",
+                "launcher_returncode": completed.returncode,
+                "target_returncode": target_returncode, "signal": target.get("signal"),
+                "artifact": str(artifact), "artifacts_dir": str(artifact_dir),
+                "capture": {"complete": complete, "snapshot_stable": stable,
+                            "event_count": event_count, "dropped_count": dropped_count,
+                            "rpc_dropped_count": rpc_dropped_count}}
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        return {"status": "FAIL", "target_launch": "RAN",
+                "launcher_returncode": completed.returncode,
+                "artifact": str(artifact), "artifacts_dir": str(artifact_dir),
+                "error": f"capture verification failed: {exc}"[:512]}
+
+
 def _state(path: Path) -> dict:
     value = json.loads(path.read_text())
     if not isinstance(value, dict) or value.get("schema") != SCHEMA:

@@ -30,16 +30,34 @@ def main() -> int:
     integrate.add_argument("--profile", choices=("recommended", "minimal", "full", "legacy"), default="recommended")
     integrate.add_argument("--cmake-arg", action="append", default=[], help="configure argument; use --cmake-arg=-DKEY=VALUE")
     integrate.add_argument("--execute-build", action="store_true",
-                            help="explicitly run the isolated configure/build/index/bundle stages; never launches the target")
+                            help="explicitly run isolated configure/build/index/bundle stages; this flag alone never launches the target")
+    integrate.add_argument("--execute-target", action="store_true",
+                            help="after --execute-build passes, explicitly launch and verify one target capture")
+    integrate.add_argument("--target-arg", action="append", default=[],
+                            help="one application argument; repeat as needed and use --target-arg=--option for option-looking values")
     integrate.add_argument("--json", action="store_true", help="print the full versioned command plan")
     def integrate_cmd(n):
-        from .adoption import AdoptionError, execute_integration_build, prepare_integration
+        from .adoption import (AdoptionError, execute_integration_build,
+                               execute_integration_target, prepare_integration)
+        if n.execute_target and not n.execute_build:
+            p.error("--execute-target requires --execute-build")
+        if n.target_arg and not n.execute_target:
+            p.error("--target-arg requires --execute-target")
         try:
             plan = prepare_integration(n.source_root, n.build_dir, n.target, n.faultdebug_prefix,
                                        profile=n.profile, cmake_args=n.cmake_arg,
                                        instrument_targets=n.instrument_target)
             if n.execute_build:
-                plan["execution"] = execute_integration_build(plan)
+                execution = execute_integration_build(plan)
+                execution["overall_status"] = execution["status"]
+                if n.execute_target:
+                    target_execution = execute_integration_target(plan, execution, n.target_arg)
+                    execution["target_execution"] = target_execution
+                    execution["target_launch"] = target_execution.get("target_launch", "NOT RUN")
+                    execution["overall_status"] = (
+                        "PASS" if execution["status"] == "PASS" and
+                        target_execution["status"] == "PASS" else "FAIL")
+                plan["execution"] = execution
         except (AdoptionError, OSError) as exc:
             print(json.dumps({"schema": 1, "kind": "faultdebug-integration-plan", "status": "rejected", "reason": str(exc)}, sort_keys=True))
             return 2
@@ -54,7 +72,11 @@ def main() -> int:
                 print(f"Build status: {execution['status']}; log: {execution['log']}")
                 if execution.get("bundle"):
                     print(f"Verified bundle: {execution['bundle']}")
-        return (0 if not n.execute_build or plan["execution"]["status"] == "PASS" else 1)
+                if n.execute_target:
+                    target_execution = execution["target_execution"]
+                    print(f"Target capture: {target_execution['status']}; "
+                          f"artifacts: {target_execution.get('artifacts_dir', 'NOT CREATED')}")
+        return (0 if not n.execute_build or plan["execution"]["overall_status"] == "PASS" else 1)
     integrate.set_defaults(func=integrate_cmd)
     run = sub.add_parser("run", help="launch and collect an instrumented target")
     run.add_argument("--timeout", type=float)

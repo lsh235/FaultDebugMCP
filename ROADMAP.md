@@ -44,6 +44,10 @@ This roadmap describes work beyond v0.1.0. It is not a promise of delivery dates
   isolated configure/build/index/bundle stages, validates the resulting bundle,
   saves a build log, and leaves target launch separate. See
   [alpha9 scope and validation](docs/releases/v1.3.0-alpha.9.md).
+- `v1.3.0-alpha.10` adds a separate `--execute-target` opt-in after the verified
+  integration build. It forwards repeated arguments without a shell and
+  requires one complete, stable, loss-free capture for PASS. The default stays
+  non-executing. See [alpha10 scope and validation](docs/releases/v1.3.0-alpha.10.md).
 - The remaining stage F work (general native attempt pairing, native clock metadata,
   container/Pod lifecycle provenance), G (broader Docker/network fault profiles), H
   (8/16/32 scale and measured retained snapshots), I (general viewer/drill-down)

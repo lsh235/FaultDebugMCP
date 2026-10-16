@@ -128,14 +128,16 @@ and set these fields:
     "mcp", "--root", "/app/artifacts"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "255395c86809cce886ce58cdc5736b2a4c0f8aaa",
+  "pinnedCommit": "f0295bac52ec05d745823ac63db0c384ee101a66",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }
 ```
 
-The pinned revision contains the 25-tool metadata update. For a later release,
-replace it with the full SHA of the revision you intend to publish, and check
+This pin selects the alpha15 source-schema update. The previously documented
+`255395c86809cce886ce58cdc5736b2a4c0f8aaa` revision predates it and exposed 25
+tools with 76 described parameters. Alpha15's source audit exposes 26 tools and
+83 described parameters, with `bundle` required for the two source tools. Check
 the generated Dockerfile's `git checkout` before deploying. A null pin alone
 does not prove that the generated checkout contains your latest changes.
 
@@ -156,10 +158,13 @@ in [Glama's release guide](https://glama.ai/blog/2026-03-15-how-to-make-a-releas
 Check that inspection sees 26 tools, including `get_fault_flow`, before checking
 the new TDQS scan. A successful image build is separate from an official score.
 
-The settings above were validated locally with Glama's generated Dockerfile
-template and `mcp-proxy@6.7.16`: image build, HTTP MCP initialization, 25-tool
-listing, all 76 parameter descriptions and `get_capabilities` passed. This does
-not confirm a remote Glama deployment or TDQS result.
+The old pinned revision was validated locally with Glama's generated Dockerfile
+template and `mcp-proxy@6.7.16`: image build, HTTP MCP initialization, its
+25-tool listing, 76 parameter descriptions and `get_capabilities` passed. The
+alpha15 source revision separately passes the repository's 26-tool/83-parameter
+stdio audit. Neither local result confirms a remote Glama deployment or TDQS
+score. After changing the administrator pin, Deploy and release the listing,
+then verify its scan timestamp, required-bundle schemas and official score.
 
 ### A build fails immediately with HTTP 502
 

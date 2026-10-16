@@ -16,7 +16,7 @@ from .discovery import inspect_spool
 from .evidence_store import EvidenceStore, EvidenceStoreError
 from .capabilities import get_capabilities as capability_contract
 from .mcp_outputs import (ArtifactDiscoveryOutput, BundleDiscoveryOutput,
-                          CapabilitiesOutput, StoreCheckOutput)
+                          CapabilitiesOutput, FunctionSourceOutput, StoreCheckOutput)
 
 # Field metadata is exported in tools/list; docstring Args alone is not a schema.
 CaptureName = Annotated[str, Field(min_length=1, description="Root-relative .fault or decoded .json capture path, e.g. fault-1234.fault; no absolute paths, '..', or escaping symlinks.")]
@@ -620,7 +620,7 @@ def make_server(root: Path, *, tool_profile: str = "full"):
                                                  debug_directories=_debug_directories(root, debug_directory))}
     @register_tool(annotations=_read_only("Get function source"))
     def get_function_source(name: CaptureName, function_id: FunctionId,
-                            bundle: RequiredBundlePath) -> dict:
+                            bundle: RequiredBundlePath) -> FunctionSourceOutput:
         """Read exact source lines for one indexed function from a verified immutable bundle.
 
         Use a function ID from resolve_addresses or the bundle index; get_source_evidence

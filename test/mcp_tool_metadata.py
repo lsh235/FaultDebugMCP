@@ -28,6 +28,7 @@ FOCUSED_TOOLS = {
 }
 OUTPUT_SCHEMA_TOOLS = {
     'get_capabilities', 'check_store', 'discover_artifacts', 'discover_bundles',
+    'get_function_source',
 }
 
 
@@ -116,6 +117,12 @@ async def audit(root):
             assert 'artifacts' in tools['discover_artifacts'].outputSchema['properties']
             assert 'bundles' in tools['discover_bundles'].outputSchema['properties']
             assert 'error' in tools['check_store'].outputSchema['properties']
+            source_schema = tools['get_function_source'].outputSchema
+            assert source_schema.get('properties', {}).keys() == {
+                'resolved', 'function_id', 'bundle', 'file', 'start_line', 'end_line', 'source'}
+            assert set(source_schema.get('required', [])) == {
+                'resolved', 'function_id', 'bundle', 'file', 'start_line', 'end_line', 'source'}
+            assert source_schema['properties']['resolved']['const'] is True
             parameters = 0
             for name, tool in tools.items():
                 assert tool.description and 30 <= len(tool.description) <= 1600, name
@@ -164,8 +171,11 @@ async def audit(root):
             assert bundle_rows['malformed-bundle']['status'] == 'candidate', bundle_rows
             assert bundle_rows['symlink-bundle']['status'] == 'rejected', bundle_rows
             source_bundle_path = bundle_rows[source_bundle_path]['path']
-            source = payload(await session.call_tool('get_function_source', {
-                'name': capture.name, 'function_id': 'fn-main', 'bundle': source_bundle_path}))
+            source_result = await session.call_tool('get_function_source', {
+                'name': capture.name, 'function_id': 'fn-main', 'bundle': source_bundle_path})
+            source = payload(source_result)
+            assert validate_structured_payload(
+                source_result, source_schema) == source
             assert source['resolved'] is True and 'int main' in source['source'], source
             relations = payload(await session.call_tool('get_call_relations', {
                 'name': capture.name, 'function_id': 'fn-main', 'bundle': source_bundle_path}))
@@ -256,6 +266,7 @@ async def audit(root):
                        and tool.annotations and tool.annotations.title == tool.title
                        for name, tool in focused_tools.items())
             assert {name for name, tool in focused_tools.items() if tool.outputSchema} == OUTPUT_SCHEMA_TOOLS
+            assert focused_tools['get_function_source'].outputSchema == source_schema
             assert all(tool.annotations and tool.annotations.readOnlyHint is True
                        for tool in focused_tools.values())
             focused_parameters = 0

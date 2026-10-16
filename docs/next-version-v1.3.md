@@ -178,6 +178,16 @@ pin, deployment, re-scan and result still need verification. See the
 [title review](mcp-tool-title-review.md), and
 [alpha19 record](releases/v1.3.0-alpha.19.md).
 
+### Alpha20 follow-up: type the verified source response
+
+`get_function_source` now advertises a seven-field output schema for source
+lines obtained from a verified immutable bundle. The text response and bundle
+verification requirement remain; variable static-index relations are not
+given a false closed schema. The actual stdio response is checked against the
+advertised contract. See the [research](mcp-source-output-research.md),
+[review](mcp-source-output-review.md), and
+[alpha20 record](releases/v1.3.0-alpha.20.md).
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,

@@ -105,6 +105,10 @@ async def audit(root):
             tools = {tool.name: tool for tool in listed.tools}
             assert len(tools) == 27, sorted(tools)
             assert FOCUSED_TOOLS <= set(tools), sorted(tools)
+            for name, tool in tools.items():
+                assert tool.title and tool.title != name and len(tool.title) > len(name), (name, tool.title)
+                assert tool.annotations and tool.annotations.title == tool.title, name
+            assert len({tool.title for tool in tools.values()}) == len(tools)
             assert {name for name, tool in tools.items() if tool.outputSchema} == OUTPUT_SCHEMA_TOOLS
             for name in OUTPUT_SCHEMA_TOOLS:
                 assert tools[name].outputSchema.get('type') == 'object', (name, tools[name].outputSchema)
@@ -248,6 +252,9 @@ async def audit(root):
             focused_listing = await session.list_tools()
             focused_tools = {tool.name: tool for tool in focused_listing.tools}
             assert set(focused_tools) == FOCUSED_TOOLS, sorted(focused_tools)
+            assert all(tool.title and tool.title != name and len(tool.title) > len(name)
+                       and tool.annotations and tool.annotations.title == tool.title
+                       for name, tool in focused_tools.items())
             assert {name for name, tool in focused_tools.items() if tool.outputSchema} == OUTPUT_SCHEMA_TOOLS
             assert all(tool.annotations and tool.annotations.readOnlyHint is True
                        for tool in focused_tools.values())
@@ -290,6 +297,8 @@ async def audit(root):
             'annotated_tools': len(tools), 'invalid_call_checks': len(invalid),
             'evidence_files_unchanged': True,
             'structured_output_tools': sorted(OUTPUT_SCHEMA_TOOLS),
+            'titled_tool_count': sum(bool(tool.title) for tool in tools.values()),
+            'focused_titled_tool_count': sum(bool(tool.title) for tool in focused_tools.values()),
             'tdqs': {'status': 'NOT_EVALUATED', 'reason': 'Official score requires Glama rubric evaluation.'},
             'focused_tool_count': len(FOCUSED_TOOLS),
             'focused_parameter_count': focused_parameters,
@@ -307,6 +316,7 @@ def main():
         args.output.write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
     print(f"PASS: {result['tool_count']} full-profile tools/{result['described_parameters']} parameters, "
           f"{result['focused_tool_count']} focused-profile tools/{result['focused_parameter_count']} parameters; "
+          f"{result['titled_tool_count']} full and {result['focused_titled_tool_count']} focused titles, "
           f"{len(result['structured_output_tools'])} structured-output tools, "
           f"{result['invalid_call_checks']} invalid calls rejected; evidence unchanged (TDQS not evaluated)")
     return 0

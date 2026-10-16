@@ -28,6 +28,8 @@ jobs:
           python test/index_linkage.py
       - name: Test fault-flow reports and read-only MCP
         run: python test/fault_report_test.py
+      - name: Test integrated adoption report options and status boundaries
+        run: python test/integration_execution_contract.py
       - name: Verify MCP stdio definitions and read-only calls
         run: python test/mcp_tool_metadata.py --output build/mcp-definition-audit.json
       - name: Upload inspected MCP definitions

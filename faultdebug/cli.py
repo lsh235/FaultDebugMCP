@@ -214,6 +214,14 @@ def main() -> int:
         print(doctor_json(report) if n.json else format_doctor_report(report))
         return {"PASS": 0, "FAIL": 1, "NOT RUN": 2}[report["status"]]
     doctor.set_defaults(func=doctor_cmd)
+    self_test = sub.add_parser("self-test", help="compile and capture a fixed smoke fixture using the installed setup")
+    self_test.add_argument("--json", action="store_true", help="print the full versioned JSON report")
+    def self_test_cmd(n):
+        from .self_test import collect_self_test_report, format_self_test_report
+        report = collect_self_test_report()
+        print(json.dumps(report, sort_keys=True) if n.json else format_self_test_report(report))
+        return {"PASS": 0, "FAIL": 1, "NOT RUN": 2}[report["status"]]
+    self_test.set_defaults(func=self_test_cmd)
     bench = sub.add_parser("benchmark", help="compare baseline and instrumented process wall time")
     bench.add_argument("--baseline", required=True, type=__import__('pathlib').Path)
     bench.add_argument("--instrumented", required=True, type=__import__('pathlib').Path)

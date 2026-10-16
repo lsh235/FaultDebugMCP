@@ -29,11 +29,13 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-개발 버전은 **1.3.0a7** (`v1.3.0-alpha.7`)이며, 문서의 증거 기반 구현은
+개발 버전은 **1.3.0a8** (`v1.3.0-alpha.8`)이며, 문서의 증거 기반 구현은
 [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)로 고정했습니다.
-이번 알파는 기존 Linux C/C++ 프로젝트용 실행 파일 사전 점검과 분리된 CMake 적용 계획을 제공합니다.
-원래 소스/빌드를 덮어쓰지 않고, 명시한 target만 계측해 실제 실행 trace와 source-verified bundle을 검사합니다.
-[기존 프로젝트 적용 안내](docs/existing-project-adoption.md) · [구현 범위와 검증](docs/releases/v1.3.0-alpha.7.md)
+기존 프로젝트용 정적 ELF 점검과 분리된 CMake 적용 경로를 제공하며,
+이번 알파는 설치된 컴파일러 wrapper로 고정 C fixture를 빌드·실행하고 임시 trace의 완전성과 손실을 확인하는
+`faultdebug self-test`를 추가합니다. 사용자 프로젝트나 source resolution은 검사하지 않습니다.
+[기존 프로젝트 적용 안내](docs/existing-project-adoption.md) · [self-test 조사](docs/self-test-research.md) ·
+[구현 범위와 검증](docs/releases/v1.3.0-alpha.8.md)
 
 정식 릴리스의 독립 최종 수락, 현재 revision의 전체 core/gRPC profile,
 kind·새 30분 soak는 남아 있습니다. Docker 8/16/32 검증은 이번 알파 기록에 명시한
@@ -72,9 +74,15 @@ uv pip install --python .venv/bin/python -e .
 환경을 확인하고 예제를 실행합니다.
 
 ```sh
+export FAULTDEBUG_REAL_CC=clang-18
+export FAULTDEBUG_REAL_CXX=clang++-18
 .venv/bin/fault-debug doctor
+.venv/bin/fault-debug self-test
 .venv/bin/fault-debug run --artifact-dir artifacts -- build/test/fd_c_chain 16
 ```
+
+`self-test`는 생성한 고정 fixture를 빌드·실행하고 임시 trace를 검사한 뒤 삭제합니다.
+사용자 프로젝트 실행이나 source resolution 검증은 포함하지 않습니다.
 
 정상 종료에서는 기본적으로 `.fault` 파일을 만들지 않습니다. SIGSEGV 수집은
 다음처럼 실행합니다.

@@ -191,6 +191,8 @@ __attribute__((noinline)) int adoption_library(int crash) {
                 "target_launch": execution["target_launch"], "original_inputs_unchanged": True}
 
     def execute_target(self):
+        from faultdebug.format import collect_file
+
         build = self.root / "execute-target integration"
         marker = self.root / "execute-target-was-run"
         args = self.plan_args[:]

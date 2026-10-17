@@ -14,6 +14,7 @@ from faultdebug.mcp_server import make_server
 
 FOCUSED_TOOLS = {
     "get_capabilities", "discover_artifacts", "discover_bundles", "open_fault",
+    "get_evidence_summary",
     "get_thread_trace", "get_fault_flow", "get_rpc_trace", "get_incident_report",
     "check_store", "list_incidents", "get_incident_slice", "get_source_evidence",
     "resolve_addresses", "get_function_source", "get_call_relations",

@@ -4,7 +4,7 @@
 > Follow recorded calls across services, inspect the fault location, and see
 > which evidence is missing.
 
-[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.20-orange)](docs/releases/v1.3.0-alpha.20.md)
+[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.21-orange)](docs/releases/v1.3.0-alpha.21.md)
 [![Release gates](https://img.shields.io/github/actions/workflow/status/lsh235/FaultDebugMCP/v12-release-gate.yml?branch=main&label=release%20gates)](https://github.com/lsh235/FaultDebugMCP/actions/workflows/v12-release-gate.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 [![Clang 18](https://img.shields.io/badge/Clang-18-orange)](https://clang.llvm.org/)
@@ -61,7 +61,7 @@ static call-graph candidates as observed execution.
 
 ## Project status
 
-The development package is **1.3.0a20** (`v1.3.0-alpha.20`); the evidence-foundation
+The development package is **1.3.0a21** (`v1.3.0-alpha.21`); the evidence-foundation
 baseline is [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2).
 The existing-project path provides static ELF preflight and isolated opt-in
 CMake integration. `faultdebug self-test` verifies one bounded installed capture;
@@ -90,7 +90,9 @@ requires an external pin, deployment and rescan. Alpha19 adds distinct,
 task-specific top-level display titles for all 27 tools and aligns them with
 the annotation titles; both MCP profiles are checked over stdio. Alpha20 adds
 a typed structured result for verified function source while preserving the
-text response. See the
+text response. Alpha21 adds documented success/error output schemas for
+`list_incidents`; dynamic incident evidence payloads remain outside that schema.
+The score still needs an external Glama re-scan. See the
 [adoption guide](docs/existing-project-adoption.md),
 [report-output review](docs/integration-report-output-review.md), and
 [MCP bundle review](docs/mcp-required-bundle-review.md),
@@ -101,7 +103,9 @@ text response. See the
 [display-title review](docs/mcp-tool-title-review.md), and
 [source output-schema research](docs/mcp-source-output-research.md),
 [source output-schema review](docs/mcp-source-output-review.md), and
-[milestone scope and verification](docs/releases/v1.3.0-alpha.20.md).
+[incident-list output-schema research](docs/mcp-incident-list-output-research.md),
+[incident-list output-schema review](docs/mcp-incident-list-output-review.md), and
+[milestone scope and verification](docs/releases/v1.3.0-alpha.21.md).
 
 Final independent stable acceptance, current-revision full core/gRPC profiles,
 kind and fresh 30-minute soak remain pending. Docker 8/16/32 results cover only

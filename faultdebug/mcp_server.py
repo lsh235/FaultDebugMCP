@@ -16,7 +16,8 @@ from .discovery import inspect_spool
 from .evidence_store import EvidenceStore, EvidenceStoreError
 from .capabilities import get_capabilities as capability_contract
 from .mcp_outputs import (ArtifactDiscoveryOutput, BundleDiscoveryOutput,
-                          CapabilitiesOutput, FunctionSourceOutput, StoreCheckOutput)
+                          CapabilitiesOutput, FunctionSourceOutput,
+                          IncidentListOutput, StoreCheckOutput)
 
 # Field metadata is exported in tools/list; docstring Args alone is not a schema.
 CaptureName = Annotated[str, Field(min_length=1, description="Root-relative .fault or decoded .json capture path, e.g. fault-1234.fault; no absolute paths, '..', or escaping symlinks.")]
@@ -466,7 +467,7 @@ def make_server(root: Path, *, tool_profile: str = "full"):
     @register_tool(annotations=_read_only("List incidents"))
     def list_incidents(db: StorePath = "evidence.sqlite3", session_id: SessionId = None,
                        start_ns: StartNs = None, end_ns: EndNs = None,
-                       trust_state: TrustState = None, page: Page = 0) -> dict:
+                       trust_state: TrustState = None, page: Page = 0) -> IncidentListOutput:
         """List agent-declared incident summaries already persisted in a SQLite evidence store.
 
         Use to obtain incident IDs before get_incident_slice or get_unresolved;

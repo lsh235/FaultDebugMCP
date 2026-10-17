@@ -29,7 +29,7 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-개발 버전은 **1.3.0a20** (`v1.3.0-alpha.20`)이며, 문서의 증거 기반 구현은
+개발 버전은 **1.3.0a21** (`v1.3.0-alpha.21`)이며, 문서의 증거 기반 구현은
 [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)로 고정했습니다.
 기존 프로젝트용 정적 ELF 점검과 분리된 CMake 적용 경로를 제공합니다.
 `faultdebug self-test`가 설치된 경로의 고정 fixture capture를 확인하고,
@@ -60,6 +60,8 @@ Glama의 재평가 전까지 주장하지 않습니다.
 알파20은 검증된 source 조회에 7개 필드의 구조화 응답을 추가하고 기존 텍스트 응답과
 필수 bundle 검증을 유지합니다. 확장 가능한 static relation 행은 이번 스키마 범위에서
 제외합니다.
+알파21은 읽기 전용 incident 목록의 성공/오류 응답 스키마를 추가합니다. 더 큰 동적
+incident evidence payload는 별도 검토 전까지 스키마 범위에서 제외합니다.
 [기존 프로젝트 적용 안내](docs/existing-project-adoption.md) ·
 [보고서 언어 검토](docs/integration-report-language-review.md) ·
 [이벤트 상한 검토](docs/integration-report-event-limit-review.md) ·
@@ -72,7 +74,9 @@ Glama의 재평가 전까지 주장하지 않습니다.
 [표시 제목 검토](docs/mcp-tool-title-review.md) ·
 [source 출력 스키마 리서치](docs/mcp-source-output-research.md) ·
 [source 출력 스키마 검토](docs/mcp-source-output-review.md) ·
-[구현 범위와 검증](docs/releases/v1.3.0-alpha.20.md)
+[incident 목록 출력 스키마 리서치](docs/mcp-incident-list-output-research.md) ·
+[incident 목록 출력 스키마 검토](docs/mcp-incident-list-output-review.md) ·
+[구현 범위와 검증](docs/releases/v1.3.0-alpha.21.md)
 
 정식 릴리스의 독립 최종 수락, 현재 revision의 전체 core/gRPC profile,
 kind·새 30분 soak는 남아 있습니다. Docker 8/16/32 검증은 이번 알파 기록에 명시한

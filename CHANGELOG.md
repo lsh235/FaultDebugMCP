@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.3.0-alpha.21] - 2026-10-17
+
+- Publish validated structured success and query-error outputs for read-only
+  incident listing while preserving incident IDs, filters and evidence state.
+- Keep larger extensible incident slices untyped; official Glama deployment,
+  re-scan and score remain unverified.
+
 ## [1.3.0-alpha.20] - 2026-10-17
 
 - Publish a validated seven-field structured result schema for verified source

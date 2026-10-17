@@ -208,3 +208,46 @@ class FunctionSourceOutput(OutputModel):
     start_line: Annotated[int, Field(description="One-based first source line returned.")]
     end_line: Annotated[int, Field(description="One-based last source line returned, inclusive.")]
     source: Annotated[str, Field(description="Exact returned source text for the indexed function range.")]
+
+
+class IncidentListItem(OutputModel):
+    """One persisted declared incident row from the read-only store query."""
+
+    incident_id: Annotated[str, Field(description="Agent-declared incident identifier used by incident evidence tools.")]
+    session_id: Annotated[str | None, Field(description="Declared runtime session identifier; null means none was recorded.")]
+    trigger_process_id: Annotated[str | None, Field(description="Declared triggering process identifier, when recorded.")]
+    trigger_signal: Annotated[int | None, Field(description="Recorded trigger signal number, when supplied.")]
+    status: Annotated[str | None, Field(description="Application-declared incident status; not inferred by the store.")]
+    phase: Annotated[str | None, Field(description="Application-declared incident phase; not inferred by the store.")]
+    partial: Annotated[Literal[0, 1] | None, Field(description="SQLite integer flag: 1 means declared partial, 0 means declared complete, null means not supplied.")]
+    first_seen_ns: Annotated[int | None, Field(description="Earliest captured monotonic timestamp for this incident, not wall-clock time.")]
+    trust_state: Annotated[Literal["verified", "unresolved"], Field(description="Stored artifact provenance state used for the incident projection.")]
+    artifact_count: Annotated[int, Field(description="Number of distinct valid artifact rows linked to the incident.")]
+
+
+class IncidentListSuccess(OutputModel):
+    """Paginated list of stored declared incident summaries."""
+
+    schema_: Annotated[Literal[2], Field(alias="schema", description="Evidence-store schema version.")]
+    incidents: Annotated[list[IncidentListItem], Field(description="Incident summaries in this page, ordered by recorded first-seen time and ID.")]
+    total: Annotated[int, Field(description="Number of matching incident IDs across all pages.")]
+    page: Annotated[int, Field(description="Zero-based page returned.")]
+    page_size: Annotated[int, Field(description="Maximum incident summaries per page.")]
+
+
+class IncidentListErrorDetail(OutputModel):
+    code: Literal["INCIDENT_QUERY_ERROR"]
+    message: str
+
+
+class IncidentListError(OutputModel):
+    """Structured query failure returned by list_incidents."""
+
+    schema_: Annotated[Literal[2], Field(alias="schema", description="Evidence-store schema version.")]
+    error: Annotated[IncidentListErrorDetail, Field(description="Read-only incident query error; no store mutation was performed.")]
+
+
+IncidentListOutput = Annotated[
+    IncidentListSuccess | IncidentListError,
+    Field(description="Either a paginated incident list or the stable INCIDENT_QUERY_ERROR response."),
+]

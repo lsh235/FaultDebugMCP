@@ -290,7 +290,7 @@ def make_server(root: Path, *, tool_profile: str = "focused"):
         tid: Annotated[int | None, Field(ge=0, description="Captured OS thread ID; null includes all thread generations. A reused ID can match more than one thread record.")] = None,
         page: Page = 0,
         page_size: Annotated[int, Field(ge=1, le=200, strict=True, description="Maximum thread records per page (1–200); default 200.")] = 200,
-        max_events_per_thread: Annotated[int, Field(ge=1, le=500, strict=True, description="Keep at most the last 1–500 retained raw events per thread and report view omissions; null keeps every event.")] | None = None,
+        max_events_per_thread: Annotated[int | None, Field(ge=1, le=500, strict=True, description="Keep at most the last 1–500 retained raw events per thread and report view omissions; null keeps every event.")] = None,
     ) -> ThreadTraceOutput:
         """Read captured thread records and their retained function events from one artifact.
 

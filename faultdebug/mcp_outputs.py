@@ -367,6 +367,52 @@ class RpcTraceEvent(OutputModel):
     source: Annotated[str | None, Field(description="Original event source label when the extension supplied one.")] = None
 
 
+class IncidentReportRpcEvent(RpcTraceEvent):
+    """One normalized RPC observation annotated with its report-local artifact index."""
+
+    artifact_index: Annotated[int, Field(ge=0, description="Zero-based position of the capture in this incident-report request; not a persistent artifact ID.")]
+
+
+class IncidentReportArtifact(OutputModel):
+    """Small capture context row retained by the multi-capture report."""
+
+    index: Annotated[int, Field(ge=0, description="Zero-based position in the supplied capture-name list.")]
+    pid: Annotated[Any, Field(description="Process ID value copied from the capture when present; this report-local row is not a persistent identity.")]
+    target: Annotated[dict[str, Any], Field(description="Recorded target return-code/signal fields copied from the capture; absent source fields stay absent.")]
+    collector: Annotated[dict[str, Any], Field(description="Recorded collector status fields copied from the capture; these are not independently verified.")]
+
+
+class IncidentReportObserved(OutputModel):
+    """Observed multi-capture event rows and explicit endpoint relations."""
+
+    rpc_events: Annotated[list[IncidentReportRpcEvent], Field(description="Normalized semantic-RPC observations for the current page; artifact_index identifies their capture in this request.")]
+    process_relations: Annotated[list[dict[str, Any]], Field(description="Observed explicit cross-process relations; relation keys depend on their RPC or IPC source evidence.")]
+
+
+class IncidentReportFields(OutputModel):
+    """Application fields copied only when present on decoded RPC events."""
+
+    status: Annotated[list[dict[str, Any]], Field(description="Recorded status values; they are not interpreted as root-cause verdicts.")]
+    deadlines: Annotated[list[dict[str, Any]], Field(description="Recorded deadline values; clock-domain compatibility is not inferred here.")]
+    retries: Annotated[list[dict[str, Any]], Field(description="Recorded retry-count or attempt values; they do not prove exactly-once effects.")]
+    streams: Annotated[list[dict[str, Any]], Field(description="Recorded stream or streaming values; no stream mode is inferred from event phase.")]
+
+
+class IncidentReportOutput(OutputModel):
+    """Read-only, paginated report built directly from named capture files."""
+
+    schema_: Annotated[Literal[1], Field(alias="schema", description="Incident-report response schema version.")]
+    status: Annotated[Literal["complete", "limited", "unresolved"], Field(description="Evidence availability label; limited and unresolved reports are not successful-RPC or root-cause verdicts.")]
+    artifacts: Annotated[list[IncidentReportArtifact], Field(description="Request-local capture summary rows in the same order as the supplied capture names.")]
+    observed: Annotated[IncidentReportObserved, Field(description="Observed evidence classes; RPC events are paged while process relations are not.")]
+    static_candidates: Annotated[list[Any], Field(description="Producer-supplied or static candidates retained separately from observed evidence.")]
+    unresolved: Annotated[list[dict[str, Any]], Field(description="Open diagnostic rows from RPC decoding, relation matching, and timeline analysis; keys vary by reason.")]
+    fields: Annotated[IncidentReportFields, Field(description="Explicit status, deadline, retry and stream fields copied from decoded events; no missing value is inferred.")]
+    page: Annotated[int, Field(ge=0, description="Zero-based page of observed RPC events returned.")]
+    page_size: Annotated[Literal[200], Field(description="Maximum observed RPC events per page.")]
+    total_rpc_events: Annotated[int, Field(ge=0, description="Total normalized RPC observations across all pages.")]
+
+
 class RpcExtensionAbsent(OutputModel):
     reason: Annotated[Literal["semantic_rpc_extension_absent"], Field(description="The capture does not contain a semantic-RPC extension.")]
     evidence: Annotated[Literal["artifact"], Field(description="The absent extension was checked on the captured artifact.")]

@@ -30,7 +30,7 @@ FOCUSED_TOOLS = {
 OUTPUT_SCHEMA_TOOLS = {
     'get_capabilities', 'check_store', 'discover_artifacts', 'discover_bundles',
     'get_function_source', 'list_incidents', 'list_sessions', 'get_source_evidence',
-    'get_rpc_trace', 'get_fault_flow',
+    'get_rpc_trace', 'get_fault_flow', 'get_incident_report',
 }
 FOCUSED_OUTPUT_SCHEMA_TOOLS = OUTPUT_SCHEMA_TOOLS - {'list_sessions'}
 PROFILE_DESCRIPTION_EXPECTATIONS = {
@@ -80,13 +80,13 @@ def snapshot(root):
             for p in root.rglob('*') if p.is_file()}
 
 
-def rpc_artifact(root, stem, extension=None, header=None):
-    report = {'process': {'pid': 100}, 'threads': [], 'crashes': []}
+def rpc_artifact(root, stem, extension=None, header=None, pid=100):
+    report = {'process': {'pid': pid}, 'threads': [], 'crashes': []}
     if extension is not None:
         report['rpc_trace'] = extension
     if header is not None:
         report['header'] = header
-    return write_artifact(report, root, 100, artifact_stem=stem)
+    return write_artifact(report, root, pid, artifact_stem=stem)
 
 
 def flow_artifact(root, stem, *, status=0, complete=True, dropped=0):
@@ -142,6 +142,26 @@ def assert_fault_flow_contract(result, output_schema, text_result):
     return structured
 
 
+def assert_incident_report_contract(result, output_schema, text_result):
+    structured = validate_structured_payload(result, output_schema)
+    assert set(structured) == set(text_result)
+    for key, value in text_result.items():
+        if key != 'observed':
+            assert structured[key] == value, key
+            continue
+        assert set(structured['observed']) == set(value)
+        assert structured['observed']['process_relations'] == value['process_relations']
+        assert len(structured['observed']['rpc_events']) == len(value['rpc_events'])
+        allowed_optional = set(output_schema['$defs']['IncidentReportRpcEvent']['properties'])
+        for structured_event, text_event in zip(
+                structured['observed']['rpc_events'], value['rpc_events']):
+            omitted = set(structured_event) - set(text_event)
+            assert omitted <= allowed_optional - set(text_event), omitted
+            assert all(structured_event[field] is None for field in omitted)
+            assert {field: structured_event[field] for field in text_event} == text_event
+    return structured
+
+
 def assert_profile_descriptions(full_tools, focused_tools):
     hidden_names = set(full_tools) - set(focused_tools)
     for name, tool in focused_tools.items():
@@ -175,6 +195,18 @@ async def audit(root):
                           'status': True, 'stream': True})
     rpc_events[-1].update({'status': 0, 'streaming': False})
     rpc_good = rpc_artifact(root, 'rpc-good', {'schema': 1, 'events': rpc_events})
+    incident_sender = rpc_artifact(root, 'incident-sender', {
+        'schema': 1,
+        'events': [{'rpc_id': 'alpha27-rpc', 'phase': 'send', 'pid': 410,
+                    'method_id': 42, 'status': 'OK', 'deadline_ns': 1000,
+                    'retry_count': 1, 'stream': 'unary'}],
+        'static_candidates': [{'kind': 'candidate', 'rpc_id': 'alpha27-rpc'}],
+    }, pid=410)
+    incident_receiver = rpc_artifact(root, 'incident-receiver', {
+        'schema': 1,
+        'events': [{'rpc_id': 'alpha27-rpc', 'phase': 'receive', 'pid': 411,
+                    'method_id': 42, 'status': 'OK', 'streaming': False}],
+    }, pid=411)
     rpc_gap = rpc_artifact(root, 'rpc-gap', {'schema': 1, 'events': [
         {'sequence': 1, 'monotonic_ns': 10}, {'sequence': 3, 'monotonic_ns': 30}]})
     rpc_reversal = rpc_artifact(root, 'rpc-reversal', {'schema': 1, 'events': [
@@ -324,6 +356,17 @@ async def audit(root):
             assert set(fault_flow_schema['$defs']['FaultFlowSource']['properties']) == {
                 'resolved', 'function_id', 'bundle', 'file', 'start_line', 'end_line',
                 'display_end_line', 'source'}
+            incident_report_schema = tools['get_incident_report'].outputSchema
+            assert set(incident_report_schema['properties']) == {
+                'schema', 'status', 'artifacts', 'observed', 'static_candidates',
+                'unresolved', 'fields', 'page', 'page_size', 'total_rpc_events'}
+            incident_report_defs = incident_report_schema['$defs']
+            assert set(incident_report_defs['IncidentReportObserved']['properties']) == {
+                'rpc_events', 'process_relations'}
+            assert set(incident_report_defs['IncidentReportFields']['properties']) == {
+                'status', 'deadlines', 'retries', 'streams'}
+            assert 'artifact_index' in incident_report_defs[
+                'IncidentReportRpcEvent']['properties']
             parameters = 0
             for name, tool in tools.items():
                 assert tool.description and 30 <= len(tool.description) <= 1600, name
@@ -523,6 +566,48 @@ async def audit(root):
             assert_rpc_trace_contract(rpc_page_result, rpc_schema, rpc_page)
             assert rpc_page['page'] == 1 and rpc_page['total'] == 201
             assert len(rpc_page['observed']) == 1
+            incident_page0_result = await session.call_tool(
+                'get_incident_report', {'names': [rpc_good.name]})
+            incident_page0 = payload(incident_page0_result)
+            incident_page0_structured = assert_incident_report_contract(
+                incident_page0_result, incident_report_schema, incident_page0)
+            assert incident_page0['page'] == 0 and incident_page0['page_size'] == 200
+            assert incident_page0['total_rpc_events'] == 201
+            assert len(incident_page0['observed']['rpc_events']) == 200
+            assert incident_page0_structured['fields'] == incident_page0['fields']
+            assert incident_page0['fields']['retries'][0]['retry_count'] == 0
+            incident_page1_result = await session.call_tool(
+                'get_incident_report', {'names': [rpc_good.name], 'page': 1})
+            incident_page1 = payload(incident_page1_result)
+            assert_incident_report_contract(
+                incident_page1_result, incident_report_schema, incident_page1)
+            assert incident_page1['page'] == 1 and incident_page1['total_rpc_events'] == 201
+            assert len(incident_page1['observed']['rpc_events']) == 1
+            incident_join_result = await session.call_tool('get_incident_report', {
+                'names': [incident_sender.name, incident_receiver.name]})
+            incident_join = payload(incident_join_result)
+            assert_incident_report_contract(
+                incident_join_result, incident_report_schema, incident_join)
+            assert len(incident_join['observed']['rpc_events']) == 2
+            assert len(incident_join['observed']['process_relations']) == 1
+            assert incident_join['observed']['process_relations'][0]['kind'] == 'rpc'
+            assert incident_join['static_candidates'] == [
+                {'kind': 'candidate', 'rpc_id': 'alpha27-rpc'}]
+            assert incident_join['fields']['deadlines'] == [{
+                'artifact_index': 0, 'rpc_id': 'alpha27-rpc', 'deadline_ns': 1000}]
+            assert incident_join['fields']['retries'] == [{
+                'artifact_index': 0, 'rpc_id': 'alpha27-rpc', 'retry_count': 1}]
+            assert incident_join['fields']['streams'] == [
+                {'artifact_index': 0, 'rpc_id': 'alpha27-rpc', 'stream': 'unary'},
+                {'artifact_index': 1, 'rpc_id': 'alpha27-rpc', 'streaming': False}]
+            incident_empty_result = await session.call_tool(
+                'get_incident_report', {'names': [capture.name]})
+            incident_empty = payload(incident_empty_result)
+            assert_incident_report_contract(
+                incident_empty_result, incident_report_schema, incident_empty)
+            assert incident_empty['status'] == 'unresolved'
+            assert incident_empty['observed']['rpc_events'] == []
+            assert incident_empty['unresolved']
             rpc_absent_result = await session.call_tool('get_rpc_trace', {'name': capture.name})
             rpc_absent = payload(rpc_absent_result)
             assert_rpc_trace_contract(rpc_absent_result, rpc_schema, rpc_absent)
@@ -557,6 +642,8 @@ async def audit(root):
             invalid = [
                 ('open_fault', {'name': '../escape.fault'}),
                 ('open_fault', {'name': str(capture)}),
+                ('get_incident_report', {'names': ['../escape.fault']}),
+                ('get_incident_report', {'names': ['nested/fault-malformed.json']}),
                 ('get_thread_trace', {'name': capture.name, 'page': -1}),
                 ('get_fault_flow', {'name': capture.name, 'max_events': 501}),
                 ('get_fault_flow', {'name': capture.name, 'debug_directory': '../outside'}),
@@ -622,6 +709,7 @@ async def audit(root):
             assert focused_tools['get_source_evidence'].outputSchema == source_evidence_schema
             assert focused_tools['get_rpc_trace'].outputSchema == rpc_schema
             assert focused_tools['get_fault_flow'].outputSchema == fault_flow_schema
+            assert focused_tools['get_incident_report'].outputSchema == incident_report_schema
             assert all(tool.annotations and tool.annotations.readOnlyHint is True
                        for tool in focused_tools.values())
             focused_parameters = 0
@@ -656,6 +744,30 @@ async def audit(root):
             assert_rpc_trace_contract(
                 focused_rpc_result, focused_tools['get_rpc_trace'].outputSchema, focused_rpc)
             assert focused_rpc['status'] == 'complete' and focused_rpc['total'] == 201
+            focused_incident_page0_result = await session.call_tool(
+                'get_incident_report', {'names': [rpc_good.name]})
+            focused_incident_page0 = payload(focused_incident_page0_result)
+            assert_incident_report_contract(
+                focused_incident_page0_result,
+                focused_tools['get_incident_report'].outputSchema,
+                focused_incident_page0)
+            assert focused_incident_page0['total_rpc_events'] == 201
+            focused_incident_join_result = await session.call_tool(
+                'get_incident_report', {'names': [incident_sender.name, incident_receiver.name]})
+            focused_incident_join = payload(focused_incident_join_result)
+            assert_incident_report_contract(
+                focused_incident_join_result,
+                focused_tools['get_incident_report'].outputSchema,
+                focused_incident_join)
+            assert len(focused_incident_join['observed']['process_relations']) == 1
+            focused_incident_empty_result = await session.call_tool(
+                'get_incident_report', {'names': [capture.name]})
+            focused_incident_empty = payload(focused_incident_empty_result)
+            assert_incident_report_contract(
+                focused_incident_empty_result,
+                focused_tools['get_incident_report'].outputSchema,
+                focused_incident_empty)
+            assert focused_incident_empty['status'] == 'unresolved'
             focused_fault_flow_result = await session.call_tool(
                 'get_fault_flow', {'name': flow_good.name})
             focused_fault_flow = payload(focused_fault_flow_result)

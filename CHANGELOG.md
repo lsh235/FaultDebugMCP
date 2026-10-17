@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.3.0-alpha.27] - 2026-10-17
+
+- Publish a typed `get_incident_report` result in full and focused MCP profiles,
+  covering its stable report envelope, observed RPC events, and pagination.
+- Preserve producer-defined relation, candidate, diagnostic, and application
+  field rows as open JSON; Glama re-scan and score remain unverified.
+
 ## [1.3.0-alpha.26] - 2026-10-17
 
 - Tailor eight focused-profile tool descriptions so named alternatives are

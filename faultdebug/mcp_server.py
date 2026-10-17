@@ -18,7 +18,7 @@ from .capabilities import get_capabilities as capability_contract
 from .mcp_outputs import (ArtifactDiscoveryOutput, BundleDiscoveryOutput,
                           CapabilitiesOutput, FaultFlowOutput, FunctionSourceOutput,
                           IncidentListOutput, SessionListOutput, SourceEvidenceOutput,
-                          RpcTraceOutput, StoreCheckOutput)
+                          IncidentReportOutput, RpcTraceOutput, StoreCheckOutput)
 
 # Field metadata is exported in tools/list; docstring Args alone is not a schema.
 CaptureName = Annotated[str, Field(min_length=1, description="Root-relative .fault or decoded .json capture path, e.g. fault-1234.fault; no absolute paths, '..', or escaping symlinks.")]
@@ -377,7 +377,7 @@ def make_server(root: Path, *, tool_profile: str = "full"):
         MCP tool errors. No target execution or evidence ingestion occurs."""
         return evidence_summary([_load(root, name)])
     @register_tool(annotations=_read_only("Get incident report"))
-    def get_incident_report(names: CaptureNames, page: Page = 0) -> dict:
+    def get_incident_report(names: CaptureNames, page: Page = 0) -> IncidentReportOutput:
         """Project a combined RPC incident report directly from named captures, without a stored incident ID.
 
         Use for ad hoc multi-capture analysis; get_incident_slice fetches an agent-declared

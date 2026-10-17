@@ -18,7 +18,8 @@ from .capabilities import get_capabilities as capability_contract
 from .mcp_outputs import (ArtifactDiscoveryOutput, BundleDiscoveryOutput,
                           CapabilitiesOutput, FaultFlowOutput, FunctionSourceOutput,
                           IncidentListOutput, SessionListOutput, SourceEvidenceOutput,
-                          IncidentReportOutput, RpcTraceOutput, StoreCheckOutput)
+                          IncidentReportOutput, ResolveAddressesOutput, RpcTraceOutput,
+                          StoreCheckOutput)
 
 # Field metadata is exported in tools/list; docstring Args alone is not a schema.
 CaptureName = Annotated[str, Field(min_length=1, description="Root-relative .fault or decoded .json capture path, e.g. fault-1234.fault; no absolute paths, '..', or escaping symlinks.")]
@@ -636,7 +637,7 @@ def make_server(root: Path, *, tool_profile: str = "full"):
             return {"schema": 1, "count": len(rows), "page": max(page, 0), "page_size": 200, "artifacts": rows}
         finally: index.close()
     @register_tool(annotations=_read_only("Resolve addresses"))
-    def resolve_addresses(name: CaptureName, addresses: Annotated[list[Annotated[int, Field(ge=0, le=18446744073709551615)]], Field(max_length=1000, description="Up to 1,000 absolute runtime instruction addresses as JSON integers, e.g. [4198400]; preserve uint64 precision, do not pass hex strings or offsets.")], bundle: BundlePath = None, debug_directory: DebugDirectory = None) -> dict:
+    def resolve_addresses(name: CaptureName, addresses: Annotated[list[Annotated[int, Field(ge=0, le=18446744073709551615)]], Field(max_length=1000, description="Up to 1,000 absolute runtime instruction addresses as JSON integers, e.g. [4198400]; preserve uint64 precision, do not pass hex strings or offsets.")], bundle: BundlePath = None, debug_directory: DebugDirectory = None) -> ResolveAddressesOutput:
         """Resolve captured instruction addresses against module Build IDs and available ELF symbols.
 
         Use to obtain verified symbol/function IDs before get_function_source;

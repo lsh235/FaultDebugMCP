@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.3.0-alpha.28] - 2026-10-17
+
+- Publish typed per-address `resolve_addresses` output in full and focused MCP
+  profiles, reusing the existing Build-ID-aware resolution contract.
+- Preserve conditional resolution fields and source/index extensions; Glama
+  re-scan and numeric score remain unverified.
+
 ## [1.3.0-alpha.27] - 2026-10-17
 
 - Publish a typed `get_incident_report` result in full and focused MCP profiles,

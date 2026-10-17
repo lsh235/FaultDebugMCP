@@ -507,6 +507,12 @@ class FaultFlowResolution(OutputModel):
     source: Annotated[dict[str, Any] | None, Field(description="Offline symbolizer location metadata; it is not verified source text.")] = None
 
 
+class ResolveAddressesOutput(OutputModel):
+    """Per-address Build-ID-aware symbol and function resolution results."""
+
+    items: Annotated[list[FaultFlowResolution], Field(description="One resolution row per requested address; unresolved rows remain visible and do not discard other items.")]
+
+
 class FaultFlowEvent(OutputModel):
     id: Annotated[str, Field(description="Stable report-local event identifier; not a capture-global identity.")]
     kind: Annotated[Literal["enter", "exit", "marker"], Field(description="Decoded native record kind; marker includes unknown/unsupported event types.")]

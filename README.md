@@ -4,7 +4,7 @@
 > Follow recorded calls across services, inspect the fault location, and see
 > which evidence is missing.
 
-[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.27-orange)](docs/releases/v1.3.0-alpha.27.md)
+[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.28-orange)](docs/releases/v1.3.0-alpha.28.md)
 [![Release gates](https://img.shields.io/github/actions/workflow/status/lsh235/FaultDebugMCP/v12-release-gate.yml?branch=main&label=release%20gates)](https://github.com/lsh235/FaultDebugMCP/actions/workflows/v12-release-gate.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 [![Clang 18](https://img.shields.io/badge/Clang-18-orange)](https://clang.llvm.org/)
@@ -61,7 +61,7 @@ static call-graph candidates as observed execution.
 
 ## Project status
 
-The development package is **1.3.0a27** (`v1.3.0-alpha.27`); the evidence-foundation
+The development package is **1.3.0a28** (`v1.3.0-alpha.28`); the evidence-foundation
 baseline is [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2).
 The existing-project path provides static ELF preflight and isolated opt-in
 CMake integration. `faultdebug self-test` verifies one bounded installed capture;
@@ -109,7 +109,10 @@ are selectable within its 15-tool catalog; the 27-tool full profile retains its
 existing guidance. No runtime behavior or tool inventory changes, and Glama
 score impact remains unverified. Alpha27 publishes a typed `get_incident_report`
 contract in both profiles, including observed RPC events and paging while
-preserving dynamic evidence rows; its score impact remains unverified. See the
+preserving dynamic evidence rows; its score impact remains unverified. Alpha28
+adds a typed per-address `resolve_addresses` result in both profiles so callers
+can read function IDs, Build-ID matches and unresolved reasons as structured
+data. Resolver behavior is unchanged and Glama score impact remains unverified. See the
 [adoption guide](docs/existing-project-adoption.md),
 [report-output review](docs/integration-report-output-review.md), and
 [MCP bundle review](docs/mcp-required-bundle-review.md),
@@ -132,6 +135,11 @@ preserving dynamic evidence rows; its score impact remains unverified. See the
 [fault-flow output-schema review](docs/mcp-fault-flow-output-review.md), and
 [focused-profile description research](docs/mcp-focused-description-research.md),
 [focused-profile description review](docs/mcp-focused-description-review.md), and
+[address-resolution output-schema research](docs/mcp-address-resolution-output-research.md),
+[address-resolution output-schema review](docs/mcp-address-resolution-output-review.md), and
+[evidence-summary candidate research](docs/mcp-evidence-summary-output-research.md),
+[evidence-summary candidate review](docs/mcp-evidence-summary-output-review.md), and
+[alpha28 scope and verification](docs/releases/v1.3.0-alpha.28.md), and
 [incident-report output-schema research](docs/mcp-incident-report-output-research.md),
 [incident-report output-schema review](docs/mcp-incident-report-output-review.md), and
 [alpha27 scope and verification](docs/releases/v1.3.0-alpha.27.md), and

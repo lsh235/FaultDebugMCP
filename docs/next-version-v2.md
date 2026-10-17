@@ -11,9 +11,9 @@ Users can restore the previous catalog with `--tool-profile full`; all 27 tools
 and the static call-relations behavior remain available.
 
 This is an explicit public API break, so it justifies the major number. The
-first candidate is `2.0.0a1` / `v2.0.0-alpha.1`; the latest published
-candidate is `2.0.0a3` / `v2.0.0-alpha.3`. The current candidate is
-`2.0.0a4` / `v2.0.0-alpha.4`. None is the stable release. Candidate feature reviews must classify the intended stable increment
+first candidate is `2.0.0a1` / `v2.0.0-alpha.1`; the active candidate is
+`2.0.0a4` / `v2.0.0-alpha.4`. These prereleases are not the stable release.
+Candidate feature reviews must classify the intended stable increment
 under [`versioning-policy.md`](versioning-policy.md); an alpha number advances
 the current target and does not itself mean a stable minor or patch release.
 The v1.3 alpha train records compatible additions and is superseded as the

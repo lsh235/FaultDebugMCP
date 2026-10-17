@@ -18,7 +18,7 @@ from .capabilities import get_capabilities as capability_contract
 from .mcp_outputs import (ArtifactDiscoveryOutput, BundleDiscoveryOutput,
                           CapabilitiesOutput, FunctionSourceOutput,
                           IncidentListOutput, SessionListOutput, SourceEvidenceOutput,
-                          StoreCheckOutput)
+                          RpcTraceOutput, StoreCheckOutput)
 
 # Field metadata is exported in tools/list; docstring Args alone is not a schema.
 CaptureName = Annotated[str, Field(min_length=1, description="Root-relative .fault or decoded .json capture path, e.g. fault-1234.fault; no absolute paths, '..', or escaping symlinks.")]
@@ -268,7 +268,7 @@ def make_server(root: Path, *, tool_profile: str = "full"):
                                   max_events=max_events,
                                   debug_directories=_debug_directories(root, debug_directory))
     @register_tool(annotations=_read_only("Get rpc trace"))
-    def get_rpc_trace(name: CaptureName, page: Page = 0) -> dict:
+    def get_rpc_trace(name: CaptureName, page: Page = 0) -> RpcTraceOutput:
         """Decode one capture's semantic RPC observations, static candidates and unresolved limits.
 
         Use to inspect recorded request/response boundaries; get_thread_trace is for

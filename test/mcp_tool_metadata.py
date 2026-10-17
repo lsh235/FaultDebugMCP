@@ -29,6 +29,7 @@ FOCUSED_TOOLS = {
 OUTPUT_SCHEMA_TOOLS = {
     'get_capabilities', 'check_store', 'discover_artifacts', 'discover_bundles',
     'get_function_source', 'list_incidents', 'list_sessions', 'get_source_evidence',
+    'get_rpc_trace',
 }
 FOCUSED_OUTPUT_SCHEMA_TOOLS = OUTPUT_SCHEMA_TOOLS - {'list_sessions'}
 
@@ -68,8 +69,58 @@ def snapshot(root):
             for p in root.rglob('*') if p.is_file()}
 
 
+def rpc_artifact(root, stem, extension=None, header=None):
+    report = {'process': {'pid': 100}, 'threads': [], 'crashes': []}
+    if extension is not None:
+        report['rpc_trace'] = extension
+    if header is not None:
+        report['header'] = header
+    return write_artifact(report, root, 100, artifact_stem=stem)
+
+
+def assert_rpc_trace_contract(result, output_schema, text_result):
+    structured = validate_structured_payload(result, output_schema)
+    assert set(structured) == set(text_result)
+    for key, value in text_result.items():
+        if key != 'observed':
+            assert structured[key] == value, key
+            continue
+        assert len(structured['observed']) == len(value)
+        for structured_event, text_event in zip(structured['observed'], value):
+            omitted = set(structured_event) - set(text_event)
+            assert omitted <= set(output_schema['$defs']['RpcTraceEvent']['properties']) - set(text_event)
+            assert all(structured_event[field] is None for field in omitted)
+            assert {field: structured_event[field] for field in text_event} == text_event
+    return structured
+
+
 async def audit(root):
     capture = write_artifact({'process': {'pid': 7}, 'threads': [], 'crashes': []}, root, 7)
+    rpc_events = [
+        {'sequence': index, 'monotonic_ns': index * 10, 'rpc_id': 7,
+         'kind': 'client', 'phase': 'status'}
+        for index in range(1, 202)
+    ]
+    rpc_events[0].update({'pid': 100, 'trace_id_hi': 1, 'trace_id_lo': 2,
+                          'method_id': 42, 'retry_count': 0, 'role': True,
+                          'status': True, 'stream': True})
+    rpc_events[-1].update({'status': 0, 'streaming': False})
+    rpc_good = rpc_artifact(root, 'rpc-good', {'schema': 1, 'events': rpc_events})
+    rpc_gap = rpc_artifact(root, 'rpc-gap', {'schema': 1, 'events': [
+        {'sequence': 1, 'monotonic_ns': 10}, {'sequence': 3, 'monotonic_ns': 30}]})
+    rpc_reversal = rpc_artifact(root, 'rpc-reversal', {'schema': 1, 'events': [
+        {'sequence': 2, 'monotonic_ns': 10}, {'sequence': 1, 'monotonic_ns': 20}]})
+    rpc_partial = rpc_artifact(root, 'rpc-partial', {'schema': 1, 'events': rpc_events[:1]},
+                               header={'status': (1 << 3) | (1 << 9)})
+    rpc_incomplete = rpc_artifact(root, 'rpc-incomplete', {
+        'schema': 1, 'events': rpc_events[:1], 'complete': False,
+        'header': {'flags': 1, 'dropped_count': 2}})
+    rpc_empty = rpc_artifact(root, 'rpc-empty', {'schema': 1, 'events': []})
+    rpc_bad_version = rpc_artifact(root, 'rpc-bad-version', {'schema': 99, 'events': []})
+    rpc_duplicate = write_artifact({
+        'process': {'pid': 101}, 'threads': [], 'crashes': [],
+        'rpc_trace': {'schema': 1, 'events': []}, 'rpc': {'schema': 1, 'events': []}},
+        root, 101, artifact_stem='rpc-duplicate')
     (root / 'debug').mkdir()
     nested = root / 'nested'
     nested.mkdir()
@@ -181,6 +232,19 @@ async def audit(root):
             assert set(source_evidence_defs['SourceEvidenceUnresolved']['properties']) == {
                 'function_id', 'reason', 'message'}
             assert set(source_evidence_defs['SourceEvidenceError']['properties']) == {'schema', 'error'}
+            rpc_schema = tools['get_rpc_trace'].outputSchema
+            assert set(rpc_schema['properties']) == {
+                'schema', 'status', 'source', 'observed', 'static_candidates',
+                'unresolved', 'total', 'page', 'page_size'}
+            rpc_defs = rpc_schema.get('$defs', {})
+            assert set(rpc_defs['RpcTraceEvent']['properties']) == {
+                'event_index', 'sequence', 'monotonic_ns', 'start_monotonic_ns',
+                'end_monotonic_ns', 'trace_id_hi', 'trace_id_lo', 'direction', 'tid',
+                'process_generation', 'thread_generation', 'rpc_id', 'kind', 'method_id',
+                'phase', 'role', 'status', 'deadline_ns', 'retry_count', 'attempt',
+                'stream', 'streaming', 'pid', 'peer_pid', 'flags', 'generation',
+                'publication', 'source'}
+            assert len(rpc_schema['properties']['unresolved']['items']['discriminator']['mapping']) == 6
             parameters = 0
             for name, tool in tools.items():
                 assert tool.description and 30 <= len(tool.description) <= 1600, name
@@ -329,6 +393,40 @@ async def audit(root):
             assert_source_evidence_contract(
                 source_bundle_error_result, source_evidence_schema, source_bundle_error)
             assert source_bundle_error['error']['code'] == 'SOURCE_EVIDENCE_ERROR'
+            rpc_result = await session.call_tool('get_rpc_trace', {'name': rpc_good.name})
+            rpc_text = payload(rpc_result)
+            assert_rpc_trace_contract(rpc_result, rpc_schema, rpc_text)
+            assert rpc_text['schema'] == 1 and rpc_text['status'] == 'complete'
+            assert rpc_text['source'] == 'rpc_trace' and rpc_text['total'] == 201
+            assert rpc_text['page'] == 0 and rpc_text['page_size'] == 200
+            assert len(rpc_text['observed']) == 200
+            assert rpc_text['observed'][0]['trace_id_hi'] == 1
+            assert rpc_text['observed'][0]['retry_count'] == 0
+            rpc_page_result = await session.call_tool(
+                'get_rpc_trace', {'name': rpc_good.name, 'page': 1})
+            rpc_page = payload(rpc_page_result)
+            assert_rpc_trace_contract(rpc_page_result, rpc_schema, rpc_page)
+            assert rpc_page['page'] == 1 and rpc_page['total'] == 201
+            assert len(rpc_page['observed']) == 1
+            rpc_absent_result = await session.call_tool('get_rpc_trace', {'name': capture.name})
+            rpc_absent = payload(rpc_absent_result)
+            assert_rpc_trace_contract(rpc_absent_result, rpc_schema, rpc_absent)
+            assert rpc_absent['status'] == 'unresolved' and rpc_absent['source'] is None
+            assert rpc_absent['unresolved'][0]['reason'] == 'semantic_rpc_extension_absent'
+            diagnostic_cases = [
+                (rpc_gap, 'rpc_sequence_gap'),
+                (rpc_reversal, 'rpc_sequence_not_monotonic'),
+                (rpc_partial, 'runtime_trace_partial_or_overflow'),
+                (rpc_incomplete, 'semantic_rpc_stream_incomplete'),
+                (rpc_empty, 'semantic_rpc_events_empty'),
+            ]
+            for artifact, reason in diagnostic_cases:
+                diagnostic_result = await session.call_tool(
+                    'get_rpc_trace', {'name': artifact.name})
+                diagnostic = payload(diagnostic_result)
+                assert_rpc_trace_contract(diagnostic_result, rpc_schema, diagnostic)
+                assert diagnostic['status'] in {'limited', 'unresolved'}
+                assert reason in {row['reason'] for row in diagnostic['unresolved']}
             empty_incidents_result = await session.call_tool('list_incidents', {'session_id': 'absent'})
             empty_incidents = payload(empty_incidents_result)
             empty_incidents_structured = validate_structured_payload(
@@ -359,6 +457,8 @@ async def audit(root):
                 ('resolve_addresses', {'name': capture.name, 'addresses': [], 'debug_directory': '/tmp'}),
                 ('collect_faults', {'names': [capture.name] * 1001}),
                 ('get_source_evidence', {'incident_id': 'i', 'bundle': '.', 'function_ids': ['f'] * 101}),
+                ('get_rpc_trace', {'name': rpc_bad_version.name}),
+                ('get_rpc_trace', {'name': rpc_duplicate.name}),
                 ('query_artifact_index', {'name': 'empty.sqlite'}),
                 ('query_artifact_index', {'name': 'missing.sqlite'}),
             ]
@@ -404,6 +504,7 @@ async def audit(root):
             assert focused_tools['get_function_source'].outputSchema == source_schema
             assert focused_tools['list_incidents'].outputSchema == incident_schema
             assert focused_tools['get_source_evidence'].outputSchema == source_evidence_schema
+            assert focused_tools['get_rpc_trace'].outputSchema == rpc_schema
             assert all(tool.annotations and tool.annotations.readOnlyHint is True
                        for tool in focused_tools.values())
             focused_parameters = 0
@@ -433,6 +534,11 @@ async def audit(root):
                 focused_source_result, focused_tools['get_source_evidence'].outputSchema,
                 focused_source)
             assert focused_source['resolved'] is True and focused_source['total'] == 1
+            focused_rpc_result = await session.call_tool('get_rpc_trace', {'name': rpc_good.name})
+            focused_rpc = payload(focused_rpc_result)
+            assert_rpc_trace_contract(
+                focused_rpc_result, focused_tools['get_rpc_trace'].outputSchema, focused_rpc)
+            assert focused_rpc['status'] == 'complete' and focused_rpc['total'] == 201
             focused_capabilities_result = await session.call_tool('get_capabilities', {})
             focused_capabilities = payload(focused_capabilities_result)
             assert validate_structured_payload(

@@ -11,7 +11,8 @@ Users can restore the previous catalog with `--tool-profile full`; all 27 tools
 and the static call-relations behavior remain available.
 
 This is an explicit public API break, so it justifies the major number. The
-first candidate is `2.0.0a1` / `v2.0.0-alpha.1`; that candidate is not the stable
+first candidate is `2.0.0a1` / `v2.0.0-alpha.1`; the current development
+candidate is `2.0.0a2` / `v2.0.0-alpha.2`. Neither candidate is the stable
 release. The v1.3 alpha train records compatible additions and is superseded as
 the active release target by this plan.
 
@@ -24,7 +25,7 @@ the active release target by this plan.
    write EN/KO migration notes, audit wheel/sdist, container launch, and source
    consumers. Keep native runtime ABI v1 unless separate evidence shows a native
    breaking change is necessary.
-3. **M2 — candidate publication:** tag and publish `v2.0.0-alpha.1` only after
+3. **M2 — candidate publication:** publish each v2 prerelease tag only after
    exact-commit build, runtime, packaging and hosted CI checks. Keep the
    implementation in a reviewable draft PR.
 4. **M3 — release acceptance:** complete the required current-revision gates
@@ -53,7 +54,7 @@ neither is silently substituted with local tests.
 
 ## Version contract
 
-- Python distribution: `2.0.0a1` during the first candidate; stable target
+- Python distribution: `2.0.0a2` for the current candidate; stable target
   `2.0.0`.
 - Native CMake project package: `2.0.0`; runtime shared-library SONAME stays
   `1` because the C ABI is unchanged.
@@ -63,3 +64,6 @@ neither is silently substituted with local tests.
   no `get_call_relations` entry.
 - Shared-memory ABI v1, FDAR v1, semantic RPC schema v1 and evidence-store base
   schema v2 remain readable as before.
+- `get_evidence_summary` accepts 1–32 unique capture names in one call and
+  returns one count-only row per input plus aggregate reason-code counts. Its
+  representation is `summary_schema: 2`; the semantic RPC schema remains v1.

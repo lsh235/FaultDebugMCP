@@ -61,7 +61,7 @@ static call-graph candidates as observed execution.
 
 ## Project status
 
-The current development target is **2.0.0a1** (`v2.0.0-alpha.1`), based on the
+The current development target is **2.0.0a2** (`v2.0.0-alpha.2`), based on the
 evidence foundation in [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2).
 This major-version candidate changes the default MCP catalog from 27 tools to
 the 15-tool `focused` workflow and moves advanced static call relations out of
@@ -73,7 +73,11 @@ See the [major-change research](docs/mcp-v2-major-profile-research.md),
 [review decision](docs/mcp-v2-major-profile-review.md), and
 [v2.0 release objective](docs/next-version-v2.md).
 The first candidate's scope and verification are recorded in
-[v2.0.0-alpha.1](docs/releases/v2.0.0-alpha.1.md).
+[v2.0.0-alpha.1](docs/releases/v2.0.0-alpha.1.md). The current candidate
+research and review add a count-only MCP summary for up to 32 captures in one
+call, without expanding the 15-tool focused catalog:
+[research](docs/mcp-batch-evidence-summary-research-v2.md) ·
+[review](docs/mcp-batch-evidence-summary-review-v2.md).
 The existing-project path provides static ELF preflight and isolated opt-in
 CMake integration. `faultdebug self-test` verifies one bounded installed capture;
 alpha9 added `faultdebug integrate --execute-build` for the isolated

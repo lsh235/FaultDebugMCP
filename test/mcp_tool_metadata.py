@@ -246,11 +246,19 @@ def assert_evidence_summary_contract(result, output_schema, text_result):
     structured = validate_structured_payload(result, output_schema)
     assert structured == text_result
     assert set(structured) == {
-        'schema', 'status', 'artifacts', 'observed', 'static_candidates', 'unresolved'}
+        'schema', 'summary_schema', 'status', 'artifacts', 'items', 'observed',
+        'static_candidates', 'unresolved'}
+    assert structured['schema'] == 1 and structured['summary_schema'] == 2
     assert structured['status'] in {'complete', 'limited'}
-    assert structured['artifacts'] == 1
+    assert 1 <= structured['artifacts'] <= 32
+    assert len(structured['items']) == structured['artifacts']
     assert set(structured['observed']) == {'rpc_events', 'process_relations'}
-    assert all(isinstance(row.get('reason'), str) for row in structured['unresolved'])
+    assert all(isinstance(name, str) and count >= 1
+               for name, count in structured['unresolved'].items())
+    for item in structured['items']:
+        assert set(item) == {'name', 'rpc_status', 'observed_rpc_events',
+                             'static_candidates', 'unresolved_by_reason'}
+        assert item['rpc_status'] in {'complete', 'limited', 'unresolved'}
     return structured
 
 
@@ -350,6 +358,12 @@ async def audit(root):
         'schema': 1,
         'events': [{'sequence': 1, 'monotonic_ns': 10, 'phase': 'status'}],
     }, pid=88)
+    batch_capture_names = []
+    batch_capture_bytes = summary_complete_capture.read_bytes()
+    for index in range(32):
+        batch_name = f'batch-summary-{index:02d}.fault'
+        (root / batch_name).write_bytes(batch_capture_bytes)
+        batch_capture_names.append(batch_name)
     thread_history = write_artifact({
         'process': {'pid': 77},
         'threads': [
@@ -564,14 +578,15 @@ async def audit(root):
                     assert evidence_summary_schema.get('type') == 'object'
                     summary_properties = evidence_summary_schema.get('properties', {})
                     assert set(summary_properties) == {
-                        'schema', 'status', 'artifacts', 'observed',
+                        'schema', 'summary_schema', 'status', 'artifacts', 'items', 'observed',
                         'static_candidates', 'unresolved'}
                     assert set(evidence_summary_schema.get('required', [])) == set(summary_properties)
                     summary_defs = evidence_summary_schema.get('$defs', {})
                     assert set(summary_defs['EvidenceSummaryObserved']['properties']) == {
                         'rpc_events', 'process_relations'}
-                    assert summary_defs['EvidenceSummaryDiagnostic'][
-                        'additionalProperties'] is True
+                    assert set(summary_defs['EvidenceSummaryArtifact']['properties']) == {
+                        'name', 'rpc_status', 'observed_rpc_events',
+                        'static_candidates', 'unresolved_by_reason'}
                 elif name == 'get_service_flow':
                     service_schema = tools[name].outputSchema
                     assert set(service_schema.get('properties', {})) == {'result'}
@@ -711,6 +726,11 @@ async def audit(root):
             assert full_capabilities['mcp_tool_profile'] == 'full'
             assert set(full_capabilities['exposed_tools']) == set(tools)
             assert set(full_capabilities['required_tools']) <= set(tools)
+            summary_input = tools['get_evidence_summary'].inputSchema
+            assert summary_input['required'] == ['names']
+            assert set(summary_input['properties']) == {'names'}
+            assert summary_input['properties']['names'].get('minItems') == 1
+            assert summary_input['properties']['names'].get('maxItems') == 32
             for tool_name in ('get_function_source', 'get_call_relations'):
                 schema = tools[tool_name].inputSchema
                 assert 'bundle' in schema['required'], (tool_name, schema)
@@ -805,23 +825,47 @@ async def audit(root):
             assert sparse_open['snapshot_consistency']['producer_consistency_extension'] is True
             assert sparse_open['producer_root_extension'] == {'revision': 'sparse-v2'}
             summary_limited_result = await session.call_tool(
-                'get_evidence_summary', {'name': capture.name})
+                'get_evidence_summary', {'names': [capture.name]})
             summary_limited_text = payload(summary_limited_result)
             summary_limited = assert_evidence_summary_contract(
                 summary_limited_result, evidence_summary_schema, summary_limited_text)
             assert summary_limited['status'] == 'limited'
             assert summary_limited['observed'] == {'rpc_events': 0, 'process_relations': 0}
-            assert any(row['reason'] == 'semantic_rpc_extension_absent'
-                       and row.get('evidence') == 'artifact'
-                       for row in summary_limited['unresolved'])
+            assert summary_limited['unresolved'] == {'semantic_rpc_extension_absent': 1}
+            assert summary_limited['items'][0]['unresolved_by_reason'] == {
+                'semantic_rpc_extension_absent': 1}
             summary_complete_result = await session.call_tool(
-                'get_evidence_summary', {'name': summary_complete_capture.name})
+                'get_evidence_summary', {'names': [summary_complete_capture.name]})
             summary_complete_text = payload(summary_complete_result)
             summary_complete = assert_evidence_summary_contract(
                 summary_complete_result, evidence_summary_schema, summary_complete_text)
             assert summary_complete['status'] == 'complete'
             assert summary_complete['observed'] == {'rpc_events': 1, 'process_relations': 0}
-            assert summary_complete['unresolved'] == []
+            assert summary_complete['unresolved'] == {}
+            mixed_names = [capture.name, summary_complete_capture.name]
+            mixed_result = await session.call_tool(
+                'get_evidence_summary', {'names': mixed_names})
+            mixed_text = payload(mixed_result)
+            mixed_summary = assert_evidence_summary_contract(
+                mixed_result, evidence_summary_schema, mixed_text)
+            assert [row['name'] for row in mixed_summary['items']] == mixed_names
+            assert [row['rpc_status'] for row in mixed_summary['items']] == [
+                'unresolved', 'complete']
+            assert mixed_summary['observed'] == {'rpc_events': 1, 'process_relations': 0}
+            assert mixed_summary['unresolved'] == {'semantic_rpc_extension_absent': 1}
+            for batch_size in (8, 16, 32):
+                names = batch_capture_names[:batch_size]
+                batch_result = await session.call_tool(
+                    'get_evidence_summary', {'names': names})
+                batch_text = payload(batch_result)
+                batch_summary = assert_evidence_summary_contract(
+                    batch_result, evidence_summary_schema, batch_text)
+                assert batch_summary['artifacts'] == batch_size
+                assert [row['name'] for row in batch_summary['items']] == names
+                assert batch_summary['observed'] == {
+                    'rpc_events': batch_size, 'process_relations': 0}
+                assert batch_summary['status'] == 'complete'
+                assert len(json.dumps(batch_summary, separators=(',', ':')).encode()) < 64 * 1024
             thread_trace_result = await session.call_tool('get_thread_trace', {
                 'name': thread_history.name})
             thread_trace_text = payload(thread_trace_result)
@@ -1122,7 +1166,10 @@ async def audit(root):
             invalid = [
                 ('open_fault', {'name': '../escape.fault'}),
                 ('open_fault', {'name': str(capture)}),
-                ('get_evidence_summary', {'name': '../escape.fault'}),
+                ('get_evidence_summary', {'names': ['../escape.fault']}),
+                ('get_evidence_summary', {'names': []}),
+                ('get_evidence_summary', {'names': [capture.name, capture.name]}),
+                ('get_evidence_summary', {'names': batch_capture_names + [capture.name]}),
                 ('get_incident_report', {'names': ['../escape.fault']}),
                 ('get_incident_report', {'names': ['nested/fault-malformed.json']}),
                 ('get_thread_trace', {'name': capture.name, 'page': -1}),
@@ -1244,15 +1291,14 @@ async def audit(root):
                     focused_parameters += 1
             assert focused_parameters == 41, focused_parameters
             focused_summary_result = await session.call_tool(
-                'get_evidence_summary', {'name': capture.name})
+                'get_evidence_summary', {'names': [capture.name]})
             focused_summary_text = payload(focused_summary_result)
             focused_summary = assert_evidence_summary_contract(
                 focused_summary_result,
                 focused_tools['get_evidence_summary'].outputSchema,
                 focused_summary_text)
             assert focused_summary['status'] == 'limited'
-            assert any(row['reason'] == 'semantic_rpc_extension_absent'
-                       for row in focused_summary['unresolved'])
+            assert focused_summary['unresolved'] == {'semantic_rpc_extension_absent': 1}
             focused_open_result = await session.call_tool(
                 'open_fault', {'name': open_fault_sparse_json.name})
             focused_open_text = payload(focused_open_result)

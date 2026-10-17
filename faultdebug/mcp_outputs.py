@@ -535,21 +535,25 @@ class EvidenceSummaryObserved(OutputModel):
     process_relations: Annotated[int, Field(ge=0, description="Number of observed cross-process relations; static candidates are excluded.")]
 
 
-class EvidenceSummaryDiagnostic(OutputModel):
-    model_config = ConfigDict(extra="allow", populate_by_name=True)
-
-    reason: Annotated[str, Field(description="Stable reason code for an unresolved RPC or process-relation diagnostic.")]
+class EvidenceSummaryArtifact(OutputModel):
+    name: Annotated[str, Field(description="Root-relative capture name from the request, in request order.")]
+    rpc_status: Annotated[Literal["complete", "limited", "unresolved"], Field(description="RPC evidence status for this capture only; this is not an application-success verdict.")]
+    observed_rpc_events: Annotated[int, Field(ge=0, description="Normalized observed RPC events from this capture only.")]
+    static_candidates: Annotated[int, Field(ge=0, description="Static candidates from this capture; these are not observed execution.")]
+    unresolved_by_reason: dict[str, Annotated[int, Field(ge=1)]]
 
 
 class EvidenceSummaryOutput(OutputModel):
-    """Compact counts for one capture; no RPC event histories are returned."""
+    """Compact per-capture and aggregate counts; no event histories are returned."""
 
     schema_: Annotated[Literal[1], Field(alias="schema", description="Semantic RPC summary contract version.")]
+    summary_schema: Annotated[Literal[2], Field(description="Version of the batched count-only summary representation.")]
     status: Annotated[Literal["complete", "limited"], Field(description="Complete means this summary produced no unresolved diagnostic; it does not assert application success or full capture coverage.")]
-    artifacts: Annotated[Literal[1], Field(description="One named capture is summarized by each tool call.")]
+    artifacts: Annotated[int, Field(ge=1, le=32, description="Number of unique captures included in this request.")]
+    items: Annotated[list[EvidenceSummaryArtifact], Field(min_length=1, max_length=32, description="Count-only summary rows, one per requested capture, in request order.")]
     observed: Annotated[EvidenceSummaryObserved, Field(description="Counts of directly observed RPC events and process relations only.")]
     static_candidates: Annotated[int, Field(ge=0, description="Number of static RPC candidates; these are not observed execution.")]
-    unresolved: Annotated[list[EvidenceSummaryDiagnostic], Field(description="Unresolved decoder and process-pairing diagnostics; additional diagnostic fields vary by reason.")]
+    unresolved: Annotated[dict[str, Annotated[int, Field(ge=1)]], Field(description="Aggregate counts by stable unresolved reason code. Use get_rpc_trace or get_incident_report for diagnostic details.")]
 
 
 class ServiceFlowCounts(OutputModel):

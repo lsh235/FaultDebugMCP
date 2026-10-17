@@ -27,6 +27,7 @@ from .mcp_outputs import (ArtifactDiscoveryOutput, BundleDiscoveryOutput,
 # Field metadata is exported in tools/list; docstring Args alone is not a schema.
 CaptureName = Annotated[str, Field(min_length=1, description="Root-relative .fault or decoded .json capture path, e.g. fault-1234.fault; no absolute paths, '..', or escaping symlinks.")]
 CaptureNames = Annotated[list[CaptureName], Field(max_length=1000, description="Capture paths beneath --root, up to 1,000; obtain paths from discover_artifacts. All captures are decoded before the result page is selected.")]
+SummaryCaptureNames = Annotated[list[CaptureName], Field(min_length=1, max_length=32, description="One to 32 unique capture paths beneath --root. Returns count-only rows in request order and aggregate totals; use get_rpc_trace or get_incident_report for details.")]
 BundlePath = Annotated[str | None, Field(description="Verified bundle directory beneath --root, e.g. bundles/build-001. Omit/null for capture-only evidence; source citations require a bundle.")]
 DebugDirectory = Annotated[str | None, Field(description="Optional existing root-relative local GNU build-id debug root containing .build-id/xx/rest.debug; no absolute paths, parent traversal, symlink escape, or network lookup.")]
 RequiredBundlePath = Annotated[str, Field(min_length=1, description="Existing verified source/binary bundle directory beneath --root, e.g. bundles/build-001; paths and manifest hashes must verify.")]
@@ -59,9 +60,9 @@ Use before list_incidents, especially for a missing or corrupt DB. Returns statu
     "open_fault": """Decode one capture's process, thread, crash and integrity records for initial triage.
 
 Use after discover_artifacts; get_evidence_summary provides a count-only inventory, get_fault_flow builds a bounded execution view, and get_rpc_trace returns RPC histories. Returns the decoded capture and, if supplied, a verified bundle marker (not source lines). Names are relative to --root. Invalid paths, malformed captures or failed bundle verification produce MCP tool errors; partial captures retain their loss flags.""",
-    "get_evidence_summary": """Summarize one capture's observed RPC evidence counts and unresolved diagnostics without returning histories.
+    "get_evidence_summary": """Summarize RPC evidence counts for 1–32 captures in one call without returning event histories.
 
-Use before get_rpc_trace or get_fault_flow when a count-only triage step is enough; get_incident_report compares multiple captures. `status=complete` means this summary emitted no unresolved diagnostic, not that the application succeeded or every event was captured. Missing or empty RPC instrumentation remains unresolved. Invalid paths or malformed captures produce MCP tool errors. No target execution or evidence ingestion occurs.""",
+Use before get_rpc_trace or get_fault_flow to compare per-capture counts and choose a detailed follow-up; get_incident_report returns observed rows for a detailed multi-capture report. The response preserves request order and includes aggregate totals. `status=complete` means no unresolved diagnostic was counted, not that the application succeeded or every event was captured. Missing or empty RPC instrumentation remains unresolved. Invalid, duplicate or escaping paths and malformed captures produce MCP tool errors. No target execution or evidence ingestion occurs.""",
     "get_rpc_trace": """Decode one capture's semantic RPC observations, static candidates and unresolved limits.
 
 Use to inspect recorded request/response boundaries; get_thread_trace is for function events and get_fault_flow for reconstructed nesting. Use get_incident_report for ad hoc cross-capture analysis. Returns observed (paged), total, page, page_size, static_candidates and unresolved. Only observed RPC rows are paged; uncertainty is retained on every page. Missing RPC instrumentation yields unresolved evidence rather than invented edges. Malformed captures, ambiguous RPC extensions or invalid paths produce MCP tool errors.""",
@@ -377,22 +378,27 @@ def make_server(root: Path, *, tool_profile: str = "focused"):
         result["page_size"] = 200
         return result
     @register_tool(annotations=_read_only("Get evidence summary"))
-    def get_evidence_summary(name: CaptureName) -> EvidenceSummaryOutput:
-        """Summarize RPC evidence counts and limits for one capture without returning full histories.
+    def get_evidence_summary(names: SummaryCaptureNames) -> EvidenceSummaryOutput:
+        """Summarize count-only RPC evidence for 1–32 unique captures in one call.
 
-        Use before get_rpc_trace or get_fault_flow when a count-only triage step is enough;
-        get_incident_report instead compares multiple captures. `status=complete` means this
-        summary emitted no unresolved diagnostic, not that the application succeeded or every
-        event was captured. Missing or empty RPC instrumentation remains unresolved. Invalid
-        paths or malformed captures produce MCP tool errors. No target execution or evidence
-        ingestion occurs."""
-        return evidence_summary([_load(root, name)])
+        Use before get_rpc_trace or get_fault_flow to compare per-capture counts and choose
+        a detailed follow-up; get_incident_report returns observed rows for multi-capture
+        analysis. Results preserve input order and aggregate cross-capture relations.
+        `status=complete` means no unresolved diagnostic was counted, not that the
+        application succeeded or every event was captured. Missing or empty RPC
+        instrumentation remains unresolved. Invalid, duplicate or escaping paths and
+        malformed captures produce MCP tool errors. No target execution or ingestion occurs."""
+        resolved_paths = [_relative(root, name) for name in names]
+        if len(set(resolved_paths)) != len(resolved_paths):
+            raise ValueError("capture names must resolve to unique files")
+        reports = [_load(root, name) for name in names]
+        return evidence_summary(reports, artifact_names=names)
     @register_tool(annotations=_read_only("Get incident report"))
     def get_incident_report(names: CaptureNames, page: Page = 0) -> IncidentReportOutput:
         """Project a combined RPC incident report directly from named captures, without a stored incident ID.
 
         Use for ad hoc multi-capture analysis; get_incident_slice fetches an agent-declared
-        incident already in SQLite, and get_evidence_summary is a single-capture inventory.
+        incident already in SQLite; get_evidence_summary compares count-only evidence across captures.
         Returns observed RPC events/process relations, static_candidates, unresolved and
         field availability. page slices only observed.rpc_events in batches of 200;
         total_rpc_events counts the full set. Inferences never become root-cause proof.

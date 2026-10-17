@@ -38,7 +38,7 @@ def main() -> int:
     assert {"observed", "static_candidates", "unresolved"} <= rpc.keys()
     relations = tools["get_process_relations"].fn([ns.artifact], 0)
     assert {"observed", "static_candidates", "unresolved"} <= relations.keys()
-    summary = tools["get_evidence_summary"].fn(ns.artifact)
+    summary = tools["get_evidence_summary"].fn([ns.artifact])
     assert {"observed", "static_candidates", "unresolved"} <= summary.keys()
     incident = tools["get_incident_report"].fn([ns.artifact], 0)
     assert {"observed", "static_candidates", "unresolved", "fields"} <= incident.keys()

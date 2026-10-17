@@ -72,8 +72,8 @@ presented as a universal response-byte or total-work reduction.
   page metadata and total counts remain correct across page boundaries.
 - Concatenating pages at a smaller size reproduces the same ordered observed
   event IDs as the default page size without omissions or duplicates.
-- Empty/exhausted pages remain valid; zero and 201 are rejected by the input
-  contract.
+- Empty/exhausted pages remain valid; zero, 201, booleans, floats, and strings
+  are rejected by the input contract.
 - Structured and text results validate against the updated output schemas.
 - Full/focused inventories remain 27/15 tools, with 43 focused parameters.
 - The full profile exposes 86 parameters; focused exposes 43.

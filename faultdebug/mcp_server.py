@@ -315,7 +315,7 @@ def make_server(root: Path, *, tool_profile: str = "focused"):
     def get_rpc_trace(
         name: CaptureName,
         page: Page = 0,
-        page_size: Annotated[int, Field(ge=1, le=200, description="Maximum observed RPC events per page (1–200); default 200.")] = 200,
+        page_size: Annotated[int, Field(ge=1, le=200, strict=True, description="Maximum observed RPC events per page (1–200); default 200.")] = 200,
     ) -> RpcTraceOutput:
         """Decode one capture's semantic RPC observations, static candidates and unresolved limits.
 
@@ -402,7 +402,7 @@ def make_server(root: Path, *, tool_profile: str = "focused"):
     def get_incident_report(
         names: CaptureNames,
         page: Page = 0,
-        page_size: Annotated[int, Field(ge=1, le=200, description="Maximum observed RPC events per page (1–200); default 200.")] = 200,
+        page_size: Annotated[int, Field(ge=1, le=200, strict=True, description="Maximum observed RPC events per page (1–200); default 200.")] = 200,
     ) -> IncidentReportOutput:
         """Project a combined RPC incident report directly from named captures, without a stored incident ID.
 

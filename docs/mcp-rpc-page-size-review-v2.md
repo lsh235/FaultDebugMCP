@@ -58,6 +58,8 @@ pages and persistence of the non-paged fields.
   so existing callers retain their current behavior.
 - Return the effective size in each typed output. Keep `total` values scoped
   to the complete observed collection and preserve zero-based page semantics.
+  Accept JSON integers only; reject booleans, floats, strings, and out-of-range
+  values rather than coercing them into a row count.
 - Page only the observed RPC event rows, matching current behavior. Keep
   candidates, unresolved evidence, and other report fields separate and
   unchanged on each page.
@@ -71,6 +73,7 @@ pages and persistence of the non-paged fields.
 ## Acceptance
 
 Proceed only if real stdio tests demonstrate default compatibility, schema
-bounds, page concatenation without duplicate or missing events, stable totals,
-and structured/text output validation at sizes 1, intermediate, and 200. Stable
-v2 remains blocked on its separate release gates and independent audit.
+bounds, rejection of invalid types/ranges, page concatenation without duplicate
+or missing events, stable totals, and structured/text output validation at sizes
+1, intermediate, and 200. Stable v2 remains blocked on its separate release
+gates and independent audit.

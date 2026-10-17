@@ -1134,7 +1134,7 @@ async def audit(root):
             rpc_exhausted = payload(rpc_exhausted_result)
             assert_rpc_trace_contract(rpc_exhausted_result, rpc_schema, rpc_exhausted)
             assert rpc_exhausted['observed'] == [] and rpc_exhausted['total'] == 201
-            for invalid_size in (0, 201):
+            for invalid_size in (0, 201, True, 1.5, '37'):
                 invalid = await session.call_tool('get_rpc_trace', {
                     'name': rpc_good.name, 'page_size': invalid_size})
                 assert invalid.isError
@@ -1201,7 +1201,7 @@ async def audit(root):
                 incident_exhausted_result, incident_report_schema, incident_exhausted)
             assert incident_exhausted['observed']['rpc_events'] == []
             assert incident_exhausted['total_rpc_events'] == 201
-            for invalid_size in (0, 201):
+            for invalid_size in (0, 201, True, 1.5, '37'):
                 invalid = await session.call_tool('get_incident_report', {
                     'names': [rpc_good.name], 'page_size': invalid_size})
                 assert invalid.isError
@@ -1241,10 +1241,14 @@ async def audit(root):
             incident_join_page1 = payload(incident_join_page1_result)
             assert_incident_report_contract(
                 incident_join_page1_result, incident_report_schema, incident_join_page1)
-            assert [row['sequence'] for row in
-                    incident_join_page0['observed']['rpc_events'] +
-                    incident_join_page1['observed']['rpc_events']] == [
-                        row['sequence'] for row in incident_join['observed']['rpc_events']]
+            join_page_ids = [
+                (row['artifact_index'], row['phase'], row.get('rpc_id'))
+                for row in incident_join_page0['observed']['rpc_events'] +
+                incident_join_page1['observed']['rpc_events']]
+            join_default_ids = [
+                (row['artifact_index'], row['phase'], row.get('rpc_id'))
+                for row in incident_join['observed']['rpc_events']]
+            assert join_page_ids == join_default_ids
             for paged in (incident_join_page0, incident_join_page1):
                 assert paged['total_rpc_events'] == 2
                 assert paged['observed']['process_relations'] == incident_join[

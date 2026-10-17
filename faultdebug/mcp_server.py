@@ -210,7 +210,19 @@ def make_server(root: Path, *, tool_profile: str = "focused"):
         title="Triage one captured fault",
         description="Guide a bounded read-only investigation of one capture under the configured root.",
     )
-    def triage_capture(capture_name: str) -> str:
+    def triage_capture(
+        capture_name: Annotated[
+            str,
+            Field(
+                min_length=1,
+                max_length=512,
+                description=(
+                    "Exact root-relative .fault or decoded .json capture path beneath --root; "
+                    "no absolute paths or parent traversal."
+                ),
+            ),
+        ],
+    ) -> str:
         """Guide a first investigation of one capture without reading it here.
 
         Args:
@@ -234,7 +246,20 @@ Report observed records, derived interpretations, unresolved evidence and hypoth
         title="Investigate one stored incident",
         description="Guide a read-only review of one declared incident and its unresolved evidence.",
     )
-    def investigate_incident(incident_id: str, db: str = "evidence.sqlite3") -> str:
+    def investigate_incident(
+        incident_id: IncidentId,
+        db: Annotated[
+            str,
+            Field(
+                min_length=1,
+                max_length=512,
+                description=(
+                    "Existing root-relative SQLite evidence-store path beneath --root; "
+                    "the prompt never creates, migrates, or repairs it."
+                ),
+            ),
+        ] = "evidence.sqlite3",
+    ) -> str:
         """Guide a read-only review of an incident already present in the evidence store.
 
         Args:

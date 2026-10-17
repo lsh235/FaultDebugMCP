@@ -149,16 +149,17 @@ and set these fields:
     "mcp", "--root", "/app/artifacts", "--tool-profile", "focused"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "1908ecd9b293d4edd9b1e6339df956b98e35d3cd",
+  "pinnedCommit": "a07591b5908c61fb1c029d424923f98d10d3a8be",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }
 ```
 
-This full implementation SHA selects the alpha33 `focused` 16-tool first-line
-workflow, sixteen structured response contracts, and descriptive titles; omit
-the profile argument for the complete 27-tool catalog, which exposes seventeen
-typed contracts. Alpha31 types the incident-slice success/error envelope and known SQLite rows
+This full implementation SHA selects the alpha34 `focused` 16-tool first-line
+workflow and its current output contracts. `get_service_flow` is available in
+the full profile with a discriminated summary/page schema and open collection
+rows; the complete 27-tool catalog exposes eighteen typed contracts. This
+focused example does not expose `get_service_flow`. Alpha31 types the incident-slice success/error envelope and known SQLite rows
 while leaving database extensions and producer payloads open. Alpha32 adds the
 count-only `get_evidence_summary` to the focused profile with typed status,
 observed counts, static-candidate count and extensible unresolved diagnostics.

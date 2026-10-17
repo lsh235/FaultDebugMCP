@@ -22,7 +22,7 @@ from .mcp_outputs import (ArtifactDiscoveryOutput, BundleDiscoveryOutput,
                           IncidentListOutput, IncidentSliceOutput, SessionListOutput, SourceEvidenceOutput,
                           IncidentReportOutput, ResolveAddressesOutput, RpcTraceOutput,
                           ThreadTraceOutput,
-                          StoreCheckOutput)
+                          ServiceFlowOutput, StoreCheckOutput)
 
 # Field metadata is exported in tools/list; docstring Args alone is not a schema.
 CaptureName = Annotated[str, Field(min_length=1, description="Root-relative .fault or decoded .json capture path, e.g. fault-1234.fault; no absolute paths, '..', or escaping symlinks.")]
@@ -222,17 +222,16 @@ def make_server(root: Path, *, tool_profile: str = "full"):
         page: Page = 0,
         page_size: Annotated[int, Field(ge=1, le=200, description="Records per page, 1–200, default 100. Reduce if the 1 MiB response byte budget is exceeded.")] = 100,
         snapshot_id: Annotated[str | None, Field(description="SHA-256 fingerprint from a previous query. Supply on subsequent pages to reject changed inputs; null starts a new snapshot check.")] = None,
-    ) -> dict:
-        """Inspect cross-service evidence as a summary or one bounded collection page.
+    ) -> ServiceFlowOutput:
+        """Inspect one frozen cross-service evidence tree as a summary or selected page.
 
-        Start with summary, then request calls, causes, events, services,
-        native_relations, unresolved or evidence_files. Reuse snapshot_id for
-        subsequent pages. Returns counts and limitations; collection pages add
-        items, total, returned and next_page. Every call rereads bounded frozen
-        inputs; this is not a retained live snapshot. Application reasons remain
-        self-reported. No cross-process global clock or causal order is inferred.
-        Invalid paths, budgets, corrupt inputs or a stale snapshot produce tool
-        errors. Reads only; source enrichment uses existing verified bundle tools.
+        Use when native captures and application event logs share a declared service
+        session; start with summary, then page one collection. Use get_incident_report
+        for named captures without application-log joins, or get_fault_flow for one
+        capture's execution view. Reuse snapshot_id on every page; changed inputs are
+        rejected. Application explanations remain self-reports, and shared trace IDs
+        or cross-process monotonic times do not prove causality. Reads only; invalid
+        paths, corrupt inputs, stale snapshots and budget excesses produce tool errors.
         """
         path = _relative(root, evidence)
         return query_service_flow(path, section=section, page=page,

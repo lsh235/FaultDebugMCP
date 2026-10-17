@@ -4,7 +4,7 @@
 > Follow recorded calls across services, inspect the fault location, and see
 > which evidence is missing.
 
-[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.33-orange)](docs/releases/v1.3.0-alpha.33.md)
+[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.34-orange)](docs/releases/v1.3.0-alpha.34.md)
 [![Release gates](https://img.shields.io/github/actions/workflow/status/lsh235/FaultDebugMCP/v12-release-gate.yml?branch=main&label=release%20gates)](https://github.com/lsh235/FaultDebugMCP/actions/workflows/v12-release-gate.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 [![Clang 18](https://img.shields.io/badge/Clang-18-orange)](https://clang.llvm.org/)
@@ -61,7 +61,7 @@ static call-graph candidates as observed execution.
 
 ## Project status
 
-The development package is **1.3.0a33** (`v1.3.0-alpha.33`); the evidence-foundation
+The development package is **1.3.0a34** (`v1.3.0-alpha.34`); the evidence-foundation
 baseline is [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2).
 The existing-project path provides static ELF preflight and isolated opt-in
 CMake integration. `faultdebug self-test` verifies one bounded installed capture;
@@ -139,6 +139,9 @@ focused tools now have output schemas. Glama score impact remains unverified. Se
 [open-fault output-schema research](docs/mcp-open-fault-output-research.md),
 [open-fault output-schema review](docs/mcp-open-fault-output-review.md),
 [alpha33 scope and verification](docs/releases/v1.3.0-alpha.33.md),
+[service-flow output-schema research](docs/mcp-service-flow-output-research.md),
+[service-flow output-schema review](docs/mcp-service-flow-output-review.md),
+[alpha34 scope and verification](docs/releases/v1.3.0-alpha.34.md),
 [adoption guide](docs/existing-project-adoption.md),
 [report-output review](docs/integration-report-output-review.md), and
 [MCP bundle review](docs/mcp-required-bundle-review.md),

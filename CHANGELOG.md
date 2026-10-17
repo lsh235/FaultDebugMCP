@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.3.0-alpha.34] - 2026-10-17
+
+- Publish a typed summary/page output contract for `get_service_flow` in the
+  full MCP profile, including its stable snapshot, count and pagination fields.
+- Keep section rows and future root/count extensions open; preserve the shared
+  CLI/MCP projection and report Glama score impact only after a live re-scan.
+
 ## [1.3.0-alpha.33] - 2026-10-17
 
 - Publish an open typed output schema for `open_fault` in both MCP profiles.

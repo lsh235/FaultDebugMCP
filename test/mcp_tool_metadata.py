@@ -33,8 +33,9 @@ OUTPUT_SCHEMA_TOOLS = {
     'get_function_source', 'list_incidents', 'list_sessions', 'get_source_evidence', 'open_fault',
     'get_rpc_trace', 'get_fault_flow', 'get_incident_report', 'resolve_addresses',
     'get_call_relations', 'get_thread_trace', 'get_incident_slice', 'get_evidence_summary',
+    'get_service_flow',
 }
-FOCUSED_OUTPUT_SCHEMA_TOOLS = OUTPUT_SCHEMA_TOOLS - {'list_sessions'}
+FOCUSED_OUTPUT_SCHEMA_TOOLS = OUTPUT_SCHEMA_TOOLS - {'list_sessions', 'get_service_flow'}
 PROFILE_DESCRIPTION_EXPECTATIONS = {
     'check_store': ('get_provenance', ('list_incidents',)),
     'open_fault': ('get_evidence_summary', ('get_evidence_summary', 'discover_artifacts', 'get_fault_flow', 'get_rpc_trace')),
@@ -571,6 +572,25 @@ async def audit(root):
                         'rpc_events', 'process_relations'}
                     assert summary_defs['EvidenceSummaryDiagnostic'][
                         'additionalProperties'] is True
+                elif name == 'get_service_flow':
+                    service_schema = tools[name].outputSchema
+                    assert set(service_schema.get('properties', {})) == {'result'}
+                    service_union = service_schema['properties']['result']
+                    variants = service_union.get('anyOf', service_union.get('oneOf', []))
+                    assert len(variants) == 2
+                    service_defs = service_schema.get('$defs', {})
+                    assert set(service_defs['ServiceFlowSummaryOutput']['properties']) == {
+                        'schema', 'snapshot_id', 'session_id', 'counts', 'limitations', 'section'}
+                    page_schema = service_defs['ServiceFlowPageOutput']
+                    assert set(page_schema['properties']) == {
+                        'schema', 'snapshot_id', 'session_id', 'counts', 'limitations',
+                        'section', 'page', 'page_size', 'total', 'returned', 'next_page', 'items'}
+                    assert page_schema['properties']['items']['items']['additionalProperties'] is True
+                    counts_schema = service_defs['ServiceFlowCounts']
+                    assert set(counts_schema['properties']) == {
+                        'services', 'calls', 'causes', 'events', 'native_relations',
+                        'unresolved', 'evidence_files'}
+                    assert counts_schema['additionalProperties'] is True
                 else:
                     assert tools[name].outputSchema.get('type') == 'object', (name, tools[name].outputSchema)
             assert 'schema' in tools['get_capabilities'].outputSchema['properties']
@@ -1198,6 +1218,7 @@ async def audit(root):
             assert focused_tools['get_incident_slice'].outputSchema == incident_slice_schema
             assert focused_tools['get_evidence_summary'].outputSchema == evidence_summary_schema
             assert focused_tools['open_fault'].outputSchema == open_fault_schema
+            assert 'get_service_flow' not in focused_tools
             assert all(tool.annotations and tool.annotations.readOnlyHint is True
                        for tool in focused_tools.values())
             focused_parameters = 0

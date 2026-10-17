@@ -16,10 +16,11 @@ reconstructed fault flow.
 
 Type only the stable page envelope and documented thread/event fields. Keep
 thread and event models open to producer extensions because JSON artifacts may
-carry additional fields. Model `retention` as optional and preserve the existing
-null-versus-omitted distinction between structured and text results. Do not
-claim that an event list proves completeness; event loss and retired history
-remain separate capture fields.
+carry additional fields. Since `.json` capture rows are returned without
+normalization, make native row fields optional and nullable when sparse JSON
+omits them; preserve the existing absent-key behavior in text results. Model
+`retention` as optional and do not claim that an event list proves completeness;
+event loss and retired history remain separate capture fields.
 
 The handler, decoder, `tid` matching across generations, event order,
 pagination, required inputs, MCP errors, text JSON, capture evidence and tool
@@ -30,9 +31,10 @@ survival and two generations sharing one OS thread ID.
 
 1. Both profiles publish the same schema while retaining 27/84 full and 15/44
    focused tools/parameters.
-2. Real stdio validates non-empty rows with and without `retention`, events,
-   extension keys, same-OS-ID generations, `tid` filtering, unmatched ID and
-   exhausted page. All existing text fields remain equal.
+2. Real stdio validates complete native rows and sparse JSON rows, rows with
+   and without `retention`, extension keys, same-OS-ID generations, `tid`
+   filtering, unmatched ID and exhausted page. All existing text fields remain
+   equal and absent sparse-input keys remain absent in text output.
 3. Invalid capture paths and negative pages remain tool errors; artifact bytes
    remain unchanged.
 4. Wheel/sdist and installed-wheel full/focused stdio audit pass; hosted CI

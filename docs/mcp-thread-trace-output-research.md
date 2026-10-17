@@ -18,6 +18,13 @@ event carries `sequence`, `monotonic_ns`, `function`, `callsite`, `type`, and
 or evidence that a recorded event is complete beyond the capture's explicit
 loss state.
 
+The tool also accepts `.json` captures. `collect_file` returns those JSON
+objects without normalizing their thread rows, and the fault-flow reader permits
+missing optional native fields such as `slot`, `flags`, event counts, callsite,
+and event generation. The MCP schema must make raw row fields optional and
+nullable while preserving absent keys in the text result; otherwise adding an
+output schema would reject previously accepted sparse JSON captures.
+
 Three focused tools currently lack output schemas: `open_fault`,
 `get_thread_trace`, and `get_incident_slice`. `open_fault` returns a full capture
 with more nested artifact state, and `get_incident_slice` combines variable
@@ -58,8 +65,9 @@ to 14/13 if accepted.
 
 ## Acceptance evidence
 
-Use real full/focused stdio calls to validate events, generation-aware thread
-records, conditional retention, `tid` filtering across generations, an
+Use real full/focused stdio calls to validate complete native rows and sparse
+JSON rows, generation-aware thread records, conditional retention, `tid`
+filtering across generations, an
 unmatched ID, and an exhausted page. Compare all existing text fields with
 `structuredContent`, prove unknown row extensions remain available, and verify
 the capture bytes do not change. Build and install the wheel outside the

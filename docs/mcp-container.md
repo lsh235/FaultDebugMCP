@@ -146,7 +146,7 @@ and set these fields:
     "mcp", "--root", "/app/artifacts", "--tool-profile", "focused"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "4a796fea690df0dc19417da303b40aa61be7f3fb",
+  "pinnedCommit": "89d07b30c89719961a887373214e28874eeae199",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }

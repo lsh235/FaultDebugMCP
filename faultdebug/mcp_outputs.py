@@ -765,6 +765,7 @@ class ThreadTraceThread(OutputModel):
     event_count: Annotated[int | None, Field(ge=0, description="Native ring publication count, when present; it can exceed retained events after wraparound.")] = None
     dropped_count: Annotated[int | None, Field(ge=0, description="Slot-lifetime dropped-event count, when present; distinct from the retained array.")] = None
     events: Annotated[list[ThreadTraceEvent] | None, Field(description="Retained raw events in publication-sequence order when present; this list alone does not establish capture completeness.")] = None
+    faultdebug_view: Annotated[Any | None, Field(description="Response-only view metadata. With max_events_per_thread, contains events_omitted_from_view; a pre-existing producer key is preserved by default and makes bounded shaping fail closed.")] = None
     retention: Annotated[ThreadTraceRetention | None, Field(description="Present when the recorder advertises generation-aware history accounting.")] = None
 
 
@@ -773,7 +774,7 @@ class ThreadTraceOutput(OutputModel):
 
     items: Annotated[list[ThreadTraceThread], Field(description="Thread records on this page; pagination slices threads, not their events.")]
     page: Annotated[int, Field(ge=0, description="Zero-based thread page.")]
-    page_size: Annotated[Literal[200], Field(description="Maximum thread records per page.")]
+    page_size: Annotated[int, Field(ge=1, le=200, description="Maximum thread records per page (1–200).")]
     total: Annotated[int, Field(ge=0, description="Number of matching thread records before pagination.")]
 
 

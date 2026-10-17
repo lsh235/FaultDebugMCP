@@ -39,17 +39,46 @@ After stable `2.0.0`, the ordinary mapping is `3.0.0` for a major change,
 `2.1.0` for a minor change, and `2.0.1` for a patch. Reset lower components
 when a higher component increments.
 
+## Classification procedure for each feature review
+
+Use the last stable contract as the compatibility baseline; do not classify a
+change by the latest alpha alone. Before choosing a number, enumerate affected
+surfaces from the public-contract list and compare old and new behavior for
+existing clients and producers, including defaults, malformed inputs, sparse
+records, and persisted artifacts. Then apply this order:
+
+1. If any released behavior, accepted input, required output, schema meaning,
+   supported runtime, or persisted format becomes incompatible, choose
+   **MAJOR**. A migration path may justify a compatible deprecation instead;
+   record and test that path explicitly.
+2. If existing documented behavior remains intact and users gain a capability,
+   choose **MINOR**. Optional inputs must preserve the old behavior when
+   omitted. Additive output is minor only when old consumers tolerate it or the
+   output is explicitly versioned; otherwise treat compatibility as unknown
+   and investigate, add an opt-in transition, or defer.
+3. If the public contract is unchanged and the change only corrects a defect or
+   maintains internals, choose **PATCH**. A correction that changes documented
+   behavior follows step 1 or 2, even if the code diff is small.
+
+For a mixed release, choose the highest class present. Every review records the
+baseline stable version, affected contract surfaces, compatibility evidence,
+stable increment, prerelease target, measurable acceptance, and unresolved
+unknowns. While v2.0.0 is still unreleased, compatible additions reviewed as
+MINOR-class remain `2.0.0-alpha.N`; they do not make the v2 major target stable
+or imply acceptance of its release gates. After v2.0.0 ships, equivalent
+compatible additions move to `2.1.0` and compatible corrections to `2.0.1`.
+
 ## Pre-releases
 
 Python and native/CMake package metadata can use different spellings for the
-same candidate where the build system requires it. Python `2.0.0a3`
-corresponds to the annotated Git tag `v2.0.0-alpha.3`; the CMake project stays
-`2.0.0` unless its packaging contract explicitly gains a pre-release
-representation. Validate generated metadata and archives.
+same candidate where the build system requires it. Python `2.0.0aN` maps to the
+annotated Git tag `v2.0.0-alpha.N`; the CMake project stays `2.0.0` unless its
+packaging contract explicitly gains a pre-release representation. Validate
+generated metadata and archives.
 
 `alpha.N`, `beta.N`, and `rc.N` advance iterations of the named target release;
 they are not stable major/minor/patch increments. An additive candidate
-developed before the first stable v2 release can be `2.0.0-alpha.3` because it
+developed before the first stable v2 release can be `2.0.0-alpha.N` because it
 belongs to the still-unreleased v2.0.0 target. After v2.0.0 ships, an equivalent
 backward-compatible feature is normally `2.1.0`, not another `2.0.0` alpha.
 Pre-release tags never imply stable acceptance. Record both the intended

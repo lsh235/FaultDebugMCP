@@ -216,12 +216,17 @@ def assert_thread_trace_contract(result, output_schema, text_result):
         assert_open_row(structured_thread, text_thread,
                         set(thread_fields) - set(output_schema['$defs']['ThreadTraceThread'].get('required', [])),
                         skip={'events', 'retention'})
-        assert len(structured_thread['events']) == len(text_thread['events'])
-        for structured_event, text_event in zip(
-                structured_thread['events'], text_thread['events']):
-            assert_open_row(
-                structured_event, text_event,
-                set(event_fields) - set(output_schema['$defs']['ThreadTraceEvent'].get('required', [])))
+        text_events = text_thread.get('events')
+        structured_events = structured_thread['events']
+        if isinstance(text_events, list):
+            assert isinstance(structured_events, list)
+            assert len(structured_events) == len(text_events)
+            for structured_event, text_event in zip(structured_events, text_events):
+                assert_open_row(
+                    structured_event, text_event,
+                    set(event_fields) - set(output_schema['$defs']['ThreadTraceEvent'].get('required', [])))
+        else:
+            assert structured_events is None
         if 'retention' in text_thread:
             assert_open_row(structured_thread['retention'], text_thread['retention'],
                             set(output_schema['$defs']['ThreadTraceRetention']['properties']))
@@ -389,6 +394,29 @@ async def audit(root):
     sparse_thread_history.write_text(json.dumps({
         'threads': [{'tid': 78, 'generation': 3,
                      'events': [{'sequence': 4, 'type': 9}]}],
+    }))
+    large_thread_history = root / 'fault-large-thread-history.json'
+    large_thread_history.write_text(json.dumps({
+        'threads': [
+            {'tid': 90, 'generation': 4, 'event_count': 1000, 'dropped_count': 3,
+             'events_omitted_from_view': {'producer_extension': 'must-not-be-overwritten'},
+             'events': [
+                 {'sequence': index, 'monotonic_ns': index * 10,
+                  'function': 4096 + (index % 8), 'callsite': 4096,
+                  'type': 1, 'generation': 4,
+                  'producer_extension': {'payload': 'x' * 64}}
+                 for index in range(1000)],
+             'producer_extension': {'fixture': 'large-thread-history'}},
+            {'tid': 91, 'generation': 1, 'events': None},
+            {'tid': 92, 'generation': 1},
+            {'tid': 93, 'generation': 2, 'events': []},
+        ],
+    }))
+    thread_view_collision = root / 'fault-thread-view-collision.json'
+    thread_view_collision.write_text(json.dumps({
+        'threads': [{'tid': 94, 'generation': 1,
+                     'faultdebug_view': {'producer_extension': 'keep'},
+                     'events': [{'sequence': 1, 'type': 1}]}],
     }))
     flow_good = flow_artifact(root, 'flow-good')
     flow_limited = flow_artifact(root, 'flow-limited', status=1 << 9,
@@ -715,7 +743,29 @@ async def audit(root):
             thread_trace_schema = tools['get_thread_trace'].outputSchema
             assert set(thread_trace_schema['properties']) == {
                 'items', 'page', 'page_size', 'total'}
-            assert thread_trace_schema['properties']['page_size']['const'] == 200
+            assert thread_trace_schema['properties']['page_size']['minimum'] == 1
+            assert thread_trace_schema['properties']['page_size']['maximum'] == 200
+            thread_page_size_input = tools['get_thread_trace'].inputSchema['properties']['page_size']
+            assert thread_page_size_input['minimum'] == 1
+            assert thread_page_size_input['maximum'] == 200
+            assert thread_page_size_input['default'] == 200
+            max_events_input = tools['get_thread_trace'].inputSchema[
+                'properties']['max_events_per_thread']
+            max_events_integer_schema = next(
+                branch for branch in max_events_input.get('anyOf', [max_events_input])
+                if branch.get('type') == 'integer')
+            assert max_events_integer_schema['minimum'] == 1
+            assert max_events_integer_schema['maximum'] == 500
+            assert max_events_input['default'] is None
+            assert 'page_size' not in tools['get_thread_trace'].inputSchema.get('required', [])
+            assert 'max_events_per_thread' not in tools['get_thread_trace'].inputSchema.get(
+                'required', [])
+            assert thread_trace_schema['$defs']['ThreadTraceThread'][
+                'additionalProperties'] is True
+            assert 'faultdebug_view' in thread_trace_schema['$defs'][
+                'ThreadTraceThread']['properties']
+            assert 'max_events_per_thread' in thread_trace_schema['$defs'][
+                'ThreadTraceThread']['properties']['faultdebug_view']['description']
             for model in ('ThreadTraceThread', 'ThreadTraceEvent', 'ThreadTraceRetention'):
                 assert thread_trace_schema['$defs'][model]['additionalProperties'] is True
             parameters = 0
@@ -731,7 +781,7 @@ async def audit(root):
                 page = tool.inputSchema.get('properties', {}).get('page')
                 if page:
                     assert page.get('minimum') == 0, name
-            assert parameters == 86, parameters
+            assert parameters == 88, parameters
             direction = tools['get_call_relations'].inputSchema['properties']['direction']
             assert set(direction['enum']) == {'inbound', 'outbound'}
             capabilities_result = await session.call_tool('get_capabilities', {})
@@ -904,6 +954,27 @@ async def audit(root):
             assert set(sparse_text['items'][0]['events'][0]) == {'sequence', 'type'}
             assert sparse_structured['items'][0]['slot'] is None
             assert sparse_structured['items'][0]['events'][0]['callsite'] is None
+            collision_default_result = await session.call_tool('get_thread_trace', {
+                'name': thread_view_collision.name})
+            collision_default_text = payload(collision_default_result)
+            assert_thread_trace_contract(
+                collision_default_result, thread_trace_schema, collision_default_text)
+            assert collision_default_text['items'][0]['faultdebug_view'] == {
+                'producer_extension': 'keep'}
+            collision_limited_result = await session.call_tool('get_thread_trace', {
+                'name': thread_view_collision.name, 'max_events_per_thread': 1})
+            assert collision_limited_result.isError is True
+            short_limited_result = await session.call_tool('get_thread_trace', {
+                'name': thread_history.name, 'max_events_per_thread': 80})
+            short_limited_text = payload(short_limited_result)
+            assert_thread_trace_contract(
+                short_limited_result, thread_trace_schema, short_limited_text)
+            assert [row['faultdebug_view'] for row in short_limited_text['items']] == [
+                {'events_omitted_from_view': 0}, {'events_omitted_from_view': 0}]
+            unbounded_short_text = payload(await session.call_tool(
+                'get_thread_trace', {'name': thread_history.name}))
+            assert [row['events'] for row in short_limited_text['items']] == [
+                row['events'] for row in unbounded_short_text['items']]
             filtered_thread_trace_result = await session.call_tool('get_thread_trace', {
                 'name': thread_history.name, 'tid': 77})
             filtered_thread_trace = payload(filtered_thread_trace_result)
@@ -923,6 +994,103 @@ async def audit(root):
                 exhausted_thread_trace_result, thread_trace_schema, exhausted_thread_trace)
             assert exhausted_thread_trace['items'] == []
             assert exhausted_thread_trace['total'] == 2 and exhausted_thread_trace['page'] == 1
+            large_default_result = await session.call_tool('get_thread_trace', {
+                'name': large_thread_history.name})
+            large_default_text = payload(large_default_result)
+            large_default_structured = assert_thread_trace_contract(
+                large_default_result, thread_trace_schema, large_default_text)
+            assert large_default_text['total'] == 4
+            assert large_default_text['page_size'] == 200
+            assert len(large_default_text['items'][0]['events']) == 1000
+            assert all('faultdebug_view' not in row for row in large_default_text['items'])
+            assert large_default_text['items'][0]['events_omitted_from_view'] == {
+                'producer_extension': 'must-not-be-overwritten'}
+            assert large_default_text['items'][0]['event_count'] == 1000
+            explicit_default_result = await session.call_tool('get_thread_trace', {
+                'name': large_thread_history.name,
+                'page_size': 200, 'max_events_per_thread': None})
+            explicit_default_text = payload(explicit_default_result)
+            assert_thread_trace_contract(
+                explicit_default_result, thread_trace_schema, explicit_default_text)
+            assert explicit_default_text == large_default_text
+            paged_thread_ids = []
+            for page_number in range(4):
+                thread_page_result = await session.call_tool('get_thread_trace', {
+                    'name': large_thread_history.name,
+                    'page': page_number, 'page_size': 1})
+                thread_page_text = payload(thread_page_result)
+                assert_thread_trace_contract(
+                    thread_page_result, thread_trace_schema, thread_page_text)
+                assert thread_page_text['page'] == page_number
+                assert thread_page_text['page_size'] == 1
+                assert thread_page_text['total'] == 4
+                paged_thread_ids.extend(row['tid'] for row in thread_page_text['items'])
+            assert paged_thread_ids == [row['tid'] for row in large_default_text['items']]
+            limited_null_page_result = await session.call_tool('get_thread_trace', {
+                'name': large_thread_history.name, 'page': 1,
+                'page_size': 1, 'max_events_per_thread': 80})
+            limited_null_page_text = payload(limited_null_page_result)
+            assert_thread_trace_contract(
+                limited_null_page_result, thread_trace_schema, limited_null_page_text)
+            assert limited_null_page_text['page'] == 1
+            assert limited_null_page_text['items'][0]['tid'] == 91
+            assert limited_null_page_text['items'][0]['faultdebug_view'] == {
+                'events_omitted_from_view': None}
+            empty_thread_page_result = await session.call_tool('get_thread_trace', {
+                'name': large_thread_history.name, 'page': 4, 'page_size': 1,
+                'max_events_per_thread': 80})
+            empty_thread_page = payload(empty_thread_page_result)
+            assert_thread_trace_contract(
+                empty_thread_page_result, thread_trace_schema, empty_thread_page)
+            assert empty_thread_page['items'] == [] and empty_thread_page['total'] == 4
+            for event_limit, expected_count, expected_omitted in (
+                    (1, 1, 999), (80, 80, 920), (500, 500, 500)):
+                limited_result = await session.call_tool('get_thread_trace', {
+                    'name': large_thread_history.name,
+                    'page_size': 200, 'max_events_per_thread': event_limit})
+                limited_text = payload(limited_result)
+                limited_structured = assert_thread_trace_contract(
+                    limited_result, thread_trace_schema, limited_text)
+                row = limited_text['items'][0]
+                assert [event['sequence'] for event in row['events']] == list(
+                    range(1000 - expected_count, 1000))
+                assert [row['faultdebug_view'] for row in limited_text['items']] == [
+                    {'events_omitted_from_view': expected_omitted},
+                    {'events_omitted_from_view': None},
+                    {'events_omitted_from_view': None},
+                    {'events_omitted_from_view': 0},
+                ]
+                assert row['events_omitted_from_view'] == {
+                    'producer_extension': 'must-not-be-overwritten'}
+                assert row['event_count'] == 1000 and row['dropped_count'] == 3
+                assert row['producer_extension'] == {'fixture': 'large-thread-history'}
+                assert row['events'][0]['producer_extension'] == {'payload': 'x' * 64}
+                assert limited_text['items'][1]['events'] is None
+                assert 'events' not in limited_text['items'][2]
+                assert limited_text['items'][3]['events'] == []
+                if event_limit == 80:
+                    full_text_bytes = len(next(
+                        block.text for block in large_default_result.content
+                        if block.type == 'text').encode())
+                    bounded_text_bytes = len(next(
+                        block.text for block in limited_result.content
+                        if block.type == 'text').encode())
+                    full_structured_bytes = len(json.dumps(
+                        large_default_structured, separators=(',', ':')).encode())
+                    bounded_structured_bytes = len(json.dumps(
+                        limited_structured, separators=(',', ':')).encode())
+                    assert bounded_text_bytes < full_text_bytes
+                    assert bounded_structured_bytes < full_structured_bytes
+                    thread_trace_bounds_evidence = {
+                        'status': 'PASS', 'fixture_events': 1000,
+                        'page_size': 200, 'max_events_per_thread': 80,
+                        'events_omitted_from_view': expected_omitted,
+                        'bounded_page_rows': len(limited_text['items']),
+                        'full_text_bytes': full_text_bytes,
+                        'bounded_text_bytes': bounded_text_bytes,
+                        'full_structured_bytes': full_structured_bytes,
+                        'bounded_structured_bytes': bounded_structured_bytes,
+                    }
             empty_resolutions_result = await session.call_tool('resolve_addresses', {
                 'name': capture.name, 'addresses': [], 'debug_directory': 'debug'})
             empty_resolutions = payload(empty_resolutions_result)
@@ -1304,6 +1472,21 @@ async def audit(root):
                 ('get_incident_report', {'names': ['../escape.fault']}),
                 ('get_incident_report', {'names': ['nested/fault-malformed.json']}),
                 ('get_thread_trace', {'name': capture.name, 'page': -1}),
+                ('get_thread_trace', {'name': large_thread_history.name, 'page_size': 0}),
+                ('get_thread_trace', {'name': large_thread_history.name, 'page_size': 201}),
+                ('get_thread_trace', {'name': large_thread_history.name, 'page_size': True}),
+                ('get_thread_trace', {'name': large_thread_history.name, 'page_size': 1.5}),
+                ('get_thread_trace', {'name': large_thread_history.name, 'page_size': '20'}),
+                ('get_thread_trace', {'name': large_thread_history.name,
+                                      'max_events_per_thread': 0}),
+                ('get_thread_trace', {'name': large_thread_history.name,
+                                      'max_events_per_thread': 501}),
+                ('get_thread_trace', {'name': large_thread_history.name,
+                                      'max_events_per_thread': True}),
+                ('get_thread_trace', {'name': large_thread_history.name,
+                                      'max_events_per_thread': 80.5}),
+                ('get_thread_trace', {'name': large_thread_history.name,
+                                      'max_events_per_thread': '80'}),
                 ('get_thread_trace', {'name': '../escape.fault'}),
                 ('get_fault_flow', {'name': capture.name, 'max_events': 501}),
                 ('get_fault_flow', {'name': capture.name, 'debug_directory': '../outside'}),
@@ -1420,7 +1603,7 @@ async def audit(root):
                 for parameter, schema in tool.inputSchema.get('properties', {}).items():
                     assert schema.get('description', '').strip(), (tool.name, parameter)
                     focused_parameters += 1
-            assert focused_parameters == 43, focused_parameters
+            assert focused_parameters == 45, focused_parameters
             focused_summary_result = await session.call_tool(
                 'get_evidence_summary', {'names': [capture.name]})
             focused_summary_text = payload(focused_summary_result)
@@ -1483,6 +1666,19 @@ async def audit(root):
                 focused_tools['get_thread_trace'].outputSchema,
                 focused_thread_trace)
             assert [row['generation'] for row in focused_thread_trace['items']] == [1, 2]
+            focused_thread_bounds_result = await session.call_tool('get_thread_trace', {
+                'name': large_thread_history.name,
+                'page_size': 1, 'max_events_per_thread': 80})
+            focused_thread_bounds_text = payload(focused_thread_bounds_result)
+            focused_thread_bounds = assert_thread_trace_contract(
+                focused_thread_bounds_result,
+                focused_tools['get_thread_trace'].outputSchema,
+                focused_thread_bounds_text)
+            assert focused_thread_bounds_text['total'] == 4
+            assert focused_thread_bounds_text['page_size'] == 1
+            assert len(focused_thread_bounds_text['items'][0]['events']) == 80
+            assert focused_thread_bounds_text['items'][0]['faultdebug_view'] == {
+                'events_omitted_from_view': 920}
             focused_sparse_result = await session.call_tool('get_thread_trace', {
                 'name': sparse_thread_history.name})
             focused_sparse_text = payload(focused_sparse_result)
@@ -1585,6 +1781,7 @@ async def audit(root):
             'tdqs': {'status': 'NOT_EVALUATED', 'reason': 'Official score requires Glama rubric evaluation.'},
             'focused_tool_count': len(FOCUSED_TOOLS),
             'focused_parameter_count': focused_parameters,
+            'thread_trace_bounds': thread_trace_bounds_evidence,
             'tools': [tool.model_dump(by_alias=True, exclude_none=True) for tool in listed.tools]}
 
 
@@ -1602,6 +1799,12 @@ def main():
           f"{result['titled_tool_count']} full and {result['focused_titled_tool_count']} focused titles, "
           f"{len(result['structured_output_tools'])} full/{len(result['focused_structured_output_tools'])} focused structured-output tools, "
           f"{result['invalid_call_checks']} invalid calls rejected; evidence unchanged (TDQS not evaluated)")
+    bounds = result['thread_trace_bounds']
+    print(f"PASS: raw thread view {bounds['fixture_events']} events -> "
+          f"{bounds['events_omitted_from_view']} view rows omitted; "
+          f"text {bounds['full_text_bytes']} -> {bounds['bounded_text_bytes']} bytes; "
+          f"structured {bounds['full_structured_bytes']} -> "
+          f"{bounds['bounded_structured_bytes']} bytes")
     return 0
 
 

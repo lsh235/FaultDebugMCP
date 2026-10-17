@@ -12,8 +12,8 @@ and the static call-relations behavior remain available.
 
 This is an explicit public API break, so it justifies the major number. The
 first candidate is `2.0.0a1` / `v2.0.0-alpha.1`; the latest published
-candidate is `2.0.0a2` / `v2.0.0-alpha.2`. Neither candidate is the stable
-release. Candidate feature reviews must classify the intended stable increment
+candidate is `2.0.0a3` / `v2.0.0-alpha.3`. The current candidate is
+`2.0.0a4` / `v2.0.0-alpha.4`. None is the stable release. Candidate feature reviews must classify the intended stable increment
 under [`versioning-policy.md`](versioning-policy.md); an alpha number advances
 the current target and does not itself mean a stable minor or patch release.
 The v1.3 alpha train records compatible additions and is superseded as the
@@ -61,13 +61,13 @@ neither is silently substituted with local tests.
 
 ## Version contract
 
-- Python distribution: `2.0.0a3` for the current candidate; stable target
+- Python distribution: `2.0.0a4` for the current candidate; stable target
   `2.0.0`.
 - Native CMake project package: `2.0.0`; runtime shared-library SONAME stays
   `1` because the C ABI is unchanged.
 - `--tool-profile full`: exact previous 27-tool catalog, including
   `get_call_relations`.
-- Default / `--tool-profile focused`: exact 15-tool catalog, 43 parameters;
+- Default / `--tool-profile focused`: exact 15-tool catalog, 45 parameters;
   no `get_call_relations` entry.
 - Shared-memory ABI v1, FDAR v1, semantic RPC schema v1 and evidence-store base
   schema v2 remain readable as before.
@@ -78,3 +78,9 @@ neither is silently substituted with local tests.
   default 200, and page only observed RPC events. This is intended as a stable
   minor addition after v2.0.0; the alpha3 candidate remains in the v2.0.0
   prerelease sequence.
+- `get_thread_trace` accepts optional outer `page_size=1..200` and
+  `max_events_per_thread=1..500`; omitted controls keep all raw events. An
+  explicit event limit returns the last retained rows with a reserved
+  `faultdebug_view.events_omitted_from_view` row extension, without changing
+  producer loss counters or other extensions. A producer collision fails closed.
+  This is also a stable minor-class addition within the v2.0.0 prerelease.

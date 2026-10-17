@@ -2,6 +2,17 @@
 
 ## [Unreleased]
 
+## [2.0.0-alpha.4] - 2026-10-17
+
+- Add optional `page_size` (1–200) for outer `get_thread_trace` pages and
+  `max_events_per_thread` (1–500) to shape nested raw histories. Complete event
+  rows remain the default; opt-in omission is reported under a reserved row
+  extension, separate from capture loss. A producer-key collision fails closed.
+  Focused profile remains 15 tools and grows to 45 parameters.
+- Python package metadata is `2.0.0a4`; this MINOR-class feature is part of the
+  unreleased v2.0.0 MAJOR candidate. Stable v2 acceptance remains NO-GO and
+  Glama TDQS impact remains unverified.
+
 ## [2.0.0-alpha.3] - 2026-10-17
 
 - Add optional `page_size` (1–200, default 200) to `get_rpc_trace` and

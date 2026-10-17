@@ -1,6 +1,6 @@
 # FaultDebug 한국어 안내
 
-[![개발 이정표](https://img.shields.io/badge/development-v2.0.0--alpha.3-orange)](docs/releases/v2.0.0-alpha.3.md)
+[![개발 이정표](https://img.shields.io/badge/development-v2.0.0--alpha.4-orange)](docs/mcp-thread-trace-bounds-review-v2.md)
 
 [English](README.md) · **한국어** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
 
@@ -31,7 +31,7 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-현재 개발 목표는 **2.0.0a3** (`v2.0.0-alpha.3`)이며, 문서의 증거 기반 구현은
+현재 개발 목표는 **2.0.0a4** (`v2.0.0-alpha.4`)이며, 문서의 증거 기반 구현은
 [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)를 기준으로 합니다.
 이번 메이저 후보는 기본 MCP 도구 목록을 27개에서 15개 `focused` 흐름으로 바꾸고
 고급 정적 호출 관계 도구를 해당 기본 목록에서 제외합니다. 전체 27개 도구가 필요하면
@@ -42,11 +42,17 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 [검토 결정](docs/mcp-v2-major-profile-review.md), [v2.0 실행 계획](docs/next-version-v2.md),
 [메이저·마이너·패치 기준](docs/versioning-policy.md)에 있습니다.
 첫 후보의 범위와 검증 결과는 [v2.0.0-alpha.1 기록](docs/releases/v2.0.0-alpha.1.md)에 있습니다.
-현재 후보는 기존 MCP 도구 두 개에서 관측 RPC 행을 1–200개씩 조회하고 기본값 200을
-유지합니다. 도구 수는 그대로지만 집중 프로필 입력 인자는 43개가 됩니다. 응답 바이트 상한이나
-전체 디코딩 비용 감소를 의미하지 않습니다. [알파3 리서치](docs/mcp-rpc-page-size-research-v2.md),
-[버전 분류 검토](docs/mcp-rpc-page-size-review-v2.md),
-[범위와 검증](docs/releases/v2.0.0-alpha.3.md)를 확인하세요. 알파2의 count-only 요약은
+알파3은 두 MCP 도구의 관측 RPC 행 페이지 크기를 1–200으로 선택할 수 있게 했습니다.
+알파4는 `get_thread_trace`의 스레드 행과 중첩 raw 이벤트를 선택적으로 제한합니다.
+기본 호출은 전체 이벤트를 유지하며, 선택적 제한으로 제외한 행은 예약된 row extension에
+캡처 손실과 별도로 표시합니다. 기존 producer 확장 필드와 이름이 충돌하면 덮지 않고 실패합니다.
+응답 바이트 상한이나 전체 디코딩 비용 감소를 의미하지 않습니다. 집중 프로필은 15개 도구/45개
+인자입니다. [알파4 리서치](docs/mcp-thread-trace-bounds-research-v2.md),
+[버전 분류 검토](docs/mcp-thread-trace-bounds-review-v2.md)를 확인하세요. 호스팅 검증 후
+알파4 실행 기록을 추가합니다. 알파3 RPC page controls는
+[리서치](docs/mcp-rpc-page-size-research-v2.md),
+[검토](docs/mcp-rpc-page-size-review-v2.md),
+[릴리스 기록](docs/releases/v2.0.0-alpha.3.md)에 있습니다. 알파2의 count-only 요약은
 [리서치](docs/mcp-batch-evidence-summary-research-v2.md),
 [검토](docs/mcp-batch-evidence-summary-review-v2.md),
 [릴리스 기록](docs/releases/v2.0.0-alpha.2.md)에 남아 있습니다.

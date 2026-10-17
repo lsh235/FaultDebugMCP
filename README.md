@@ -4,7 +4,7 @@
 > Follow recorded calls across services, inspect the fault location, and see
 > which evidence is missing.
 
-[![Development milestone](https://img.shields.io/badge/development-v2.0.0--alpha.3-orange)](docs/releases/v2.0.0-alpha.3.md)
+[![Development milestone](https://img.shields.io/badge/development-v2.0.0--alpha.4-orange)](docs/mcp-thread-trace-bounds-review-v2.md)
 [![Release gates](https://img.shields.io/github/actions/workflow/status/lsh235/FaultDebugMCP/v12-release-gate.yml?branch=main&label=release%20gates)](https://github.com/lsh235/FaultDebugMCP/actions/workflows/v12-release-gate.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 [![Clang 18](https://img.shields.io/badge/Clang-18-orange)](https://clang.llvm.org/)
@@ -61,7 +61,7 @@ static call-graph candidates as observed execution.
 
 ## Project status
 
-The current development target is **2.0.0a3** (`v2.0.0-alpha.3`), based on the
+The current development target is **2.0.0a4** (`v2.0.0-alpha.4`), based on the
 evidence foundation in [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2).
 This major-version candidate changes the default MCP catalog from 27 tools to
 the 15-tool `focused` workflow and moves advanced static call relations out of
@@ -74,14 +74,20 @@ See the [major-change research](docs/mcp-v2-major-profile-research.md),
 [v2.0 release objective](docs/next-version-v2.md) and
 [major/minor/patch policy](docs/versioning-policy.md).
 The first candidate's scope and verification are recorded in
-[v2.0.0-alpha.1](docs/releases/v2.0.0-alpha.1.md). The current candidate
-adds optional 1–200 row pages for observed RPC events in two existing MCP
-tools, keeping 200 as the default and adding no tool. It does not impose a
-response-byte ceiling or reduce total decode work. Read the
-[alpha.3 research](docs/mcp-rpc-page-size-research-v2.md),
-[version-classified review](docs/mcp-rpc-page-size-review-v2.md), and
-[scope and verification](docs/releases/v2.0.0-alpha.3.md). Alpha2's prior
-count-only summary is recorded in its [research](docs/mcp-batch-evidence-summary-research-v2.md),
+[v2.0.0-alpha.1](docs/releases/v2.0.0-alpha.1.md). Alpha3 added optional
+1–200 row pages for observed RPC events in two existing MCP tools. Alpha4 adds
+optional bounds for thread rows and nested raw events in `get_thread_trace`,
+keeps all events by default, and reports per-thread view-only omissions when
+requested under a reserved row extension while preserving other raw producer
+extensions.
+It does not cap response bytes or reduce total decode work. Read the
+[alpha4 research](docs/mcp-thread-trace-bounds-research-v2.md),
+[version-classified review](docs/mcp-thread-trace-bounds-review-v2.md). The
+candidate verification record will follow hosted checks. Alpha3's RPC page
+controls are recorded in its [research](docs/mcp-rpc-page-size-research-v2.md),
+[review](docs/mcp-rpc-page-size-review-v2.md), and
+[release record](docs/releases/v2.0.0-alpha.3.md). Alpha2's prior count-only
+summary is recorded in its [research](docs/mcp-batch-evidence-summary-research-v2.md),
 [review](docs/mcp-batch-evidence-summary-review-v2.md), and
 [release record](docs/releases/v2.0.0-alpha.2.md).
 The existing-project path provides static ELF preflight and isolated opt-in

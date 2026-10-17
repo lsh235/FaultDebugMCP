@@ -16,6 +16,13 @@ This roadmap describes work beyond v0.1.0. It is not a promise of delivery dates
   [research](docs/mcp-rpc-page-size-research-v2.md),
   [review](docs/mcp-rpc-page-size-review-v2.md), and
   [release record](docs/releases/v2.0.0-alpha.3.md).
+- `v2.0.0-alpha.4` adds opt-in bounds for raw `get_thread_trace` pages and
+  nested per-thread event lists, with view omissions separate from capture
+  loss. This is a stable MINOR-class feature inside the unreleased v2 major
+  target; see the [versioning policy](docs/versioning-policy.md),
+  [research](docs/mcp-thread-trace-bounds-research-v2.md),
+  and [review](docs/mcp-thread-trace-bounds-review-v2.md). Hosted verification
+  and the release record are pending.
 - `v1.2.0-rc.2` records the PDF's evidence-foundation implementation from
   `cb02d7a`; [compatibility and acceptance limits](docs/releases/v1.2.0-rc.2.md).
 - `v1.3.0-alpha.1` begins stage F: strict full128 traceparent v00, explicit

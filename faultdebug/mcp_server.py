@@ -285,16 +285,43 @@ def make_server(root: Path, *, tool_profile: str = "focused"):
         if bundle: report["bundle"] = {"path": str(_bundle(root, bundle).root), "verified": True}
         return report
     @register_tool(annotations=_read_only("Get thread trace"))
-    def get_thread_trace(name: CaptureName, tid: Annotated[int | None, Field(ge=0, description="Captured OS thread ID; null includes all thread generations. A reused ID can match more than one thread record.")] = None, page: Page = 0) -> ThreadTraceOutput:
+    def get_thread_trace(
+        name: CaptureName,
+        tid: Annotated[int | None, Field(ge=0, description="Captured OS thread ID; null includes all thread generations. A reused ID can match more than one thread record.")] = None,
+        page: Page = 0,
+        page_size: Annotated[int, Field(ge=1, le=200, strict=True, description="Maximum thread records per page (1–200); default 200.")] = 200,
+        max_events_per_thread: Annotated[int, Field(ge=1, le=500, strict=True, description="Keep at most the last 1–500 retained raw events per thread and report view omissions; null keeps every event.")] | None = None,
+    ) -> ThreadTraceOutput:
         """Read captured thread records and their retained function events from one artifact.
 
         Use for raw thread histories, not semantic RPCs (get_rpc_trace) or reconstructed
-        nesting (get_fault_flow). Returns items, total, page and page_size; pagination
-        slices thread records, not individual events. tid filters the OS thread ID and
-        may match multiple generations. Invalid captures/paths produce MCP tool errors;
-        an unmatched tid or an exhausted page yields empty items. No live process is queried."""
+        nesting (get_fault_flow). page_size selects 1–200 thread records (default 200).
+        max_events_per_thread optionally keeps the last 1–500 retained events in each
+        row; the reserved faultdebug_view row extension reports view-only omissions,
+        not capture loss. Existing producer extension fields are preserved.
+        Omitting both controls preserves every raw event. tid filters the OS thread ID
+        and may match multiple generations. Invalid captures or bounds produce MCP tool
+        errors; an unmatched tid or exhausted page yields empty items. No live process
+        is queried, and the entire capture is still decoded before shaping the response."""
         rows = thread_trace(_load(root, name), tid)
-        return {"items": rows[page * 200:(page + 1) * 200], "page": page, "page_size": 200, "total": len(rows)}
+        start = page * page_size
+        page_rows = [dict(row) for row in rows[start:start + page_size]]
+        if max_events_per_thread is not None:
+            for row in page_rows:
+                if "faultdebug_view" in row:
+                    raise ValueError(
+                        "capture thread row uses reserved faultdebug_view metadata")
+                events = row.get("events")
+                if isinstance(events, list):
+                    omitted = max(0, len(events) - max_events_per_thread)
+                    if omitted:
+                        row["events"] = events[omitted:]
+                else:
+                    omitted = None
+                row["faultdebug_view"] = {"events_omitted_from_view": omitted}
+        result = {"items": page_rows, "page": page, "page_size": page_size,
+                  "total": len(rows)}
+        return result
     @register_tool(annotations=_read_only("Get fault flow"))
     def get_fault_flow(name: CaptureName, bundle: BundlePath = None, max_events: Annotated[int, Field(ge=1, le=500, description="Maximum last retained pre-crash function events per thread (1–500); truncates the view, not the underlying capture.")] = 80, debug_directory: DebugDirectory = None) -> FaultFlowOutput:
         """Build a bounded per-thread fault-flow model with recorded nesting, fault context and gaps.

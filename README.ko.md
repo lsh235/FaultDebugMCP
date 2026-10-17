@@ -48,8 +48,8 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 캡처 손실과 별도로 표시합니다. 기존 producer 확장 필드와 이름이 충돌하면 덮지 않고 실패합니다.
 응답 바이트 상한이나 전체 디코딩 비용 감소를 의미하지 않습니다. 집중 프로필은 15개 도구/45개
 인자입니다. [알파4 리서치](docs/mcp-thread-trace-bounds-research-v2.md),
-[버전 분류 검토](docs/mcp-thread-trace-bounds-review-v2.md)를 확인하세요. 호스팅 검증 후
-알파4 실행 기록을 추가합니다. 알파3 RPC page controls는
+[버전 분류 검토](docs/mcp-thread-trace-bounds-review-v2.md),
+[검증 기록](docs/releases/v2.0.0-alpha.4.md)을 확인하세요. 알파3 RPC page controls는
 [리서치](docs/mcp-rpc-page-size-research-v2.md),
 [검토](docs/mcp-rpc-page-size-review-v2.md),
 [릴리스 기록](docs/releases/v2.0.0-alpha.3.md)에 있습니다. 알파2의 count-only 요약은

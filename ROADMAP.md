@@ -21,8 +21,9 @@ This roadmap describes work beyond v0.1.0. It is not a promise of delivery dates
   loss. This is a stable MINOR-class feature inside the unreleased v2 major
   target; see the [versioning policy](docs/versioning-policy.md),
   [research](docs/mcp-thread-trace-bounds-research-v2.md),
-  and [review](docs/mcp-thread-trace-bounds-review-v2.md). Hosted verification
-  and the release record are pending.
+  [review](docs/mcp-thread-trace-bounds-review-v2.md), and
+  [release record](docs/releases/v2.0.0-alpha.4.md). Hosted checks passed on
+  the implementation commit; the stable acceptance gates remain open.
 - `v1.2.0-rc.2` records the PDF's evidence-foundation implementation from
   `cb02d7a`; [compatibility and acceptance limits](docs/releases/v1.2.0-rc.2.md).
 - `v1.3.0-alpha.1` begins stage F: strict full128 traceparent v00, explicit

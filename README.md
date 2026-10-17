@@ -82,8 +82,8 @@ requested under a reserved row extension while preserving other raw producer
 extensions.
 It does not cap response bytes or reduce total decode work. Read the
 [alpha4 research](docs/mcp-thread-trace-bounds-research-v2.md),
-[version-classified review](docs/mcp-thread-trace-bounds-review-v2.md). The
-candidate verification record will follow hosted checks. Alpha3's RPC page
+[version-classified review](docs/mcp-thread-trace-bounds-review-v2.md), and
+[verification record](docs/releases/v2.0.0-alpha.4.md). Alpha3's RPC page
 controls are recorded in its [research](docs/mcp-rpc-page-size-research-v2.md),
 [review](docs/mcp-rpc-page-size-review-v2.md), and
 [release record](docs/releases/v2.0.0-alpha.3.md). Alpha2's prior count-only

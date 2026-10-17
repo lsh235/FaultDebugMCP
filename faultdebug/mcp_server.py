@@ -45,6 +45,35 @@ FOCUSED_MCP_TOOL_NAMES = frozenset({
     "resolve_addresses", "get_function_source", "get_call_relations",
 })
 
+# Keep the full catalog's sibling guidance intact, while making every named
+# alternative in the focused catalog actionable within that smaller profile.
+FOCUSED_MCP_TOOL_DESCRIPTIONS = {
+    "check_store": """Inspect one SQLite evidence store's health and migration compatibility without repair.
+
+Use before list_incidents, especially for a missing or corrupt DB. Returns status, read_only, schema compatibility and diagnostics; STORE_PATH_INVALID is an error payload. An absent store is reported without creation. This profile does not expose provenance-record inspection; use the evidence CLI for a detailed trust audit. No migration or credential lookup occurs; use the evidence CLI separately if diagnostics require repair.""",
+    "open_fault": """Decode one capture's process, thread, crash and integrity records for initial triage.
+
+Use after discover_artifacts; get_fault_flow produces a bounded execution view, while get_rpc_trace inspects recorded RPC boundaries. Returns the decoded capture and, if supplied, a verified bundle marker (not source lines). Names are relative to --root. Invalid paths, malformed captures or failed bundle verification produce MCP tool errors; partial captures retain their loss flags.""",
+    "get_rpc_trace": """Decode one capture's semantic RPC observations, static candidates and unresolved limits.
+
+Use to inspect recorded request/response boundaries; get_thread_trace is for function events and get_fault_flow for reconstructed nesting. Use get_incident_report for ad hoc cross-capture analysis. Returns observed (paged), total, page, page_size, static_candidates and unresolved. Only observed RPC rows are paged; uncertainty is retained on every page. Missing RPC instrumentation yields unresolved evidence rather than invented edges. Malformed captures, ambiguous RPC extensions or invalid paths produce MCP tool errors.""",
+    "get_incident_report": """Project a combined RPC incident report directly from named captures, without a stored incident ID.
+
+Use for ad hoc multi-capture analysis; get_incident_slice reads an agent-declared incident already in SQLite, and open_fault is for one capture. Returns observed RPC events/process relations, static_candidates, unresolved and field availability. page slices only observed.rpc_events in batches of 200; total_rpc_events counts the full set. Inferences never become root-cause proof. Invalid captures/paths produce MCP tool errors; report files are not written.""",
+    "list_incidents": """List agent-declared incident summaries already persisted in a SQLite evidence store.
+
+Use to obtain incident IDs before get_incident_slice; get_incident_report instead derives an ad hoc report from capture filenames. Returns incidents, total, page and page_size; time bounds filter incident first_seen_ns, not process-start times. Filters combine with AND and empty matches return an empty list. Failures return error.code=INCIDENT_QUERY_ERROR. The query neither declares incidents nor infers root cause; inspect unresolved evidence in get_incident_slice. No migration occurs.""",
+    "get_incident_slice": """Read artifact, process, RPC and source-reference evidence for one stored declared incident.
+
+Use an ID from list_incidents; get_incident_report uses filenames instead. Returns incident, artifacts (paged), participants, observed, derived, static_candidates, unresolved, hypotheses and source_references. Each page includes evidence for up to 200 artifacts, capped at 1,000 observed events; inspect event_truncated/event_total before concluding completeness. Source references are not verified citations; use get_source_evidence to verify them against a bundle. Unknown IDs/store failures return error.code=INCIDENT_QUERY_ERROR without modifying the store.""",
+    "discover_artifacts": """Recursively discover and validate captures beneath the configured artifact root.
+
+Use first when filenames are unknown; open_fault decodes a selected capture and get_fault_flow builds a bounded per-thread execution view. Returns artifacts (paged), total/count, valid and invalid counts; malformed files remain FAIL rows rather than disappearing. Scans at most 10,000 matches. include_json adds fault-*.json only with the default fault-*.fault pattern; use *.json for a custom JSON glob. Invalid roots/patterns or exceeding the scan limit produce MCP tool errors; no index is created.""",
+    "get_call_relations": """Read inbound callers or outbound call candidates for one function in a verified static index.
+
+Use for source call hypotheses; get_fault_flow reconstructs recorded nesting and get_rpc_trace shows observed RPC boundaries. Returns function_id, direction, relations, evidence=static_index and bundle. Outbound includes unresolved edges; inbound includes indexed callers with matching callee IDs. A verified bundle is required. No runtime execution is proven, and capture/function Build-ID matching requires resolve_addresses. Missing IDs, unverified bundles or invalid directions produce MCP tool errors.""",
+}
+
 # MCP's top-level Tool.title is distinct from the legacy annotation title. Keep
 # the display title useful on its own and long enough to be meaningfully
 # different from the programmatic snake_case name.
@@ -169,7 +198,10 @@ def make_server(root: Path, *, tool_profile: str = "full"):
                     annotations.model_copy(update={"title": title})
                     if annotations is not None else None
                 )
-                app.tool(name=name, title=title, description=description,
+                tool_description = description
+                if tool_profile == "focused":
+                    tool_description = FOCUSED_MCP_TOOL_DESCRIPTIONS.get(tool_name, description)
+                app.tool(name=name, title=title, description=tool_description,
                          annotations=titled_annotations)(function)
                 registered_tool_names.add(tool_name)
             return function

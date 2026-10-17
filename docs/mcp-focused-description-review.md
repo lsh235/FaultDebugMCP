@@ -11,10 +11,11 @@ The concrete defect is selection guidance that cannot be followed in the
 selected profile. A focused caller can read that `get_rpc_trace` defers
 cross-capture comparison to `get_process_relations`, or that `discover_artifacts`
 has an indexed alternative in `query_artifact_index`, but neither named tool is
-available there. Similar cases affect store provenance, single-capture
-summaries and unresolved incident queries. The full profile does expose those
-alternatives, so a global rewrite would discard useful distinctions for its
-callers.
+available there. The focused `check_store` description also named `list_sessions`,
+which is not exposed in that profile. Similar cases affect store provenance,
+single-capture summaries and unresolved incident queries. The full profile does
+expose those alternatives, so a global rewrite would discard useful distinctions
+for its callers.
 
 The TDQS rubric explicitly evaluates tool descriptions against the sibling
 names in the same server profile. A focused-only description map is a bounded

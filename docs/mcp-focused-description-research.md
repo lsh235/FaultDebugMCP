@@ -16,7 +16,7 @@ profile:
 
 | Focused tool | Unavailable tool named in its description |
 | --- | --- |
-| `check_store` | `get_provenance` |
+| `check_store` | `get_provenance`, `list_sessions` |
 | `open_fault` | `get_evidence_summary` |
 | `get_rpc_trace` | `get_process_relations` |
 | `get_incident_report` | `get_evidence_summary` |

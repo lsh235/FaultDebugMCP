@@ -92,6 +92,10 @@ gaps and verified-source markers. Other
 return details remain in descriptions, including the distinction between MCP
 tool errors and structured `error.code` payloads.
 
+The focused profile tailors its descriptions so named alternatives remain
+available in that 15-tool catalog; the full profile retains cross-catalog
+guidance for its 27 tools.
+
 Run the protocol and read-only audit from the repository root:
 
 ```sh
@@ -165,7 +169,8 @@ profiles. Alpha19 adds descriptive top-level titles to all 27 tool definitions.
 Alpha20 adds a typed source result for `get_function_source`. Alpha21 adds a
 typed incident-list result, alpha22 adds a typed session-list result to the
 full profile, alpha23 adds typed verified source evidence to both profiles,
-alpha24 types `get_rpc_trace`, and alpha25 types `get_fault_flow` in both profiles.
+alpha24 types `get_rpc_trace`, alpha25 types `get_fault_flow` in both profiles,
+and alpha26 tailors focused-profile descriptions without changing membership.
 Check the
 generated Dockerfile's `git checkout` before deploying. A null pin alone
 does not prove that the generated checkout contains your latest changes.

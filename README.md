@@ -94,7 +94,9 @@ text response. Alpha21 adds documented success/error output schemas for
 `list_incidents`; dynamic incident evidence payloads remain outside that schema.
 Alpha22 adds a six-field typed result for full-profile `list_sessions` while
 keeping the focused catalog and its scope unchanged. The score still needs an
-external Glama re-scan. See the
+external Glama re-scan. Alpha23 adds a typed verified-citation/error contract
+for `get_source_evidence` in both profiles while retaining the existing text
+shape and single-citation convenience fields. See the
 [adoption guide](docs/existing-project-adoption.md),
 [report-output review](docs/integration-report-output-review.md), and
 [MCP bundle review](docs/mcp-required-bundle-review.md),
@@ -108,8 +110,10 @@ external Glama re-scan. See the
 [incident-list output-schema research](docs/mcp-incident-list-output-research.md),
 [incident-list output-schema review](docs/mcp-incident-list-output-review.md),
 [session-list output-schema research](docs/mcp-session-list-output-research.md),
-[session-list output-schema review](docs/mcp-session-list-output-review.md), and
-[milestone scope and verification](docs/releases/v1.3.0-alpha.22.md).
+[session-list output-schema review](docs/mcp-session-list-output-review.md),
+[source-evidence output-schema research](docs/mcp-source-evidence-output-research.md),
+[source-evidence output-schema review](docs/mcp-source-evidence-output-review.md),
+and [milestone scope and verification](docs/releases/v1.3.0-alpha.23.md).
 
 Final independent stable acceptance, current-revision full core/gRPC profiles,
 kind and fresh 30-minute soak remain pending. Docker 8/16/32 results cover only

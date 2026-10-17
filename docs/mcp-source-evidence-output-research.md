@@ -41,6 +41,10 @@ single-citation convenience fields, verification rules, pagination, error
 behavior or focused tool membership. Model citation and unresolved rows with
 their exact nullable fields. Keep source contents out of this tool's result;
 `get_function_source` remains the separate verified source-text operation.
+The MCP SDK wraps this union as `structuredContent.result`; it may emit the
+optional flat convenience properties as null when the text response omits
+them. Tests should compare all shared values while allowing only those known
+null additions.
 
 ## Bounded acceptance
 

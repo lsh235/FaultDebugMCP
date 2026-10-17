@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [1.3.0-alpha.23] - 2026-10-17
+
+- Publish a typed success/error output contract for focused-profile
+  `get_source_evidence`, including verified citation fields, unresolved reasons
+  and one-citation compatibility fields.
+- Keep source text in `get_function_source`; preserve existing text responses,
+  verification rules and source/store error behavior. Glama re-scan and score
+  remain unverified.
+
 ## [1.3.0-alpha.22] - 2026-10-17
 
 - Publish a documented structured result for full-profile `list_sessions`,

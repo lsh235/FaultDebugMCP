@@ -188,6 +188,16 @@ advertised contract. See the [research](mcp-source-output-research.md),
 [review](mcp-source-output-review.md), and
 [alpha20 record](releases/v1.3.0-alpha.20.md).
 
+### Alpha21 follow-up: type declared incident listing
+
+`list_incidents` publishes explicit success and query-error output schemas for
+the read-only incident-summary query. The incident ID, trust state, nullable
+trigger metadata, partial integer, monotonic first-seen time and artifact
+count are described. Larger stored evidence payloads remain outside this
+contract. See the [research](mcp-incident-list-output-research.md),
+[review](mcp-incident-list-output-review.md), and
+[alpha21 record](releases/v1.3.0-alpha.21.md).
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,

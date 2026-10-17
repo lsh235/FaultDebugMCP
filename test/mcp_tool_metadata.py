@@ -28,7 +28,7 @@ FOCUSED_TOOLS = {
 }
 OUTPUT_SCHEMA_TOOLS = {
     'get_capabilities', 'check_store', 'discover_artifacts', 'discover_bundles',
-    'get_function_source',
+    'get_function_source', 'list_incidents',
 }
 
 
@@ -68,6 +68,9 @@ async def audit(root):
         'process': {'pid': 9, 'start_monotonic_ns': 100,
                     'identity': {'schema': 1, 'session_id': 'session-a',
                                  'process_id': 'proc-a', 'process_generation': 1}},
+        'collector': {'incident_id': 'incident-a', 'trigger_process_id': 'proc-a',
+                      'trigger_signal': 11, 'status': 'captured', 'phase': 'test',
+                      'partial': True},
     }))
     source_root = root / 'source'
     source_root.mkdir()
@@ -112,7 +115,14 @@ async def audit(root):
             assert len({tool.title for tool in tools.values()}) == len(tools)
             assert {name for name, tool in tools.items() if tool.outputSchema} == OUTPUT_SCHEMA_TOOLS
             for name in OUTPUT_SCHEMA_TOOLS:
-                assert tools[name].outputSchema.get('type') == 'object', (name, tools[name].outputSchema)
+                assert tools[name].outputSchema, name
+                if name == 'list_incidents':
+                    incident_output_schema = tools[name].outputSchema
+                    assert incident_output_schema.get('type') == 'object'
+                    assert incident_output_schema.get('required') == ['result']
+                    assert len(incident_output_schema['properties']['result'].get('anyOf', [])) == 2
+                else:
+                    assert tools[name].outputSchema.get('type') == 'object', (name, tools[name].outputSchema)
             assert 'schema' in tools['get_capabilities'].outputSchema['properties']
             assert 'artifacts' in tools['discover_artifacts'].outputSchema['properties']
             assert 'bundles' in tools['discover_bundles'].outputSchema['properties']
@@ -123,6 +133,15 @@ async def audit(root):
             assert set(source_schema.get('required', [])) == {
                 'resolved', 'function_id', 'bundle', 'file', 'start_line', 'end_line', 'source'}
             assert source_schema['properties']['resolved']['const'] is True
+            incident_schema = tools['list_incidents'].outputSchema
+            assert set(incident_schema['properties']) == {'result'}
+            incident_defs = incident_schema.get('$defs', {})
+            assert set(incident_defs['IncidentListItem']['properties']) == {
+                'incident_id', 'session_id', 'trigger_process_id', 'trigger_signal', 'status',
+                'phase', 'partial', 'first_seen_ns', 'trust_state', 'artifact_count'}
+            assert set(incident_defs['IncidentListSuccess']['properties']) == {
+                'schema', 'incidents', 'total', 'page', 'page_size'}
+            assert set(incident_defs['IncidentListError']['properties']) == {'schema', 'error'}
             parameters = 0
             for name, tool in tools.items():
                 assert tool.description and 30 <= len(tool.description) <= 1600, name
@@ -206,6 +225,24 @@ async def audit(root):
             assert unassigned['total_artifacts'] == 1
             assert unassigned['session']['session_id'] is None
             assert payload(await session.call_tool('get_session', {'session_id': 'absent'}))['artifacts'] == []
+            incidents_result = await session.call_tool('list_incidents', {})
+            incidents = payload(incidents_result)
+            incident_structured = validate_structured_payload(incidents_result, incident_schema)
+            assert incident_structured == {'result': incidents}
+            assert incidents['total'] == 1 and incidents['incidents'][0]['incident_id'] == 'incident-a'
+            assert incidents['incidents'][0]['partial'] == 1
+            empty_incidents_result = await session.call_tool('list_incidents', {'session_id': 'absent'})
+            empty_incidents = payload(empty_incidents_result)
+            empty_incidents_structured = validate_structured_payload(
+                empty_incidents_result, incident_schema)
+            assert empty_incidents_structured == {'result': empty_incidents}
+            assert empty_incidents['incidents'] == [] and empty_incidents['total'] == 0
+            missing_incidents_result = await session.call_tool('list_incidents', {'db': 'absent.sqlite'})
+            missing_incidents = payload(missing_incidents_result)
+            missing_incidents_structured = validate_structured_payload(
+                missing_incidents_result, incident_schema)
+            assert missing_incidents_structured == {'result': missing_incidents}
+            assert missing_incidents['error']['code'] == 'INCIDENT_QUERY_ERROR'
             invalid = [
                 ('open_fault', {'name': '../escape.fault'}),
                 ('open_fault', {'name': str(capture)}),
@@ -267,6 +304,7 @@ async def audit(root):
                        for name, tool in focused_tools.items())
             assert {name for name, tool in focused_tools.items() if tool.outputSchema} == OUTPUT_SCHEMA_TOOLS
             assert focused_tools['get_function_source'].outputSchema == source_schema
+            assert focused_tools['list_incidents'].outputSchema == incident_schema
             assert all(tool.annotations and tool.annotations.readOnlyHint is True
                        for tool in focused_tools.values())
             focused_parameters = 0
@@ -275,6 +313,19 @@ async def audit(root):
                     assert schema.get('description', '').strip(), (tool.name, parameter)
                     focused_parameters += 1
             assert focused_parameters == 44, focused_parameters
+            focused_incidents_result = await session.call_tool('list_incidents', {})
+            focused_incidents = payload(focused_incidents_result)
+            assert validate_structured_payload(
+                focused_incidents_result, focused_tools['list_incidents'].outputSchema
+            ) == {'result': focused_incidents}
+            assert focused_incidents['total'] == 1
+            focused_empty_incidents_result = await session.call_tool(
+                'list_incidents', {'session_id': 'absent'})
+            focused_empty_incidents = payload(focused_empty_incidents_result)
+            assert validate_structured_payload(
+                focused_empty_incidents_result, focused_tools['list_incidents'].outputSchema
+            ) == {'result': focused_empty_incidents}
+            assert focused_empty_incidents['incidents'] == []
             focused_capabilities_result = await session.call_tool('get_capabilities', {})
             focused_capabilities = payload(focused_capabilities_result)
             assert validate_structured_payload(

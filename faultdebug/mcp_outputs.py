@@ -526,7 +526,7 @@ class IncidentReportOutput(OutputModel):
     unresolved: Annotated[list[dict[str, Any]], Field(description="Open diagnostic rows from RPC decoding, relation matching, and timeline analysis; keys vary by reason.")]
     fields: Annotated[IncidentReportFields, Field(description="Explicit status, deadline, retry and stream fields copied from decoded events; no missing value is inferred.")]
     page: Annotated[int, Field(ge=0, description="Zero-based page of observed RPC events returned.")]
-    page_size: Annotated[Literal[200], Field(description="Maximum observed RPC events per page.")]
+    page_size: Annotated[int, Field(ge=1, le=200, description="Maximum observed RPC events per page (1–200).")]
     total_rpc_events: Annotated[int, Field(ge=0, description="Total normalized RPC observations across all pages.")]
 
 
@@ -657,7 +657,7 @@ class RpcTraceOutput(OutputModel):
     unresolved: Annotated[list[RpcTraceDiagnostic], Field(description="Explicit sequence, completeness, or extension diagnostics; shared IDs do not resolve them.")]
     total: Annotated[int, Field(ge=0, description="Total normalized observed events across all pages, not just this page.")]
     page: Annotated[int, Field(ge=0, description="Zero-based page of observed events returned.")]
-    page_size: Annotated[Literal[200], Field(description="Maximum observed RPC events per page.")]
+    page_size: Annotated[int, Field(ge=1, le=200, description="Maximum observed RPC events per page (1–200).")]
 
 
 class FaultFlowSnapshot(OutputModel):

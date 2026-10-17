@@ -654,6 +654,13 @@ async def audit(root):
             assert set(rpc_schema['properties']) == {
                 'schema', 'status', 'source', 'observed', 'static_candidates',
                 'unresolved', 'total', 'page', 'page_size'}
+            assert rpc_schema['properties']['page_size']['minimum'] == 1
+            assert rpc_schema['properties']['page_size']['maximum'] == 200
+            rpc_page_size_input = tools['get_rpc_trace'].inputSchema['properties']['page_size']
+            assert rpc_page_size_input['minimum'] == 1
+            assert rpc_page_size_input['maximum'] == 200
+            assert rpc_page_size_input['default'] == 200
+            assert 'page_size' not in tools['get_rpc_trace'].inputSchema.get('required', [])
             rpc_defs = rpc_schema.get('$defs', {})
             assert set(rpc_defs['RpcTraceEvent']['properties']) == {
                 'event_index', 'sequence', 'monotonic_ns', 'start_monotonic_ns',
@@ -677,6 +684,13 @@ async def audit(root):
             assert set(incident_report_schema['properties']) == {
                 'schema', 'status', 'artifacts', 'observed', 'static_candidates',
                 'unresolved', 'fields', 'page', 'page_size', 'total_rpc_events'}
+            assert incident_report_schema['properties']['page_size']['minimum'] == 1
+            assert incident_report_schema['properties']['page_size']['maximum'] == 200
+            incident_page_size_input = tools['get_incident_report'].inputSchema['properties']['page_size']
+            assert incident_page_size_input['minimum'] == 1
+            assert incident_page_size_input['maximum'] == 200
+            assert incident_page_size_input['default'] == 200
+            assert 'page_size' not in tools['get_incident_report'].inputSchema.get('required', [])
             incident_report_defs = incident_report_schema['$defs']
             assert set(incident_report_defs['IncidentReportObserved']['properties']) == {
                 'rpc_events', 'process_relations'}
@@ -717,6 +731,7 @@ async def audit(root):
                 page = tool.inputSchema.get('properties', {}).get('page')
                 if page:
                     assert page.get('minimum') == 0, name
+            assert parameters == 86, parameters
             direction = tools['get_call_relations'].inputSchema['properties']['direction']
             assert set(direction['enum']) == {'inbound', 'outbound'}
             capabilities_result = await session.call_tool('get_capabilities', {})
@@ -1087,6 +1102,42 @@ async def audit(root):
             assert len(rpc_text['observed']) == 200
             assert rpc_text['observed'][0]['trace_id_hi'] == 1
             assert rpc_text['observed'][0]['retry_count'] == 0
+            for size in (1, 37, 200):
+                sized_result = await session.call_tool('get_rpc_trace', {
+                    'name': rpc_good.name, 'page_size': size})
+                sized = payload(sized_result)
+                assert_rpc_trace_contract(sized_result, rpc_schema, sized)
+                assert sized['page_size'] == size and sized['total'] == 201
+                assert len(sized['observed']) == size
+                if size == 200:
+                    assert sized == rpc_text
+            rpc_default_page_one_result = await session.call_tool(
+                'get_rpc_trace', {'name': rpc_good.name, 'page': 1})
+            rpc_default_page_one = payload(rpc_default_page_one_result)
+            assert_rpc_trace_contract(
+                rpc_default_page_one_result, rpc_schema, rpc_default_page_one)
+            rpc_default_ids = [row['sequence'] for row in rpc_text['observed']]
+            rpc_default_ids.extend(row['sequence'] for row in rpc_default_page_one['observed'])
+            rpc_small_pages = []
+            for page_number in range(6):
+                sized_result = await session.call_tool('get_rpc_trace', {
+                    'name': rpc_good.name, 'page': page_number, 'page_size': 37})
+                sized = payload(sized_result)
+                assert_rpc_trace_contract(sized_result, rpc_schema, sized)
+                assert sized['page'] == page_number and sized['page_size'] == 37
+                assert sized['total'] == 201
+                rpc_small_pages.extend(row['sequence'] for row in sized['observed'])
+            assert rpc_small_pages == rpc_default_ids
+            assert len(set(rpc_small_pages)) == 201
+            rpc_exhausted_result = await session.call_tool('get_rpc_trace', {
+                'name': rpc_good.name, 'page': 6, 'page_size': 37})
+            rpc_exhausted = payload(rpc_exhausted_result)
+            assert_rpc_trace_contract(rpc_exhausted_result, rpc_schema, rpc_exhausted)
+            assert rpc_exhausted['observed'] == [] and rpc_exhausted['total'] == 201
+            for invalid_size in (0, 201):
+                invalid = await session.call_tool('get_rpc_trace', {
+                    'name': rpc_good.name, 'page_size': invalid_size})
+                assert invalid.isError
             rpc_page_result = await session.call_tool(
                 'get_rpc_trace', {'name': rpc_good.name, 'page': 1})
             rpc_page = payload(rpc_page_result)
@@ -1103,6 +1154,57 @@ async def audit(root):
             assert len(incident_page0['observed']['rpc_events']) == 200
             assert incident_page0_structured['fields'] == incident_page0['fields']
             assert incident_page0['fields']['retries'][0]['retry_count'] == 0
+            incident_size_one = await session.call_tool('get_incident_report', {
+                'names': [rpc_good.name], 'page_size': 1})
+            incident_size_one_text = payload(incident_size_one)
+            incident_size_one_structured = assert_incident_report_contract(
+                incident_size_one, incident_report_schema, incident_size_one_text)
+            assert incident_size_one_text['page_size'] == 1
+            assert incident_size_one_text['total_rpc_events'] == 201
+            assert len(incident_size_one_text['observed']['rpc_events']) == 1
+            assert incident_size_one_structured['fields'] == incident_page0_structured['fields']
+            for size in (37, 200):
+                sized_result = await session.call_tool('get_incident_report', {
+                    'names': [rpc_good.name], 'page_size': size})
+                sized = payload(sized_result)
+                assert_incident_report_contract(sized_result, incident_report_schema, sized)
+                assert sized['page_size'] == size and sized['total_rpc_events'] == 201
+                assert len(sized['observed']['rpc_events']) == size
+                if size == 200:
+                    assert sized == incident_page0
+            incident_default_page_one_result = await session.call_tool(
+                'get_incident_report', {'names': [rpc_good.name], 'page': 1})
+            incident_default_page_one = payload(incident_default_page_one_result)
+            assert_incident_report_contract(
+                incident_default_page_one_result, incident_report_schema,
+                incident_default_page_one)
+            incident_default_ids = [
+                row['sequence'] for row in incident_page0['observed']['rpc_events']]
+            incident_default_ids.extend(row['sequence'] for row in
+                                        incident_default_page_one['observed']['rpc_events'])
+            incident_small_pages = []
+            for page_number in range(6):
+                sized_result = await session.call_tool('get_incident_report', {
+                    'names': [rpc_good.name], 'page': page_number, 'page_size': 37})
+                sized = payload(sized_result)
+                assert_incident_report_contract(sized_result, incident_report_schema, sized)
+                assert sized['page'] == page_number and sized['page_size'] == 37
+                assert sized['total_rpc_events'] == 201
+                incident_small_pages.extend(
+                    row['sequence'] for row in sized['observed']['rpc_events'])
+            assert incident_small_pages == incident_default_ids
+            assert len(set(incident_small_pages)) == 201
+            incident_exhausted_result = await session.call_tool('get_incident_report', {
+                'names': [rpc_good.name], 'page': 6, 'page_size': 37})
+            incident_exhausted = payload(incident_exhausted_result)
+            assert_incident_report_contract(
+                incident_exhausted_result, incident_report_schema, incident_exhausted)
+            assert incident_exhausted['observed']['rpc_events'] == []
+            assert incident_exhausted['total_rpc_events'] == 201
+            for invalid_size in (0, 201):
+                invalid = await session.call_tool('get_incident_report', {
+                    'names': [rpc_good.name], 'page_size': invalid_size})
+                assert invalid.isError
             incident_page1_result = await session.call_tool(
                 'get_incident_report', {'names': [rpc_good.name], 'page': 1})
             incident_page1 = payload(incident_page1_result)
@@ -1127,6 +1229,28 @@ async def audit(root):
             assert incident_join['fields']['streams'] == [
                 {'artifact_index': 0, 'rpc_id': 'alpha27-rpc', 'stream': 'unary'},
                 {'artifact_index': 1, 'rpc_id': 'alpha27-rpc', 'streaming': False}]
+            incident_join_page0_result = await session.call_tool('get_incident_report', {
+                'names': [incident_sender.name, incident_receiver.name],
+                'page': 0, 'page_size': 1})
+            incident_join_page0 = payload(incident_join_page0_result)
+            assert_incident_report_contract(
+                incident_join_page0_result, incident_report_schema, incident_join_page0)
+            incident_join_page1_result = await session.call_tool('get_incident_report', {
+                'names': [incident_sender.name, incident_receiver.name],
+                'page': 1, 'page_size': 1})
+            incident_join_page1 = payload(incident_join_page1_result)
+            assert_incident_report_contract(
+                incident_join_page1_result, incident_report_schema, incident_join_page1)
+            assert [row['sequence'] for row in
+                    incident_join_page0['observed']['rpc_events'] +
+                    incident_join_page1['observed']['rpc_events']] == [
+                        row['sequence'] for row in incident_join['observed']['rpc_events']]
+            for paged in (incident_join_page0, incident_join_page1):
+                assert paged['total_rpc_events'] == 2
+                assert paged['observed']['process_relations'] == incident_join[
+                    'observed']['process_relations']
+                assert paged['static_candidates'] == incident_join['static_candidates']
+                assert paged['fields'] == incident_join['fields']
             incident_empty_result = await session.call_tool(
                 'get_incident_report', {'names': [capture.name]})
             incident_empty = payload(incident_empty_result)
@@ -1292,7 +1416,7 @@ async def audit(root):
                 for parameter, schema in tool.inputSchema.get('properties', {}).items():
                     assert schema.get('description', '').strip(), (tool.name, parameter)
                     focused_parameters += 1
-            assert focused_parameters == 41, focused_parameters
+            assert focused_parameters == 43, focused_parameters
             focused_summary_result = await session.call_tool(
                 'get_evidence_summary', {'names': [capture.name]})
             focused_summary_text = payload(focused_summary_result)

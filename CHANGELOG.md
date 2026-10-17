@@ -2,6 +2,16 @@
 
 ## [Unreleased]
 
+## [2.0.0-alpha.3] - 2026-10-17
+
+- Add optional `page_size` (1–200, default 200) to `get_rpc_trace` and
+  `get_incident_report`; only observed RPC rows are paged. Existing requests
+  retain their default output, and the 15-tool focused profile now has 43
+  parameters. This additive feature is a future MINOR change under the
+  versioning policy, delivered in the unreleased v2.0.0 alpha train.
+- No response-byte ceiling or reduced decode-work claim; Glama score remains
+  unverified and stable v2 acceptance remains NO-GO.
+
 ## [2.0.0-alpha.2] - 2026-10-17
 
 - Batch count-only `get_evidence_summary` across 1–32 unique captures in one

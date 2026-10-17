@@ -11,12 +11,19 @@ Users can restore the previous catalog with `--tool-profile full`; all 27 tools
 and the static call-relations behavior remain available.
 
 This is an explicit public API break, so it justifies the major number. The
-first candidate is `2.0.0a1` / `v2.0.0-alpha.1`; the current development
+first candidate is `2.0.0a1` / `v2.0.0-alpha.1`; the latest published
 candidate is `2.0.0a2` / `v2.0.0-alpha.2`. Neither candidate is the stable
-release. The v1.3 alpha train records compatible additions and is superseded as
-the active release target by this plan.
+release. Candidate feature reviews must classify the intended stable increment
+under [`versioning-policy.md`](versioning-policy.md); an alpha number advances
+the current target and does not itself mean a stable minor or patch release.
+The v1.3 alpha train records compatible additions and is superseded as the
+active release target by this plan.
 
 ## Work sequence
+
+Before each candidate implementation, record evidence, alternatives, contract
+impact, stable version class, and bounded acceptance in separate research and
+review notes as required by [`versioning-policy.md`](versioning-policy.md).
 
 1. **M0 — contract break:** update the Python factory, CLI and container default;
    remove advanced static call relations only from focused; retain the full
@@ -54,16 +61,20 @@ neither is silently substituted with local tests.
 
 ## Version contract
 
-- Python distribution: `2.0.0a2` for the current candidate; stable target
+- Python distribution: `2.0.0a3` for the current candidate; stable target
   `2.0.0`.
 - Native CMake project package: `2.0.0`; runtime shared-library SONAME stays
   `1` because the C ABI is unchanged.
 - `--tool-profile full`: exact previous 27-tool catalog, including
   `get_call_relations`.
-- Default / `--tool-profile focused`: exact 15-tool catalog, 41 parameters;
+- Default / `--tool-profile focused`: exact 15-tool catalog, 43 parameters;
   no `get_call_relations` entry.
 - Shared-memory ABI v1, FDAR v1, semantic RPC schema v1 and evidence-store base
   schema v2 remain readable as before.
 - `get_evidence_summary` accepts 1–32 unique capture names in one call and
   returns one count-only row per input plus aggregate reason-code counts. Its
   representation is `summary_schema: 2`; the semantic RPC schema remains v1.
+- `get_rpc_trace` and `get_incident_report` accept optional `page_size=1..200`,
+  default 200, and page only observed RPC events. This is intended as a stable
+  minor addition after v2.0.0; the alpha3 candidate remains in the v2.0.0
+  prerelease sequence.

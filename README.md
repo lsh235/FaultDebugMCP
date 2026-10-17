@@ -4,7 +4,7 @@
 > Follow recorded calls across services, inspect the fault location, and see
 > which evidence is missing.
 
-[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.34-orange)](docs/releases/v1.3.0-alpha.34.md)
+[![Development milestone](https://img.shields.io/badge/development-v2.0.0--alpha.3-orange)](docs/releases/v2.0.0-alpha.3.md)
 [![Release gates](https://img.shields.io/github/actions/workflow/status/lsh235/FaultDebugMCP/v12-release-gate.yml?branch=main&label=release%20gates)](https://github.com/lsh235/FaultDebugMCP/actions/workflows/v12-release-gate.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 [![Clang 18](https://img.shields.io/badge/Clang-18-orange)](https://clang.llvm.org/)
@@ -61,7 +61,7 @@ static call-graph candidates as observed execution.
 
 ## Project status
 
-The current development target is **2.0.0a2** (`v2.0.0-alpha.2`), based on the
+The current development target is **2.0.0a3** (`v2.0.0-alpha.3`), based on the
 evidence foundation in [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2).
 This major-version candidate changes the default MCP catalog from 27 tools to
 the 15-tool `focused` workflow and moves advanced static call relations out of
@@ -71,14 +71,19 @@ pending its full release gates and independent audit. The v1.3 alpha history
 below records the compatible development milestones that led to this break.
 See the [major-change research](docs/mcp-v2-major-profile-research.md),
 [review decision](docs/mcp-v2-major-profile-review.md), and
-[v2.0 release objective](docs/next-version-v2.md).
+[v2.0 release objective](docs/next-version-v2.md) and
+[major/minor/patch policy](docs/versioning-policy.md).
 The first candidate's scope and verification are recorded in
 [v2.0.0-alpha.1](docs/releases/v2.0.0-alpha.1.md). The current candidate
-research and review add a count-only MCP summary for up to 32 captures in one
-call, without expanding the 15-tool focused catalog:
-[research](docs/mcp-batch-evidence-summary-research-v2.md) ·
-[review](docs/mcp-batch-evidence-summary-review-v2.md) ·
-[alpha.2 scope and verification](docs/releases/v2.0.0-alpha.2.md).
+adds optional 1–200 row pages for observed RPC events in two existing MCP
+tools, keeping 200 as the default and adding no tool. It does not impose a
+response-byte ceiling or reduce total decode work. Read the
+[alpha.3 research](docs/mcp-rpc-page-size-research-v2.md),
+[version-classified review](docs/mcp-rpc-page-size-review-v2.md), and
+[scope and verification](docs/releases/v2.0.0-alpha.3.md). Alpha2's prior
+count-only summary is recorded in its [research](docs/mcp-batch-evidence-summary-research-v2.md),
+[review](docs/mcp-batch-evidence-summary-review-v2.md), and
+[release record](docs/releases/v2.0.0-alpha.2.md).
 The existing-project path provides static ELF preflight and isolated opt-in
 CMake integration. `faultdebug self-test` verifies one bounded installed capture;
 alpha9 added `faultdebug integrate --execute-build` for the isolated

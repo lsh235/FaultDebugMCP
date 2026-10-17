@@ -65,10 +65,10 @@ Use after discover_artifacts; get_evidence_summary provides a count-only invento
 Use before get_rpc_trace or get_fault_flow to compare per-capture counts and choose a detailed follow-up; get_incident_report returns observed rows for a detailed multi-capture report. The response preserves request order and includes aggregate totals. `status=complete` means no unresolved diagnostic was counted, not that the application succeeded or every event was captured. Missing or empty RPC instrumentation remains unresolved. Invalid, duplicate or escaping paths and malformed captures produce MCP tool errors. No target execution or evidence ingestion occurs.""",
     "get_rpc_trace": """Decode one capture's semantic RPC observations, static candidates and unresolved limits.
 
-Use to inspect recorded request/response boundaries; get_thread_trace is for function events and get_fault_flow for reconstructed nesting. Use get_incident_report for ad hoc cross-capture analysis. Returns observed (paged), total, page, page_size, static_candidates and unresolved. Only observed RPC rows are paged; uncertainty is retained on every page. Missing RPC instrumentation yields unresolved evidence rather than invented edges. Malformed captures, ambiguous RPC extensions or invalid paths produce MCP tool errors.""",
+Use to inspect recorded request/response boundaries; get_thread_trace is for function events and get_fault_flow for reconstructed nesting. Use get_incident_report for ad hoc cross-capture analysis. Optional page_size selects 1–200 observed rows (default 200); only observed rows are paged. Returns total, page, effective page_size, static_candidates and unresolved. Uncertainty is retained on every page; this is a row limit, not a response-byte limit. Missing RPC instrumentation yields unresolved evidence rather than invented edges. Malformed captures, ambiguous RPC extensions or invalid paths produce MCP tool errors.""",
     "get_incident_report": """Project a combined RPC incident report directly from named captures, without a stored incident ID.
 
-Use for ad hoc multi-capture analysis; get_incident_slice reads an agent-declared incident already in SQLite, and open_fault is for one capture. Returns observed RPC events/process relations, static_candidates, unresolved and field availability. page slices only observed.rpc_events in batches of 200; total_rpc_events counts the full set. Inferences never become root-cause proof. Invalid captures/paths produce MCP tool errors; report files are not written.""",
+Use for ad hoc multi-capture analysis; get_incident_slice reads an agent-declared incident already in SQLite, and open_fault is for one capture. Optional page_size selects 1–200 observed rows (default 200); only observed.rpc_events are paged, while total_rpc_events counts the full set. Other fields repeat on each page, so this is not a response-byte limit. Inferences never become root-cause proof. Invalid captures/paths produce MCP tool errors; report files are not written.""",
     "list_incidents": """List agent-declared incident summaries already persisted in a SQLite evidence store.
 
 Use to obtain incident IDs before get_incident_slice; get_incident_report instead derives an ad hoc report from capture filenames. Returns incidents, total, page and page_size; time bounds filter incident first_seen_ns, not process-start times. Filters combine with AND and empty matches return an empty list. Failures return error.code=INCIDENT_QUERY_ERROR. The query neither declares incidents nor infers root cause; inspect unresolved evidence in get_incident_slice. No migration occurs.""",
@@ -312,22 +312,27 @@ def make_server(root: Path, *, tool_profile: str = "focused"):
                                   max_events=max_events,
                                   debug_directories=_debug_directories(root, debug_directory))
     @register_tool(annotations=_read_only("Get rpc trace"))
-    def get_rpc_trace(name: CaptureName, page: Page = 0) -> RpcTraceOutput:
+    def get_rpc_trace(
+        name: CaptureName,
+        page: Page = 0,
+        page_size: Annotated[int, Field(ge=1, le=200, description="Maximum observed RPC events per page (1–200); default 200.")] = 200,
+    ) -> RpcTraceOutput:
         """Decode one capture's semantic RPC observations, static candidates and unresolved limits.
 
         Use to inspect recorded request/response boundaries; get_thread_trace is for
         function events and get_process_relations matches endpoints across captures.
-        Returns observed (paged), total, page, page_size, static_candidates and unresolved.
+        Returns observed (paged), total, page, effective page_size, static_candidates and unresolved.
+        page_size selects 1–200 observed rows and defaults to 200.
         Only observed RPC rows are paged; uncertainty is retained on every page. Missing
         RPC instrumentation yields unresolved evidence rather than invented edges.
         Malformed captures, ambiguous RPC extensions or invalid paths produce MCP tool errors."""
         decoded = rpc_trace(_load(root, name))
         page = max(0, page)
         decoded["total"] = len(decoded["observed"])
-        start = page * 200
-        decoded["observed"] = decoded["observed"][start:start + 200]
+        start = page * page_size
+        decoded["observed"] = decoded["observed"][start:start + page_size]
         decoded["page"] = page
-        decoded["page_size"] = 200
+        decoded["page_size"] = page_size
         return decoded
     @register_tool(annotations=_read_only("Collect faults"))
     def collect_faults(names: CaptureNames, trace_id: TraceId = None, correlation_id: CorrelationId = None, page: Page = 0) -> dict:
@@ -394,22 +399,28 @@ def make_server(root: Path, *, tool_profile: str = "focused"):
         reports = [_load(root, name) for name in names]
         return evidence_summary(reports, artifact_names=names)
     @register_tool(annotations=_read_only("Get incident report"))
-    def get_incident_report(names: CaptureNames, page: Page = 0) -> IncidentReportOutput:
+    def get_incident_report(
+        names: CaptureNames,
+        page: Page = 0,
+        page_size: Annotated[int, Field(ge=1, le=200, description="Maximum observed RPC events per page (1–200); default 200.")] = 200,
+    ) -> IncidentReportOutput:
         """Project a combined RPC incident report directly from named captures, without a stored incident ID.
 
         Use for ad hoc multi-capture analysis; get_incident_slice fetches an agent-declared
         incident already in SQLite; get_evidence_summary compares count-only evidence across captures.
         Returns observed RPC events/process relations, static_candidates, unresolved and
-        field availability. page slices only observed.rpc_events in batches of 200;
-        total_rpc_events counts the full set. Inferences never become root-cause proof.
+        field availability. page slices only observed.rpc_events, at 1–200 rows
+        per page (default 200); total_rpc_events counts the full set. Inferences
+        never become root-cause proof.
         Invalid captures/paths produce MCP tool errors; report files are not written."""
         if len(names) > 1000: raise ValueError("maximum 1000 artifacts")
         result = incident_report([collect_file(_safe_artifact(root, name)) for name in names])
         page = max(0, page)
         events = result["observed"]["rpc_events"]
-        result["observed"]["rpc_events"] = events[page * 200:(page + 1) * 200]
+        start = page * page_size
+        result["observed"]["rpc_events"] = events[start:start + page_size]
         result["page"] = page
-        result["page_size"] = 200
+        result["page_size"] = page_size
         result["total_rpc_events"] = len(events)
         return result
     @register_tool(annotations=_read_only("Get session manifest"))

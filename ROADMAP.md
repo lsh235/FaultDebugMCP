@@ -4,6 +4,18 @@ This roadmap describes work beyond v0.1.0. It is not a promise of delivery dates
 
 ## 2026-10-17 development milestones
 
+- `v2.0.0-alpha.1` starts the major transition to a 15-tool focused default;
+  [research, review, migration, and stable gates](docs/next-version-v2.md).
+- `v2.0.0-alpha.2` adds a count-only summary across up to 32 captures; see its
+  [research](docs/mcp-batch-evidence-summary-research-v2.md),
+  [review](docs/mcp-batch-evidence-summary-review-v2.md), and
+  [release record](docs/releases/v2.0.0-alpha.2.md).
+- `v2.0.0-alpha.3` adds caller-selected observed-RPC page sizes to two existing
+  tools. This is a stable MINOR-class addition inside the unreleased v2 major
+  target; see the [versioning policy](docs/versioning-policy.md),
+  [research](docs/mcp-rpc-page-size-research-v2.md),
+  [review](docs/mcp-rpc-page-size-review-v2.md), and
+  [release record](docs/releases/v2.0.0-alpha.3.md).
 - `v1.2.0-rc.2` records the PDF's evidence-foundation implementation from
   `cb02d7a`; [compatibility and acceptance limits](docs/releases/v1.2.0-rc.2.md).
 - `v1.3.0-alpha.1` begins stage F: strict full128 traceparent v00, explicit

@@ -1,5 +1,7 @@
 # FaultDebug 한국어 안내
 
+[![개발 이정표](https://img.shields.io/badge/development-v2.0.0--alpha.3-orange)](docs/releases/v2.0.0-alpha.3.md)
+
 [English](README.md) · **한국어** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
 
 ## 설치 없이 보고서 체험
@@ -29,7 +31,7 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-현재 개발 목표는 **2.0.0a2** (`v2.0.0-alpha.2`)이며, 문서의 증거 기반 구현은
+현재 개발 목표는 **2.0.0a3** (`v2.0.0-alpha.3`)이며, 문서의 증거 기반 구현은
 [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)를 기준으로 합니다.
 이번 메이저 후보는 기본 MCP 도구 목록을 27개에서 15개 `focused` 흐름으로 바꾸고
 고급 정적 호출 관계 도구를 해당 기본 목록에서 제외합니다. 전체 27개 도구가 필요하면
@@ -37,12 +39,17 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 정식 v2.0.0 수락은 전체 릴리스 게이트와 독립 검토가 남아 있습니다. 아래 v1.3 알파 이력은
 이번 호환성 전환에 이른 개발 과정을 기록합니다.
 변경 근거는 [리서치](docs/mcp-v2-major-profile-research.md),
-[검토 결정](docs/mcp-v2-major-profile-review.md), [v2.0 실행 계획](docs/next-version-v2.md)에 있습니다.
+[검토 결정](docs/mcp-v2-major-profile-review.md), [v2.0 실행 계획](docs/next-version-v2.md),
+[메이저·마이너·패치 기준](docs/versioning-policy.md)에 있습니다.
 첫 후보의 범위와 검증 결과는 [v2.0.0-alpha.1 기록](docs/releases/v2.0.0-alpha.1.md)에 있습니다.
-현재 후보는 focused 도구 수를 늘리지 않고 한 번의 MCP 호출로 최대 32개 캡처의
-count-only 요약을 비교합니다. [리서치](docs/mcp-batch-evidence-summary-research-v2.md)와
-[독립 검토](docs/mcp-batch-evidence-summary-review-v2.md),
-[알파2 범위와 검증](docs/releases/v2.0.0-alpha.2.md)을 확인하세요.
+현재 후보는 기존 MCP 도구 두 개에서 관측 RPC 행을 1–200개씩 조회하고 기본값 200을
+유지합니다. 도구 수는 그대로지만 집중 프로필 입력 인자는 43개가 됩니다. 응답 바이트 상한이나
+전체 디코딩 비용 감소를 의미하지 않습니다. [알파3 리서치](docs/mcp-rpc-page-size-research-v2.md),
+[버전 분류 검토](docs/mcp-rpc-page-size-review-v2.md),
+[범위와 검증](docs/releases/v2.0.0-alpha.3.md)를 확인하세요. 알파2의 count-only 요약은
+[리서치](docs/mcp-batch-evidence-summary-research-v2.md),
+[검토](docs/mcp-batch-evidence-summary-review-v2.md),
+[릴리스 기록](docs/releases/v2.0.0-alpha.2.md)에 남아 있습니다.
 기존 프로젝트용 정적 ELF 점검과 분리된 CMake 적용 경로를 제공합니다.
 `faultdebug self-test`가 설치된 경로의 고정 fixture capture를 확인하고,
 알파9의 `faultdebug integrate --execute-build`는 격리된 configure/build/index/bundle 단계를 명시적으로 실행합니다.

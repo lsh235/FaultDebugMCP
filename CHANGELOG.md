@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.3.0-alpha.31] - 2026-10-17
+
+- Publish a typed success/error output schema for `get_incident_slice` in full
+  and focused MCP profiles, with open SQLite rows and producer-owned evidence
+  payloads.
+- Preserve pagination, event caps, source-reference verification boundaries,
+  text output and read-only behavior; Glama re-scan and score remain unverified.
+
 ## [1.3.0-alpha.30] - 2026-10-17
 
 - Publish a typed `get_thread_trace` page and raw thread/event result in full

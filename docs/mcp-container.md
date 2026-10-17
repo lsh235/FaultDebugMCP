@@ -92,6 +92,10 @@ gaps and verified-source markers. Other
 return details remain in descriptions, including the distinction between MCP
 tool errors and structured `error.code` payloads.
 
+The focused profile tailors its descriptions so named alternatives remain
+available in that 15-tool catalog; the full profile retains cross-catalog
+guidance for its 27 tools.
+
 Run the protocol and read-only audit from the repository root:
 
 ```sh
@@ -142,17 +146,18 @@ and set these fields:
     "mcp", "--root", "/app/artifacts", "--tool-profile", "focused"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "e277d336800f016f30a714a2b9e3169acbfa41f3",
+  "pinnedCommit": "cd45e67d269cf8b487072b4204542e8904082ecb",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }
 ```
 
-This full implementation SHA selects the alpha25 `focused` 15-tool first-line
+This full implementation SHA selects the alpha26 `focused` 15-tool first-line
 workflow, nine structured response contracts, and descriptive titles; omit
 the profile argument for the complete 27-tool catalog, which exposes ten typed
 contracts. It includes normalized RPC diagnostics and a typed fault-flow view
-in both profiles. This repository example
+in both profiles. Focused descriptions refer only to alternatives in that
+catalog; full-profile descriptions retain the broader sibling guidance. This repository example
 does not update the external Glama setting. The
 previously documented
 `255395c86809cce886ce58cdc5736b2a4c0f8aaa` revision predates it and exposed 25
@@ -165,7 +170,8 @@ profiles. Alpha19 adds descriptive top-level titles to all 27 tool definitions.
 Alpha20 adds a typed source result for `get_function_source`. Alpha21 adds a
 typed incident-list result, alpha22 adds a typed session-list result to the
 full profile, alpha23 adds typed verified source evidence to both profiles,
-alpha24 types `get_rpc_trace`, and alpha25 types `get_fault_flow` in both profiles.
+alpha24 types `get_rpc_trace`, alpha25 types `get_fault_flow` in both profiles,
+and alpha26 tailors focused-profile descriptions without changing membership.
 Check the
 generated Dockerfile's `git checkout` before deploying. A null pin alone
 does not prove that the generated checkout contains your latest changes.

@@ -6,6 +6,7 @@ import asyncio
 import hashlib
 import json
 from pathlib import Path
+import re
 import sqlite3
 import sys
 import tempfile
@@ -32,6 +33,16 @@ OUTPUT_SCHEMA_TOOLS = {
     'get_rpc_trace', 'get_fault_flow',
 }
 FOCUSED_OUTPUT_SCHEMA_TOOLS = OUTPUT_SCHEMA_TOOLS - {'list_sessions'}
+PROFILE_DESCRIPTION_EXPECTATIONS = {
+    'check_store': ('get_provenance', ('list_incidents',)),
+    'open_fault': ('get_evidence_summary', ('discover_artifacts', 'get_fault_flow', 'get_rpc_trace')),
+    'get_rpc_trace': ('get_process_relations', ('get_thread_trace', 'get_fault_flow', 'get_incident_report')),
+    'get_incident_report': ('get_evidence_summary', ('get_incident_slice', 'open_fault')),
+    'list_incidents': ('get_unresolved', ('get_incident_slice', 'get_incident_report')),
+    'get_incident_slice': ('get_unresolved', ('list_incidents', 'get_incident_report', 'get_source_evidence')),
+    'discover_artifacts': ('query_artifact_index', ('open_fault', 'get_fault_flow')),
+    'get_call_relations': ('get_process_relations', ('get_fault_flow', 'get_rpc_trace')),
+}
 
 
 def payload(result):
@@ -129,6 +140,24 @@ def assert_fault_flow_contract(result, output_schema, text_result):
     assert len(structured['threads']) == len(text_result['threads'])
     assert len(structured['crashes']) == len(text_result['crashes'])
     return structured
+
+
+def assert_profile_descriptions(full_tools, focused_tools):
+    hidden_names = set(full_tools) - set(focused_tools)
+    for name, tool in focused_tools.items():
+        for hidden_name in hidden_names:
+            assert re.search(r'(?<![A-Za-z0-9_])' + re.escape(hidden_name) +
+                             r'(?![A-Za-z0-9_])', tool.description) is None, (
+                                 name, hidden_name, tool.description)
+    for name, (full_alternative, focused_alternatives) in PROFILE_DESCRIPTION_EXPECTATIONS.items():
+        assert full_alternative in full_tools[name].description, (
+            name, full_alternative, full_tools[name].description)
+        assert full_alternative not in focused_tools[name].description, (
+            name, full_alternative, focused_tools[name].description)
+        for alternative in focused_alternatives:
+            assert alternative in focused_tools, (name, alternative)
+            assert alternative in focused_tools[name].description, (
+                name, alternative, focused_tools[name].description)
 
 
 async def audit(root):
@@ -583,6 +612,7 @@ async def audit(root):
             focused_listing = await session.list_tools()
             focused_tools = {tool.name: tool for tool in focused_listing.tools}
             assert set(focused_tools) == FOCUSED_TOOLS, sorted(focused_tools)
+            assert_profile_descriptions(tools, focused_tools)
             assert all(tool.title and tool.title != name and len(tool.title) > len(name)
                        and tool.annotations and tool.annotations.title == tool.title
                        for name, tool in focused_tools.items())

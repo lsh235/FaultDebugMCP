@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.3.0-alpha.26] - 2026-10-17
+
+- Tailor eight focused-profile tool descriptions so named alternatives are
+  available in that profile; keep full-profile guidance intact.
+- Preserve catalog membership, schemas, annotations and runtime behavior.
+  Glama re-scan and score remain unverified.
+
 ## [1.3.0-alpha.25] - 2026-10-17
 
 - Publish a typed, evidence-bound `get_fault_flow` result in both MCP profiles,

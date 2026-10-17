@@ -29,7 +29,7 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-개발 버전은 **1.3.0a25** (`v1.3.0-alpha.25`)이며, 문서의 증거 기반 구현은
+개발 버전은 **1.3.0a26** (`v1.3.0-alpha.26`)이며, 문서의 증거 기반 구현은
 [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)로 고정했습니다.
 기존 프로젝트용 정적 ELF 점검과 분리된 CMake 적용 경로를 제공합니다.
 `faultdebug self-test`가 설치된 경로의 고정 fixture capture를 확인하고,
@@ -75,6 +75,9 @@ incident evidence payload는 별도 검토 전까지 스키마 범위에서 제�
 [알파25는 full/focused 프로필 모두에 `get_fault_flow`의 typed 실행 흐름 결과를 추가합니다.
 스레드 이벤트, crash, gap, 주소 해석과 검증된 source 표시를 구분하며 기존 텍스트 응답과
 수집 동작을 유지합니다. Glama 점수 변화는 재평가 전까지 확인되지 않았습니다.](docs/releases/v1.3.0-alpha.25.md)
+[알파26은 focused 프로필의 8개 설명에서 해당 프로필에 없는 대체 도구를 안내하던 내용을
+수정합니다. full 프로필의 설명과 두 프로필의 도구·스키마·실행 동작은 유지합니다.
+Glama 점수 변화는 재평가 전까지 확인되지 않았습니다.](docs/releases/v1.3.0-alpha.26.md)
 [기존 프로젝트 적용 안내](docs/existing-project-adoption.md) ·
 [보고서 언어 검토](docs/integration-report-language-review.md) ·
 [이벤트 상한 검토](docs/integration-report-event-limit-review.md) ·
@@ -97,6 +100,9 @@ incident evidence payload는 별도 검토 전까지 스키마 범위에서 제�
 [RPC trace 출력 스키마 검토](docs/mcp-rpc-trace-output-review.md) ·
 [fault-flow 출력 스키마 리서치](docs/mcp-fault-flow-output-research.md) ·
 [fault-flow 출력 스키마 검토](docs/mcp-fault-flow-output-review.md) ·
+[focused 설명 리서치](docs/mcp-focused-description-research.md) ·
+[focused 설명 검토](docs/mcp-focused-description-review.md) ·
+[알파26 범위와 검증](docs/releases/v1.3.0-alpha.26.md) ·
 [알파25 범위와 검증](docs/releases/v1.3.0-alpha.25.md) ·
 [알파24 범위와 검증](docs/releases/v1.3.0-alpha.24.md) ·
 [알파23 범위와 검증](docs/releases/v1.3.0-alpha.23.md) ·

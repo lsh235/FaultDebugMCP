@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.3.0-alpha.25] - 2026-10-17
+
+- Publish a typed, evidence-bound `get_fault_flow` result in both MCP profiles,
+  covering capture state, thread events, crashes, edges, gaps, diagnostics and
+  verified source excerpts while leaving producer-varying evidence open.
+- Preserve the report algorithm, text response, limits and tool inventory;
+  Glama re-scan and score remain unverified.
+
 ## [1.3.0-alpha.24] - 2026-10-17
 
 - Publish typed normalized semantic-RPC observations and six explicit

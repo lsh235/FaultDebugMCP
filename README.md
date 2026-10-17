@@ -4,7 +4,7 @@
 > Follow recorded calls across services, inspect the fault location, and see
 > which evidence is missing.
 
-[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.21-orange)](docs/releases/v1.3.0-alpha.21.md)
+[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.25-orange)](docs/releases/v1.3.0-alpha.25.md)
 [![Release gates](https://img.shields.io/github/actions/workflow/status/lsh235/FaultDebugMCP/v12-release-gate.yml?branch=main&label=release%20gates)](https://github.com/lsh235/FaultDebugMCP/actions/workflows/v12-release-gate.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 [![Clang 18](https://img.shields.io/badge/Clang-18-orange)](https://clang.llvm.org/)
@@ -61,7 +61,7 @@ static call-graph candidates as observed execution.
 
 ## Project status
 
-The development package is **1.3.0a21** (`v1.3.0-alpha.21`); the evidence-foundation
+The development package is **1.3.0a25** (`v1.3.0-alpha.25`); the evidence-foundation
 baseline is [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2).
 The existing-project path provides static ELF preflight and isolated opt-in
 CMake integration. `faultdebug self-test` verifies one bounded installed capture;
@@ -96,11 +96,14 @@ Alpha22 adds a six-field typed result for full-profile `list_sessions` while
 keeping the focused catalog and its scope unchanged. The score still needs an
 external Glama re-scan. Alpha23 adds a typed verified-citation/error contract
 for `get_source_evidence` in both profiles while retaining the existing text
-shape and single-citation convenience fields. See the
+shape and single-citation convenience fields.
 Alpha24 adds typed normalized RPC observations and six explicit diagnostic
 variants for `get_rpc_trace` in both profiles; static candidates remain open
 producer-owned JSON. The text shape and pagination are unchanged, and Glama
-score impact remains unverified. See the
+score impact remains unverified. Alpha25 adds a typed `get_fault_flow` execution
+view in both profiles, including thread events, crashes, gaps, address
+resolution and verified-source markers. It preserves the text result and
+capture boundaries; Glama score impact remains unverified. See the
 [adoption guide](docs/existing-project-adoption.md),
 [report-output review](docs/integration-report-output-review.md), and
 [MCP bundle review](docs/mcp-required-bundle-review.md),
@@ -119,7 +122,9 @@ score impact remains unverified. See the
 [source-evidence output-schema review](docs/mcp-source-evidence-output-review.md),
 [RPC trace output-schema research](docs/mcp-rpc-trace-output-research.md),
 [RPC trace output-schema review](docs/mcp-rpc-trace-output-review.md), and
-[alpha24 scope and verification](docs/releases/v1.3.0-alpha.24.md).
+[fault-flow output-schema research](docs/mcp-fault-flow-output-research.md),
+[fault-flow output-schema review](docs/mcp-fault-flow-output-review.md), and
+[alpha25 scope and verification](docs/releases/v1.3.0-alpha.25.md).
 
 Final independent stable acceptance, current-revision full core/gRPC profiles,
 kind and fresh 30-minute soak remain pending. Docker 8/16/32 results cover only

@@ -85,9 +85,10 @@ Choose tools by evidence source and question:
 list all sessions. `get_thread_trace` pages thread records, `get_rpc_trace` pages
 RPC observations, and store incident/session tools page artifacts. Returned
 counts and truncation flags describe the corresponding collection. The full
-profile publishes nine typed output schemas and the focused profile publishes
-eight, including explicit verified/unresolved source-citation results and
-normalized RPC observations with separate uncertainty diagnostics. Other
+profile publishes ten typed output schemas and the focused profile publishes
+nine, including verified source citations, normalized RPC observations with
+separate uncertainty diagnostics, and a typed fault-flow view with explicit
+gaps and verified-source markers. Other
 return details remain in descriptions, including the distinction between MCP
 tool errors and structured `error.code` payloads.
 
@@ -141,17 +142,17 @@ and set these fields:
     "mcp", "--root", "/app/artifacts", "--tool-profile", "focused"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "2cd490749ddae3bd87434f84158f1ad07ace1af8",
+  "pinnedCommit": "e277d336800f016f30a714a2b9e3169acbfa41f3",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }
 ```
 
-This full implementation SHA selects the alpha24 `focused` 15-tool first-line
-workflow, eight structured response contracts, and descriptive titles; omit
-the profile argument for the complete 27-tool catalog, which exposes nine
-typed success/error contracts. It adds normalized RPC event fields and six
-explicit uncertainty variants to the focused workflow. This repository example
+This full implementation SHA selects the alpha25 `focused` 15-tool first-line
+workflow, nine structured response contracts, and descriptive titles; omit
+the profile argument for the complete 27-tool catalog, which exposes ten typed
+contracts. It includes normalized RPC diagnostics and a typed fault-flow view
+in both profiles. This repository example
 does not update the external Glama setting. The
 previously documented
 `255395c86809cce886ce58cdc5736b2a4c0f8aaa` revision predates it and exposed 25
@@ -164,7 +165,7 @@ profiles. Alpha19 adds descriptive top-level titles to all 27 tool definitions.
 Alpha20 adds a typed source result for `get_function_source`. Alpha21 adds a
 typed incident-list result, alpha22 adds a typed session-list result to the
 full profile, alpha23 adds typed verified source evidence to both profiles,
-and alpha24 types `get_rpc_trace` in both profiles.
+alpha24 types `get_rpc_trace`, and alpha25 types `get_fault_flow` in both profiles.
 Check the
 generated Dockerfile's `git checkout` before deploying. A null pin alone
 does not prove that the generated checkout contains your latest changes.

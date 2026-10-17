@@ -16,7 +16,7 @@ from .discovery import inspect_spool
 from .evidence_store import EvidenceStore, EvidenceStoreError
 from .capabilities import get_capabilities as capability_contract
 from .mcp_outputs import (ArtifactDiscoveryOutput, BundleDiscoveryOutput,
-                          CapabilitiesOutput, FunctionSourceOutput,
+                          CapabilitiesOutput, FaultFlowOutput, FunctionSourceOutput,
                           IncidentListOutput, SessionListOutput, SourceEvidenceOutput,
                           RpcTraceOutput, StoreCheckOutput)
 
@@ -252,7 +252,7 @@ def make_server(root: Path, *, tool_profile: str = "full"):
         rows = thread_trace(_load(root, name), tid)
         return {"items": rows[page * 200:(page + 1) * 200], "page": page, "page_size": 200, "total": len(rows)}
     @register_tool(annotations=_read_only("Get fault flow"))
-    def get_fault_flow(name: CaptureName, bundle: BundlePath = None, max_events: Annotated[int, Field(ge=1, le=500, description="Maximum last retained pre-crash function events per thread (1–500); truncates the view, not the underlying capture.")] = 80, debug_directory: DebugDirectory = None) -> dict:
+    def get_fault_flow(name: CaptureName, bundle: BundlePath = None, max_events: Annotated[int, Field(ge=1, le=500, description="Maximum last retained pre-crash function events per thread (1–500); truncates the view, not the underlying capture.")] = 80, debug_directory: DebugDirectory = None) -> FaultFlowOutput:
         """Build a bounded per-thread fault-flow model with recorded nesting, fault context and gaps.
 
         Use for an execution-view explanation; get_thread_trace instead returns raw

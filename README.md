@@ -97,6 +97,10 @@ keeping the focused catalog and its scope unchanged. The score still needs an
 external Glama re-scan. Alpha23 adds a typed verified-citation/error contract
 for `get_source_evidence` in both profiles while retaining the existing text
 shape and single-citation convenience fields. See the
+Alpha24 adds typed normalized RPC observations and six explicit diagnostic
+variants for `get_rpc_trace` in both profiles; static candidates remain open
+producer-owned JSON. The text shape and pagination are unchanged, and Glama
+score impact remains unverified. See the
 [adoption guide](docs/existing-project-adoption.md),
 [report-output review](docs/integration-report-output-review.md), and
 [MCP bundle review](docs/mcp-required-bundle-review.md),
@@ -113,7 +117,9 @@ shape and single-citation convenience fields. See the
 [session-list output-schema review](docs/mcp-session-list-output-review.md),
 [source-evidence output-schema research](docs/mcp-source-evidence-output-research.md),
 [source-evidence output-schema review](docs/mcp-source-evidence-output-review.md),
-and [milestone scope and verification](docs/releases/v1.3.0-alpha.23.md).
+[RPC trace output-schema research](docs/mcp-rpc-trace-output-research.md),
+[RPC trace output-schema review](docs/mcp-rpc-trace-output-review.md), and
+[alpha24 scope and verification](docs/releases/v1.3.0-alpha.24.md).
 
 Final independent stable acceptance, current-revision full core/gRPC profiles,
 kind and fresh 30-minute soak remain pending. Docker 8/16/32 results cover only

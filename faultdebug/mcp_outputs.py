@@ -332,3 +332,90 @@ SourceEvidenceOutput = Annotated[
     SourceEvidenceSuccess | SourceEvidenceError,
     Field(description="Either verified incident source citations or the stable SOURCE_EVIDENCE_ERROR payload."),
 ]
+
+
+class RpcTraceEvent(OutputModel):
+    """One normalized semantic-RPC observation; missing source fields stay absent or null."""
+
+    event_index: Annotated[int, Field(ge=0, description="Zero-based index in the decoded RPC extension before time/sequence ordering.")]
+    sequence: Annotated[int | None, Field(ge=0, description="Native publication sequence when recorded; it is not a causal proof.")] = None
+    monotonic_ns: Annotated[int | None, Field(ge=0, description="Recorded timestamp in the capture's monotonic clock domain, when available.")] = None
+    start_monotonic_ns: Annotated[int | None, Field(ge=0, description="Recorded start timestamp in the capture's monotonic clock domain.")] = None
+    end_monotonic_ns: Annotated[int | None, Field(ge=0, description="Recorded end timestamp in the capture's monotonic clock domain.")] = None
+    trace_id_hi: Annotated[int | None, Field(ge=0, description="High 64 bits of the application-recorded W3C trace ID, when present.")] = None
+    trace_id_lo: Annotated[int | None, Field(ge=0, description="Low 64 bits of the application-recorded W3C trace ID, when present.")] = None
+    direction: Annotated[int | None, Field(ge=0, description="Application-defined numeric direction value; the decoder does not assign semantics.")] = None
+    tid: Annotated[int | None, Field(ge=0, description="Recorded OS thread ID, not a cross-process identity.")] = None
+    process_generation: Annotated[int | None, Field(ge=0, description="Recorded process-generation value, when present.")] = None
+    thread_generation: Annotated[int | None, Field(ge=0, description="Recorded thread-generation value, when present.")] = None
+    rpc_id: Annotated[str | int | None, Field(description="Recorded numeric/string RPC identity; shared values alone do not establish causality.")] = None
+    kind: Annotated[str | int | None, Field(description="Application/runtime RPC event-kind value retained as recorded.")] = None
+    method_id: Annotated[int | None, Field(ge=0, description="Recorded numeric method identity; no method name or payload is decoded.")] = None
+    phase: Annotated[Literal["begin", "send", "receive", "recv", "status", "end", "cancel"] | None, Field(description="Normalized lifecycle phase when recorded or mapped from flags.")] = None
+    role: Annotated[str | int | bool | None, Field(description="Application-defined caller/peer role value retained as a string, number or boolean.")] = None
+    status: Annotated[str | int | bool | None, Field(description="Recorded application or RPC status value; it is not interpreted as a root-cause verdict.")] = None
+    deadline_ns: Annotated[int | None, Field(ge=0, description="Recorded deadline in the associated monotonic domain, when supplied.")] = None
+    retry_count: Annotated[int | None, Field(ge=0, description="Recorded retry count; it does not prove an operation was applied once.")] = None
+    attempt: Annotated[int | None, Field(ge=0, description="Recorded attempt number, when supplied by the producer.")] = None
+    stream: Annotated[str | int | bool | None, Field(description="Application-defined stream kind/value retained as a string, number or boolean.")] = None
+    streaming: Annotated[bool | None, Field(description="Recorded streaming indicator, when supplied.")] = None
+    pid: Annotated[int | None, Field(ge=0, description="Recorded process ID; PID reuse and namespaces still apply.")] = None
+    peer_pid: Annotated[int | None, Field(ge=0, description="Recorded peer process ID; it is not independently verified by this decoder.")] = None
+    flags: Annotated[int | None, Field(ge=0, description="Producer-defined event flags retained as a number.")] = None
+    generation: Annotated[int | None, Field(ge=0, description="Producer-defined generation value retained as recorded.")] = None
+    publication: Annotated[int | None, Field(ge=0, description="Producer publication marker retained as recorded.")] = None
+    source: Annotated[str | None, Field(description="Original event source label when the extension supplied one.")] = None
+
+
+class RpcExtensionAbsent(OutputModel):
+    reason: Annotated[Literal["semantic_rpc_extension_absent"], Field(description="The capture does not contain a semantic-RPC extension.")]
+    evidence: Annotated[Literal["artifact"], Field(description="The absent extension was checked on the captured artifact.")]
+
+
+class RpcSequenceNotMonotonic(OutputModel):
+    reason: Annotated[Literal["rpc_sequence_not_monotonic"], Field(description="The decoded event order reverses a pair of recorded publication sequence values.")]
+    before: Annotated[int, Field(description="Earlier decoded row's sequence value.")]
+    after: Annotated[int, Field(description="Later decoded row's sequence value; it is less than or equal to before.")]
+
+
+class RpcSequenceGap(OutputModel):
+    reason: Annotated[Literal["rpc_sequence_gap"], Field(description="The publication sequence skips one or more values.")]
+    before: Annotated[int, Field(description="Earlier decoded row's sequence value.")]
+    after: Annotated[int, Field(description="Later decoded row's sequence value; one or more values are missing.")]
+
+
+class RpcTracePartial(OutputModel):
+    reason: Annotated[Literal["runtime_trace_partial_or_overflow"], Field(description="The capture header marks partial data or recorder overflow.")]
+    status: Annotated[int, Field(description="Recorded native capture-status bit field; not an RPC status code.")]
+
+
+class RpcStreamIncomplete(OutputModel):
+    reason: Annotated[Literal["semantic_rpc_stream_incomplete"], Field(description="The RPC extension or sidecar header marks the stream incomplete.")]
+    flags: Annotated[int, Field(description="Recorded RPC sidecar flags used by the completeness check.")]
+    dropped_count: Annotated[Any, Field(description="Raw producer drop-count value retained without reinterpretation.")]
+
+
+class RpcEventsEmpty(OutputModel):
+    reason: Annotated[Literal["semantic_rpc_events_empty"], Field(description="The extension is present but provides no normalized semantic events.")]
+    evidence: Annotated[str, Field(description="Extension key that declared an empty semantic-RPC stream.")]
+
+
+RpcTraceDiagnostic = Annotated[
+    RpcExtensionAbsent | RpcSequenceNotMonotonic | RpcSequenceGap |
+    RpcTracePartial | RpcStreamIncomplete | RpcEventsEmpty,
+    Field(discriminator="reason", description="One explicit reason the RPC evidence is incomplete or absent."),
+]
+
+
+class RpcTraceOutput(OutputModel):
+    """Versioned semantic-RPC observations with candidates and diagnostics kept distinct."""
+
+    schema_: Annotated[Literal[1], Field(alias="schema", description="Semantic-RPC decoder response schema version.")]
+    status: Annotated[Literal["complete", "limited", "unresolved"], Field(description="Evidence completeness label; unresolved/limited are not converted into successful RPC claims.")]
+    source: Annotated[Literal["rpc_trace", "rpc", "semantic_rpc", "rpc_events", "semantic_rpc_events", "threads.semantic_events"] | None, Field(description="Extension key from which events were decoded; null means the artifact has no RPC extension.")]
+    observed: Annotated[list[RpcTraceEvent], Field(description="Normalized observed events in the current page only.")]
+    static_candidates: Annotated[list[Any], Field(description="Producer-supplied candidates, retained separately and never promoted to observed RPC events.")]
+    unresolved: Annotated[list[RpcTraceDiagnostic], Field(description="Explicit sequence, completeness, or extension diagnostics; shared IDs do not resolve them.")]
+    total: Annotated[int, Field(ge=0, description="Total normalized observed events across all pages, not just this page.")]
+    page: Annotated[int, Field(ge=0, description="Zero-based page of observed events returned.")]
+    page_size: Annotated[Literal[200], Field(description="Maximum observed RPC events per page.")]

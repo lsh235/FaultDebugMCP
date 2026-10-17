@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.3.0-alpha.24] - 2026-10-17
+
+- Publish typed normalized semantic-RPC observations and six explicit
+  incompleteness diagnostics for `get_rpc_trace` in both MCP profiles.
+- Keep static candidates as open producer-owned JSON; preserve text output,
+  evidence classes, paging and error behavior. Glama re-scan and score remain
+  unverified.
+
 ## [1.3.0-alpha.23] - 2026-10-17
 
 - Publish a typed success/error output contract for focused-profile

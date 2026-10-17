@@ -29,7 +29,7 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-개발 버전은 **1.3.0a27** (`v1.3.0-alpha.27`)이며, 문서의 증거 기반 구현은
+개발 버전은 **1.3.0a28** (`v1.3.0-alpha.28`)이며, 문서의 증거 기반 구현은
 [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)로 고정했습니다.
 기존 프로젝트용 정적 ELF 점검과 분리된 CMake 적용 경로를 제공합니다.
 `faultdebug self-test`가 설치된 경로의 고정 fixture capture를 확인하고,
@@ -81,6 +81,9 @@ Glama 점수 변화는 재평가 전까지 확인되지 않았습니다.](docs/r
 [알파27은 full/focused 양쪽에 `get_incident_report`의 typed 출력 스키마를 추가해 고정된
 보고서 envelope, 관측 RPC 이벤트와 페이지 메타데이터를 제공합니다. 동적 관계·후보·진단
 행은 보존하며 Glama 점수 변화는 공식 재평가 전까지 확인되지 않았습니다.](docs/releases/v1.3.0-alpha.27.md)
+[알파28은 full/focused 양쪽의 `resolve_addresses` 결과를 typed 스키마로 제공합니다.
+주소별 Build-ID 해석, 함수 ID, static edge와 미해결 사유를 구조화하되 해석 동작은
+바꾸지 않았습니다. Glama 점수 변화는 공식 재평가 전까지 확인되지 않았습니다.](docs/releases/v1.3.0-alpha.28.md)
 [기존 프로젝트 적용 안내](docs/existing-project-adoption.md) ·
 [보고서 언어 검토](docs/integration-report-language-review.md) ·
 [이벤트 상한 검토](docs/integration-report-event-limit-review.md) ·
@@ -107,6 +110,11 @@ Glama 점수 변화는 재평가 전까지 확인되지 않았습니다.](docs/r
 [focused 설명 검토](docs/mcp-focused-description-review.md) ·
 [incident report 출력 스키마 리서치](docs/mcp-incident-report-output-research.md) ·
 [incident report 출력 스키마 검토](docs/mcp-incident-report-output-review.md) ·
+[주소 해석 출력 스키마 리서치](docs/mcp-address-resolution-output-research.md) ·
+[주소 해석 출력 스키마 검토](docs/mcp-address-resolution-output-review.md) ·
+[evidence summary 후보 리서치](docs/mcp-evidence-summary-output-research.md) ·
+[evidence summary 후보 검토](docs/mcp-evidence-summary-output-review.md) ·
+[알파28 범위와 검증](docs/releases/v1.3.0-alpha.28.md) ·
 [알파27 범위와 검증](docs/releases/v1.3.0-alpha.27.md) ·
 [알파26 범위와 검증](docs/releases/v1.3.0-alpha.26.md) ·
 [알파25 범위와 검증](docs/releases/v1.3.0-alpha.25.md) ·

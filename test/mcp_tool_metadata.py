@@ -30,7 +30,7 @@ FOCUSED_TOOLS = {
 OUTPUT_SCHEMA_TOOLS = {
     'get_capabilities', 'check_store', 'discover_artifacts', 'discover_bundles',
     'get_function_source', 'list_incidents', 'list_sessions', 'get_source_evidence',
-    'get_rpc_trace', 'get_fault_flow', 'get_incident_report',
+    'get_rpc_trace', 'get_fault_flow', 'get_incident_report', 'resolve_addresses',
 }
 FOCUSED_OUTPUT_SCHEMA_TOOLS = OUTPUT_SCHEMA_TOOLS - {'list_sessions'}
 PROFILE_DESCRIPTION_EXPECTATIONS = {
@@ -159,6 +159,19 @@ def assert_incident_report_contract(result, output_schema, text_result):
             assert omitted <= allowed_optional - set(text_event), omitted
             assert all(structured_event[field] is None for field in omitted)
             assert {field: structured_event[field] for field in text_event} == text_event
+    return structured
+
+
+def assert_resolve_addresses_contract(result, output_schema, text_result):
+    structured = validate_structured_payload(result, output_schema)
+    assert set(structured) == set(text_result) == {'items'}
+    assert len(structured['items']) == len(text_result['items'])
+    allowed_optional = set(output_schema['$defs']['FaultFlowResolution']['properties'])
+    for structured_item, text_item in zip(structured['items'], text_result['items']):
+        omitted = set(structured_item) - set(text_item)
+        assert omitted <= allowed_optional - set(text_item), omitted
+        assert all(structured_item[field] is None for field in omitted)
+        assert {field: structured_item[field] for field in text_item} == text_item
     return structured
 
 
@@ -367,6 +380,10 @@ async def audit(root):
                 'status', 'deadlines', 'retries', 'streams'}
             assert 'artifact_index' in incident_report_defs[
                 'IncidentReportRpcEvent']['properties']
+            resolve_addresses_schema = tools['resolve_addresses'].outputSchema
+            assert set(resolve_addresses_schema['properties']) == {'items'}
+            assert resolve_addresses_schema['$defs']['FaultFlowResolution'] == \
+                fault_flow_schema['$defs']['FaultFlowResolution']
             parameters = 0
             for name, tool in tools.items():
                 assert tool.description and 30 <= len(tool.description) <= 1600, name
@@ -428,8 +445,20 @@ async def audit(root):
             assert caps['platform_toolchain']['mcp_transport'] == 'stdio'
             opened = payload(await session.call_tool('open_fault', {'name': capture.name}))
             assert opened['process']['pid'] == 7
-            assert payload(await session.call_tool('resolve_addresses', {
-                'name': capture.name, 'addresses': [], 'debug_directory': 'debug'}))['items'] == []
+            empty_resolutions_result = await session.call_tool('resolve_addresses', {
+                'name': capture.name, 'addresses': [], 'debug_directory': 'debug'})
+            empty_resolutions = payload(empty_resolutions_result)
+            assert_resolve_addresses_contract(
+                empty_resolutions_result, resolve_addresses_schema, empty_resolutions)
+            assert empty_resolutions['items'] == []
+            unresolved_addresses_result = await session.call_tool('resolve_addresses', {
+                'name': capture.name, 'addresses': [1]})
+            unresolved_addresses = payload(unresolved_addresses_result)
+            assert_resolve_addresses_contract(
+                unresolved_addresses_result, resolve_addresses_schema, unresolved_addresses)
+            assert unresolved_addresses['items'][0]['address'] == 1
+            assert unresolved_addresses['items'][0]['resolved'] is False
+            assert unresolved_addresses['items'][0]['reason'] == 'missing_module'
             artifact_result = await session.call_tool('discover_artifacts', {'include_json': True})
             found = payload(artifact_result)
             assert validate_structured_payload(
@@ -710,6 +739,7 @@ async def audit(root):
             assert focused_tools['get_rpc_trace'].outputSchema == rpc_schema
             assert focused_tools['get_fault_flow'].outputSchema == fault_flow_schema
             assert focused_tools['get_incident_report'].outputSchema == incident_report_schema
+            assert focused_tools['resolve_addresses'].outputSchema == resolve_addresses_schema
             assert all(tool.annotations and tool.annotations.readOnlyHint is True
                        for tool in focused_tools.values())
             focused_parameters = 0
@@ -768,6 +798,22 @@ async def audit(root):
                 focused_tools['get_incident_report'].outputSchema,
                 focused_incident_empty)
             assert focused_incident_empty['status'] == 'unresolved'
+            focused_empty_resolutions_result = await session.call_tool(
+                'resolve_addresses', {'name': capture.name, 'addresses': []})
+            focused_empty_resolutions = payload(focused_empty_resolutions_result)
+            assert_resolve_addresses_contract(
+                focused_empty_resolutions_result,
+                focused_tools['resolve_addresses'].outputSchema,
+                focused_empty_resolutions)
+            assert focused_empty_resolutions['items'] == []
+            focused_unresolved_addresses_result = await session.call_tool(
+                'resolve_addresses', {'name': capture.name, 'addresses': [1]})
+            focused_unresolved_addresses = payload(focused_unresolved_addresses_result)
+            assert_resolve_addresses_contract(
+                focused_unresolved_addresses_result,
+                focused_tools['resolve_addresses'].outputSchema,
+                focused_unresolved_addresses)
+            assert focused_unresolved_addresses['items'][0]['reason'] == 'missing_module'
             focused_fault_flow_result = await session.call_tool(
                 'get_fault_flow', {'name': flow_good.name})
             focused_fault_flow = payload(focused_fault_flow_result)

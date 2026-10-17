@@ -513,6 +513,28 @@ class ResolveAddressesOutput(OutputModel):
     items: Annotated[list[FaultFlowResolution], Field(description="One resolution row per requested address; unresolved rows remain visible and do not discard other items.")]
 
 
+class StaticCallRelation(OutputModel):
+    """Common keys of version-1 static call-index relation rows; extensions remain open."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    caller_id: Annotated[Any | None, Field(description="Function ID of the indexed caller in inbound results; absent for outbound edge rows.")] = None
+    callee_id: Annotated[Any | None, Field(description="Indexed target function ID on a direct outbound edge, when resolved by the indexer.")] = None
+    spelling: Annotated[Any | None, Field(description="Recorded call expression spelling when the static index could not resolve a direct callee.")] = None
+    kind: Annotated[Any | None, Field(description="Static index edge category, such as direct or indirect_or_virtual; never a runtime event kind.")] = None
+    edge: Annotated[Any | None, Field(description="Original edge nested under an inbound caller row; its contents remain producer-defined.")] = None
+
+
+class CallRelationsOutput(OutputModel):
+    """Read-only source-index call candidates for one verified function ID."""
+
+    function_id: Annotated[str, Field(description="Exact function ID selected from the verified bundle index.")]
+    direction: Annotated[Literal["inbound", "outbound"], Field(description="Whether this result lists indexed callers or indexed outgoing candidates.")]
+    relations: Annotated[list[StaticCallRelation], Field(description="Static index rows only; outbound rows may be unresolved, and inbound rows wrap their matching edge.")]
+    evidence: Annotated[Literal["static_index"], Field(description="Evidence class for these rows; this does not prove a runtime call occurred.")]
+    bundle: Annotated[str, Field(description="Resolved root path of the verified immutable bundle containing the index.")]
+
+
 class FaultFlowEvent(OutputModel):
     id: Annotated[str, Field(description="Stable report-local event identifier; not a capture-global identity.")]
     kind: Annotated[Literal["enter", "exit", "marker"], Field(description="Decoded native record kind; marker includes unknown/unsupported event types.")]

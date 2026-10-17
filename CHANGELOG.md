@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.3.0-alpha.29] - 2026-10-17
+
+- Publish a typed `get_call_relations` result in full and focused MCP profiles,
+  documenting the static-index evidence boundary and preserving producer-owned
+  relation rows and extensions.
+- Keep index lookup, text output and evidence unchanged; Glama re-scan and score
+  remain unverified.
+
 ## [1.3.0-alpha.28] - 2026-10-17
 
 - Publish typed per-address `resolve_addresses` output in full and focused MCP

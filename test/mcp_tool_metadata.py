@@ -30,7 +30,7 @@ FOCUSED_TOOLS = {
 }
 OUTPUT_SCHEMA_TOOLS = {
     'get_capabilities', 'check_store', 'discover_artifacts', 'discover_bundles',
-    'get_function_source', 'list_incidents', 'list_sessions', 'get_source_evidence',
+    'get_function_source', 'list_incidents', 'list_sessions', 'get_source_evidence', 'open_fault',
     'get_rpc_trace', 'get_fault_flow', 'get_incident_report', 'resolve_addresses',
     'get_call_relations', 'get_thread_trace', 'get_incident_slice', 'get_evidence_summary',
 }
@@ -253,6 +253,32 @@ def assert_evidence_summary_contract(result, output_schema, text_result):
     return structured
 
 
+def assert_open_fault_contract(result, output_schema, text_result):
+    structured = validate_structured_payload(result, output_schema)
+    for key, expected in text_result.items():
+        assert key in structured, key
+        assert_open_fault_value(structured[key], expected, key)
+    for key in set(structured) - set(text_result):
+        assert structured[key] is None, (key, structured[key])
+    return structured
+
+
+def assert_open_fault_value(actual, expected, path):
+    if isinstance(expected, dict):
+        assert isinstance(actual, dict), path
+        for key, value in expected.items():
+            assert key in actual, (path, key)
+            assert_open_fault_value(actual[key], value, f'{path}.{key}')
+        for key in set(actual) - set(expected):
+            assert actual[key] is None, (f'{path}.{key}', actual[key])
+    elif isinstance(expected, list):
+        assert isinstance(actual, list) and len(actual) == len(expected), path
+        for index, (actual_row, expected_row) in enumerate(zip(actual, expected)):
+            assert_open_fault_value(actual_row, expected_row, f'{path}[{index}]')
+    else:
+        assert actual == expected, (path, actual, expected)
+
+
 def assert_profile_descriptions(full_tools, focused_tools):
     hidden_names = set(full_tools) - set(focused_tools)
     for name, tool in focused_tools.items():
@@ -277,6 +303,48 @@ def assert_profile_descriptions(full_tools, focused_tools):
 
 async def audit(root):
     capture = write_artifact({'process': {'pid': 7}, 'threads': [], 'crashes': []}, root, 7)
+    open_fault_native_capture = write_artifact({
+        'header': {
+            'total_size': 4096, 'status': 512, 'event_capacity': 8,
+            'thread_capacity': 2, 'module_capacity': 2, 'crash_capacity': 1,
+            'creator_pid': 89, 'start_ns': 100, 'ready_ns': 110, 'crash_ns': 0,
+            'threads_offset': 80, 'modules_offset': 512, 'crashes_offset': 1024,
+            'producer_header_extension': 'header-v1',
+        },
+        'process': {'pid': 89, 'runtime_process_id': 'proc-89'},
+        'threads': [{'slot': 0, 'tid': 89, 'generation': 1, 'flags': 0,
+                     'event_count': 1, 'dropped_count': 0,
+                     'events': [{'sequence': 1, 'monotonic_ns': 120,
+                                 'function': 4096, 'callsite': 4080,
+                                 'type': 1, 'generation': 1,
+                                 'producer_event_extension': 'event-v1'}],
+                     'producer_thread_extension': 'thread-v1'}],
+        'modules': [{'slot': 0, 'load_bias': 0, 'text_start': 4096,
+                     'text_end': 8192, 'build_id': 'a1b2', 'path': 'app',
+                     'producer_module_extension': 'module-v1'}],
+        'crashes': [{'slot': 0, 'flags': 1, 'signal': 11, 'si_code': 1,
+                     'fault_address': 4096, 'pc': 4096, 'tid': 89,
+                     'monotonic_ns': 130, 'thread_generation': 1,
+                     'producer_crash_extension': 'crash-v1'}],
+        'complete': False,
+        'snapshot_consistency': {'stable': False,
+                                 'unstable_records': [{'kind': 'event',
+                                                       'reason': 'changed_during_read',
+                                                       'producer_gap_extension': 'gap-v1'}]},
+        'producer_root_extension': {'revision': 'capture-v1'},
+    }, root, 89, artifact_stem='open-fault-native')
+    open_fault_sparse_json = root / 'open-fault-sparse.json'
+    open_fault_sparse_json.write_text(json.dumps({
+        'threads': [{'tid': 78, 'generation': 3,
+                     'events': [{'sequence': 4, 'type': 9,
+                                 'producer_event_extension': {'revision': 2}}],
+                     'producer_thread_extension': {'revision': 2}}],
+        'snapshot_consistency': {'stable': False,
+                                 'unstable_records': [{'reason': 'unpublished',
+                                                       'producer_gap_extension': 2}],
+                                 'producer_consistency_extension': True},
+        'producer_root_extension': {'revision': 'sparse-v2'},
+    }))
     summary_complete_capture = rpc_artifact(root, 'summary-complete', {
         'schema': 1,
         'events': [{'sequence': 1, 'monotonic_ns': 10, 'phase': 'status'}],
@@ -451,7 +519,26 @@ async def audit(root):
             assert {name for name, tool in tools.items() if tool.outputSchema} == OUTPUT_SCHEMA_TOOLS
             for name in OUTPUT_SCHEMA_TOOLS:
                 assert tools[name].outputSchema, name
-                if name == 'list_incidents':
+                if name == 'open_fault':
+                    open_fault_schema = tools[name].outputSchema
+                    assert open_fault_schema.get('type') == 'object'
+                    assert open_fault_schema.get('additionalProperties') is True
+                    open_fault_properties = open_fault_schema.get('properties', {})
+                    assert set(open_fault_properties) == {
+                        'header', 'threads', 'modules', 'crashes', 'complete',
+                        'snapshot_consistency', 'rpc', 'rpc_events', 'process',
+                        'target', 'collector', 'session', 'context', 'artifact', 'bundle'}
+                    assert not open_fault_schema.get('required', [])
+                    open_fault_defs = open_fault_schema.get('$defs', {})
+                    for row_model in ('OpenFaultHeader', 'OpenFaultModule',
+                                      'OpenFaultCrash', 'OpenFaultSnapshotConsistency',
+                                      'ThreadTraceThread', 'ThreadTraceEvent'):
+                        assert open_fault_defs[row_model]['additionalProperties'] is True
+                    assert set(open_fault_defs['OpenFaultBundleMarker']['properties']) == {
+                        'path', 'verified'}
+                    assert open_fault_defs['OpenFaultBundleMarker']['properties'][
+                        'verified']['const'] is True
+                elif name == 'list_incidents':
                     incident_output_schema = tools[name].outputSchema
                     assert incident_output_schema.get('type') == 'object'
                     assert incident_output_schema.get('required') == ['result']
@@ -666,8 +753,37 @@ async def audit(root):
             assert empty_relations['relations'] == []
             caps = payload(await session.call_tool('get_capabilities', {}))
             assert caps['platform_toolchain']['mcp_transport'] == 'stdio'
-            opened = payload(await session.call_tool('open_fault', {'name': capture.name}))
+            opened_result = await session.call_tool('open_fault', {'name': capture.name})
+            opened_text = payload(opened_result)
+            opened = assert_open_fault_contract(
+                opened_result, open_fault_schema, opened_text)
             assert opened['process']['pid'] == 7
+            native_open_result = await session.call_tool('open_fault', {
+                'name': open_fault_native_capture.name, 'bundle': source_bundle_path})
+            native_open_text = payload(native_open_result)
+            native_open = assert_open_fault_contract(
+                native_open_result, open_fault_schema, native_open_text)
+            assert native_open['header']['creator_pid'] == 89
+            assert native_open['header']['producer_header_extension'] == 'header-v1'
+            assert native_open['threads'][0]['producer_thread_extension'] == 'thread-v1'
+            assert native_open['threads'][0]['events'][0]['producer_event_extension'] == 'event-v1'
+            assert native_open['modules'][0]['producer_module_extension'] == 'module-v1'
+            assert native_open['crashes'][0]['producer_crash_extension'] == 'crash-v1'
+            assert native_open['snapshot_consistency']['unstable_records'][0][
+                'producer_gap_extension'] == 'gap-v1'
+            assert native_open['producer_root_extension'] == {'revision': 'capture-v1'}
+            assert native_open['bundle']['verified'] is True
+            sparse_open_result = await session.call_tool(
+                'open_fault', {'name': open_fault_sparse_json.name})
+            sparse_open_text = payload(sparse_open_result)
+            sparse_open = assert_open_fault_contract(
+                sparse_open_result, open_fault_schema, sparse_open_text)
+            assert 'header' not in sparse_open_text
+            assert sparse_open['threads'][0]['producer_thread_extension'] == {'revision': 2}
+            assert sparse_open['threads'][0]['events'][0][
+                'producer_event_extension'] == {'revision': 2}
+            assert sparse_open['snapshot_consistency']['producer_consistency_extension'] is True
+            assert sparse_open['producer_root_extension'] == {'revision': 'sparse-v2'}
             summary_limited_result = await session.call_tool(
                 'get_evidence_summary', {'name': capture.name})
             summary_limited_text = payload(summary_limited_result)
@@ -1081,6 +1197,7 @@ async def audit(root):
             assert focused_tools['get_thread_trace'].outputSchema == thread_trace_schema
             assert focused_tools['get_incident_slice'].outputSchema == incident_slice_schema
             assert focused_tools['get_evidence_summary'].outputSchema == evidence_summary_schema
+            assert focused_tools['open_fault'].outputSchema == open_fault_schema
             assert all(tool.annotations and tool.annotations.readOnlyHint is True
                        for tool in focused_tools.values())
             focused_parameters = 0
@@ -1099,6 +1216,13 @@ async def audit(root):
             assert focused_summary['status'] == 'limited'
             assert any(row['reason'] == 'semantic_rpc_extension_absent'
                        for row in focused_summary['unresolved'])
+            focused_open_result = await session.call_tool(
+                'open_fault', {'name': open_fault_sparse_json.name})
+            focused_open_text = payload(focused_open_result)
+            focused_open = assert_open_fault_contract(
+                focused_open_result, focused_tools['open_fault'].outputSchema,
+                focused_open_text)
+            assert focused_open['producer_root_extension'] == {'revision': 'sparse-v2'}
             focused_incidents_result = await session.call_tool('list_incidents', {})
             focused_incidents = payload(focused_incidents_result)
             assert validate_structured_payload(

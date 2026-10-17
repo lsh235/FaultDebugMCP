@@ -83,13 +83,15 @@ Choose tools by evidence source and question:
 list all sessions. `get_thread_trace` pages thread records, `get_rpc_trace` pages
 RPC observations, and store incident/session tools page artifacts. Returned
 counts and truncation flags describe the corresponding collection. The full
-profile publishes sixteen typed output schemas and the focused profile
-publishes fifteen, including verified source citations, normalized RPC
+profile publishes seventeen typed output schemas and the focused profile
+publishes sixteen, including verified source citations, normalized RPC
 observations with separate uncertainty diagnostics, typed fault-flow and
 multi-capture incident-report results, per-address resolution rows, and open
 static call-relations rows, generation-aware raw thread records, the
 incident-slice success/error envelope with open SQLite rows, and a typed
-count-only evidence summary with open diagnostics. Other return
+count-only evidence summary with open diagnostics. `open_fault` types stable
+native header/module/crash sections while keeping capture extensions, sparse
+fields and producer-owned rows open. Other return
 details remain in descriptions, including the distinction between MCP tool
 errors and structured `error.code` payloads.
 
@@ -153,13 +155,15 @@ and set these fields:
 }
 ```
 
-This full implementation SHA selects the alpha32 `focused` 16-tool first-line
-workflow, fifteen structured response contracts, and descriptive titles; omit
-the profile argument for the complete 27-tool catalog, which exposes sixteen
+This full implementation SHA selects the alpha33 `focused` 16-tool first-line
+workflow, sixteen structured response contracts, and descriptive titles; omit
+the profile argument for the complete 27-tool catalog, which exposes seventeen
 typed contracts. Alpha31 types the incident-slice success/error envelope and known SQLite rows
 while leaving database extensions and producer payloads open. Alpha32 adds the
 count-only `get_evidence_summary` to the focused profile with typed status,
-observed counts, static-candidate count and extensible unresolved diagnostics. It includes normalized RPC diagnostics, typed fault-flow,
+observed counts, static-candidate count and extensible unresolved diagnostics.
+Alpha33 types stable `open_fault` sections and keeps sparse and producer-defined
+fields open. It includes normalized RPC diagnostics, typed fault-flow,
 multi-capture incident-report, address-resolution, and static call-relations
 outputs in both profiles, plus a typed raw thread trace with open row
 extensions. Relation rows remain open because source-index extensions are

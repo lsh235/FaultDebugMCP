@@ -17,12 +17,12 @@ FOCUSED_TOOLS = {
     "get_evidence_summary",
     "get_thread_trace", "get_fault_flow", "get_rpc_trace", "get_incident_report",
     "check_store", "list_incidents", "get_incident_slice", "get_source_evidence",
-    "resolve_addresses", "get_function_source", "get_call_relations",
+    "resolve_addresses", "get_function_source",
 }
 
 def main() -> int:
     p = argparse.ArgumentParser(); p.add_argument("--root", type=Path, required=True); p.add_argument("--artifact", required=True); p.add_argument("--bundle", required=True); p.add_argument("--function-id", required=True); ns = p.parse_args()
-    server = make_server(ns.root); tools = server._tool_manager._tools
+    server = make_server(ns.root, tool_profile="full"); tools = server._tool_manager._tools
     expected = {"get_capabilities", "check_store", "open_fault", "get_thread_trace", "get_rpc_trace", "get_process_relations", "get_evidence_summary", "get_incident_report", "get_session_manifest", "get_process_participants", "list_sessions", "get_session", "get_provenance", "list_incidents", "get_incident_slice", "get_source_evidence", "get_unresolved", "discover_artifacts", "discover_bundles", "resolve_addresses", "get_function_source", "get_call_relations"}
     assert expected <= set(tools), sorted(tools)
     assert len(tools) == 27, sorted(tools)
@@ -58,6 +58,9 @@ def main() -> int:
     assert source["resolved"] and source["source"]
     static_relations = tools["get_call_relations"].fn(ns.artifact, ns.function_id, ns.bundle, "outbound")
     assert static_relations["direction"] == "outbound" and "relations" in static_relations
+    default_tools = make_server(ns.root)._tool_manager._tools
+    assert set(default_tools) == FOCUSED_TOOLS, sorted(default_tools)
+    assert "get_call_relations" not in default_tools
     focused = make_server(ns.root, tool_profile="focused")
     focused_tools = focused._tool_manager._tools
     assert set(focused_tools) == FOCUSED_TOOLS, sorted(focused_tools)

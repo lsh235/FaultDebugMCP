@@ -67,10 +67,15 @@ jobs:
           docker run --rm --entrypoint python faultdebug-mcp:ci -c '
           from pathlib import Path
           from faultdebug.mcp_server import make_server
-          full = make_server(Path("/artifacts"))._tool_manager._tools
+          default = make_server(Path("/artifacts"))._tool_manager._tools
+          full = make_server(Path("/artifacts"), tool_profile="full")._tool_manager._tools
           focused = make_server(Path("/artifacts"), tool_profile="focused")._tool_manager._tools
+          assert len(default) == 15
+          assert set(default) == set(focused)
+          assert "get_call_relations" not in default
           assert len(full) == 27
-          assert len(focused) == 16
+          assert len(focused) == 15
+          assert "get_call_relations" in full
           assert "get_evidence_summary" in focused
           assert "get_unresolved" not in focused
           '

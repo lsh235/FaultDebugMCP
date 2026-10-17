@@ -53,10 +53,10 @@ sensitive; do not expose them to untrusted MCP clients.
 
 ## Tool definitions and Glama
 
-The MCP `tools/list` response contains descriptions and per-parameter JSON Schema
-metadata for all 27 tools in the default `full` profile. The optional `focused`
-profile exposes a bounded 16-tool capture/incident/source workflow. Every tool
-in either profile declares `readOnlyHint=true`,
+The MCP `tools/list` response defaults to the bounded 15-tool `focused`
+capture/incident/source workflow. Add `--tool-profile full` to expose all 27
+tools, including advanced session, provenance, and static call-relation queries.
+Every tool in either profile declares `readOnlyHint=true`,
 `destructiveHint=false`, `idempotentHint=true`, and `openWorldHint=false`.
 Capture and bundle paths are relative to the configured root; absolute paths,
 parent traversal and escaping symlinks are rejected. Address resolution may read
@@ -83,11 +83,11 @@ Choose tools by evidence source and question:
 list all sessions. `get_thread_trace` pages thread records, `get_rpc_trace` pages
 RPC observations, and store incident/session tools page artifacts. Returned
 counts and truncation flags describe the corresponding collection. The full
-profile publishes seventeen typed output schemas and the focused profile
-publishes sixteen, including verified source citations, normalized RPC
+profile publishes eighteen typed output schemas and the focused profile
+publishes fifteen, including verified source citations, normalized RPC
 observations with separate uncertainty diagnostics, typed fault-flow and
-multi-capture incident-report results, per-address resolution rows, and open
-static call-relations rows, generation-aware raw thread records, the
+multi-capture incident-report results, per-address resolution rows,
+generation-aware raw thread records, the
 incident-slice success/error envelope with open SQLite rows, and a typed
 count-only evidence summary with open diagnostics. `open_fault` types stable
 native header/module/crash sections while keeping capture extensions, sparse
@@ -96,8 +96,9 @@ details remain in descriptions, including the distinction between MCP tool
 errors and structured `error.code` payloads.
 
 The focused profile tailors its descriptions so named alternatives remain
-available in that 16-tool catalog; the full profile retains cross-catalog
-guidance for its 27 tools.
+available in that 15-tool catalog. Advanced static call relations remain
+available in the full profile, which retains cross-catalog guidance for its 27
+tools.
 
 Run the protocol and read-only audit from the repository root:
 

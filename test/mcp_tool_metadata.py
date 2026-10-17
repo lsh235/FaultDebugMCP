@@ -26,7 +26,7 @@ FOCUSED_TOOLS = {
     'get_evidence_summary',
     'get_thread_trace', 'get_fault_flow', 'get_rpc_trace', 'get_incident_report',
     'check_store', 'list_incidents', 'get_incident_slice', 'get_source_evidence',
-    'resolve_addresses', 'get_function_source', 'get_call_relations',
+    'resolve_addresses', 'get_function_source',
 }
 OUTPUT_SCHEMA_TOOLS = {
     'get_capabilities', 'check_store', 'discover_artifacts', 'discover_bundles',
@@ -35,7 +35,8 @@ OUTPUT_SCHEMA_TOOLS = {
     'get_call_relations', 'get_thread_trace', 'get_incident_slice', 'get_evidence_summary',
     'get_service_flow',
 }
-FOCUSED_OUTPUT_SCHEMA_TOOLS = OUTPUT_SCHEMA_TOOLS - {'list_sessions', 'get_service_flow'}
+FOCUSED_OUTPUT_SCHEMA_TOOLS = OUTPUT_SCHEMA_TOOLS - {
+    'list_sessions', 'get_service_flow', 'get_call_relations'}
 PROFILE_DESCRIPTION_EXPECTATIONS = {
     'check_store': ('get_provenance', ('list_incidents',)),
     'open_fault': ('get_evidence_summary', ('get_evidence_summary', 'discover_artifacts', 'get_fault_flow', 'get_rpc_trace')),
@@ -44,7 +45,6 @@ PROFILE_DESCRIPTION_EXPECTATIONS = {
     'list_incidents': ('get_unresolved', ('get_incident_slice', 'get_incident_report')),
     'get_incident_slice': ('get_unresolved', ('list_incidents', 'get_incident_report', 'get_source_evidence')),
     'discover_artifacts': ('query_artifact_index', ('open_fault', 'get_fault_flow')),
-    'get_call_relations': ('get_process_relations', ('get_fault_flow', 'get_rpc_trace')),
 }
 
 
@@ -503,7 +503,7 @@ async def audit(root):
     sqlite3.connect(root / 'empty.sqlite').close()
     before = snapshot(root)
     params = StdioServerParameters(command=sys.executable,
-                                   args=['-m', 'faultdebug.cli', 'mcp', '--root', str(root)],
+                                   args=['-m', 'faultdebug.cli', 'mcp', '--root', str(root), '--tool-profile', 'full'],
                                    cwd=str(ROOT))
     async with stdio_client(params) as (read, write):
         async with ClientSession(read, write) as session:
@@ -1190,6 +1190,23 @@ async def audit(root):
                 invalid_path_result, tools['check_store'].outputSchema)['error'] == invalid_path['error']
             assert invalid_path['error']['code'] == 'STORE_PATH_INVALID'
     assert snapshot(root) == before, 'MCP calls wrote or created evidence files'
+    default_params = StdioServerParameters(
+        command=sys.executable,
+        args=['-m', 'faultdebug.cli', 'mcp', '--root', str(root)],
+        cwd=str(ROOT))
+    async with stdio_client(default_params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            default_listing = await session.list_tools()
+            default_tools = {tool.name: tool for tool in default_listing.tools}
+            assert set(default_tools) == FOCUSED_TOOLS, sorted(default_tools)
+            default_capabilities = payload(await session.call_tool('get_capabilities', {}))
+            assert default_capabilities['mcp_tool_profile'] == 'focused'
+            assert set(default_capabilities['exposed_tools']) == FOCUSED_TOOLS
+            hidden_relation = await session.call_tool('get_call_relations', {
+                'name': capture.name, 'function_id': 'fn-main',
+                'bundle': source_bundle_path})
+            assert hidden_relation.isError is True
     focused_params = StdioServerParameters(
         command=sys.executable,
         args=['-m', 'faultdebug.cli', 'mcp', '--root', str(root), '--tool-profile', 'focused'],
@@ -1213,7 +1230,6 @@ async def audit(root):
             assert focused_tools['get_fault_flow'].outputSchema == fault_flow_schema
             assert focused_tools['get_incident_report'].outputSchema == incident_report_schema
             assert focused_tools['resolve_addresses'].outputSchema == resolve_addresses_schema
-            assert focused_tools['get_call_relations'].outputSchema == call_relations_schema
             assert focused_tools['get_thread_trace'].outputSchema == thread_trace_schema
             assert focused_tools['get_incident_slice'].outputSchema == incident_slice_schema
             assert focused_tools['get_evidence_summary'].outputSchema == evidence_summary_schema
@@ -1226,7 +1242,7 @@ async def audit(root):
                 for parameter, schema in tool.inputSchema.get('properties', {}).items():
                     assert schema.get('description', '').strip(), (tool.name, parameter)
                     focused_parameters += 1
-            assert focused_parameters == 45, focused_parameters
+            assert focused_parameters == 41, focused_parameters
             focused_summary_result = await session.call_tool(
                 'get_evidence_summary', {'name': capture.name})
             focused_summary_text = payload(focused_summary_result)
@@ -1282,24 +1298,6 @@ async def audit(root):
                 focused_source_result, focused_tools['get_source_evidence'].outputSchema,
                 focused_source)
             assert focused_source['resolved'] is True and focused_source['total'] == 1
-            focused_relations_result = await session.call_tool('get_call_relations', {
-                'name': capture.name, 'function_id': 'fn-main',
-                'bundle': source_bundle_path})
-            focused_relations = payload(focused_relations_result)
-            assert_call_relations_contract(
-                focused_relations_result,
-                focused_tools['get_call_relations'].outputSchema,
-                focused_relations)
-            assert focused_relations['relations'][0]['confidence'] == 'index-fixture'
-            focused_inbound_result = await session.call_tool('get_call_relations', {
-                'name': capture.name, 'function_id': 'fn-helper',
-                'bundle': source_bundle_path, 'direction': 'inbound'})
-            focused_inbound = payload(focused_inbound_result)
-            assert_call_relations_contract(
-                focused_inbound_result,
-                focused_tools['get_call_relations'].outputSchema,
-                focused_inbound)
-            assert focused_inbound['relations'][0]['caller_id'] == 'fn-main'
             focused_thread_trace_result = await session.call_tool('get_thread_trace', {
                 'name': thread_history.name, 'tid': 77})
             focused_thread_trace = payload(focused_thread_trace_result)

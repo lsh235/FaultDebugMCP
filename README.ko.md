@@ -29,8 +29,15 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-개발 버전은 **1.3.0a34** (`v1.3.0-alpha.34`)이며, 문서의 증거 기반 구현은
-[v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)로 고정했습니다.
+현재 개발 목표는 **2.0.0a1** (`v2.0.0-alpha.1`)이며, 문서의 증거 기반 구현은
+[v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)를 기준으로 합니다.
+이번 메이저 후보는 기본 MCP 도구 목록을 27개에서 15개 `focused` 흐름으로 바꾸고
+고급 정적 호출 관계 도구를 해당 기본 목록에서 제외합니다. 전체 27개 도구가 필요하면
+`--tool-profile full`을 지정하면 되며 `get_call_relations`는 계속 사용할 수 있습니다.
+정식 v2.0.0 수락은 전체 릴리스 게이트와 독립 검토가 남아 있습니다. 아래 v1.3 알파 이력은
+이번 호환성 전환에 이른 개발 과정을 기록합니다.
+변경 근거는 [리서치](docs/mcp-v2-major-profile-research.md),
+[검토 결정](docs/mcp-v2-major-profile-review.md), [v2.0 실행 계획](docs/next-version-v2.md)에 있습니다.
 기존 프로젝트용 정적 ELF 점검과 분리된 CMake 적용 경로를 제공합니다.
 `faultdebug self-test`가 설치된 경로의 고정 fixture capture를 확인하고,
 알파9의 `faultdebug integrate --execute-build`는 격리된 configure/build/index/bundle 단계를 명시적으로 실행합니다.
@@ -49,7 +56,8 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 `discover_bundles`를 추가합니다. 후보 탐색은 manifest를 검증하지 않으며 실제 검증은
 source 도구가 수행합니다. 모든 실행은 명시적 opt-in입니다.
 알파17은 `--tool-profile focused`를 추가해 첫 조사에 적합한 15개 MCP 도구만
-노출합니다. 기본 `full` 프로필은 기존 27개 도구를 그대로 제공합니다.
+노출했습니다. 당시 기본 `full` 프로필은 27개 도구를 유지했습니다. v2.0.0 후보에서는
+`focused`가 기본 15개 도구가 되고, `--tool-profile full`이 전체 27개 도구를 제공합니다.
 알파18은 공식 MCP Python SDK v1.30으로 올리고 capabilities, store health,
 artifact/bundle discovery 네 도구에 검증 가능한 구조화 응답 스키마를 게시합니다.
 기존 텍스트 응답은 유지합니다. 실제 stdio에서 두 프로필의 스키마와 응답을 검증했으며,

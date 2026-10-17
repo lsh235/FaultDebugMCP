@@ -61,8 +61,17 @@ static call-graph candidates as observed execution.
 
 ## Project status
 
-The development package is **1.3.0a34** (`v1.3.0-alpha.34`); the evidence-foundation
-baseline is [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2).
+The current development target is **2.0.0a1** (`v2.0.0-alpha.1`), based on the
+evidence foundation in [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2).
+This major-version candidate changes the default MCP catalog from 27 tools to
+the 15-tool `focused` workflow and moves advanced static call relations out of
+that catalog. Add `--tool-profile full` to keep the complete 27-tool catalog;
+`get_call_relations` remains available there. Stable v2.0.0 acceptance remains
+pending its full release gates and independent audit. The v1.3 alpha history
+below records the compatible development milestones that led to this break.
+See the [major-change research](docs/mcp-v2-major-profile-research.md),
+[review decision](docs/mcp-v2-major-profile-review.md), and
+[v2.0 release objective](docs/next-version-v2.md).
 The existing-project path provides static ELF preflight and isolated opt-in
 CMake integration. `faultdebug self-test` verifies one bounded installed capture;
 alpha9 added `faultdebug integrate --execute-build` for the isolated
@@ -80,8 +89,10 @@ required in the MCP schemas for source lookup and static call relations, matchin
 their existing runtime behavior. Alpha16 adds bounded, read-only `discover_bundles`
 so MCP clients can locate candidate source bundles before calling those tools; it
 does not verify candidates until a source tool consumes one.
-Alpha17 adds `--tool-profile focused`, a 15-tool evidence workflow for smaller
-MCP catalogs; the default `full` profile preserves all 27 tools. Alpha18 moves
+Alpha17 added `--tool-profile focused`, a 15-tool evidence workflow for smaller
+MCP catalogs; at that time the default `full` profile preserved all 27 tools.
+The v2.0.0 candidate makes `focused` the default and narrows it to 15 tools;
+`--tool-profile full` preserves the full 27-tool catalog. Alpha18 moves
 to the official MCP Python SDK v1.30 and publishes validated structured-output
 schemas for capabilities, store health, artifact discovery and bundle discovery.
 It adds a machine-readable response channel while retaining text results. The

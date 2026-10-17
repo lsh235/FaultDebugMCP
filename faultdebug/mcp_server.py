@@ -47,7 +47,7 @@ FOCUSED_MCP_TOOL_NAMES = frozenset({
     "get_evidence_summary",
     "get_thread_trace", "get_fault_flow", "get_rpc_trace", "get_incident_report",
     "check_store", "list_incidents", "get_incident_slice", "get_source_evidence",
-    "resolve_addresses", "get_function_source", "get_call_relations",
+    "resolve_addresses", "get_function_source",
 })
 
 # Keep the full catalog's sibling guidance intact, while making every named
@@ -77,9 +77,12 @@ Use an ID from list_incidents; get_incident_report uses filenames instead. Retur
     "discover_artifacts": """Recursively discover and validate captures beneath the configured artifact root.
 
 Use first when filenames are unknown; open_fault decodes a selected capture and get_fault_flow builds a bounded per-thread execution view. Returns artifacts (paged), total/count, valid and invalid counts; malformed files remain FAIL rows rather than disappearing. Scans at most 10,000 matches. include_json adds fault-*.json only with the default fault-*.fault pattern; use *.json for a custom JSON glob. Invalid roots/patterns or exceeding the scan limit produce MCP tool errors; no index is created.""",
-    "get_call_relations": """Read inbound callers or outbound call candidates for one function in a verified static index.
+    "discover_bundles": """Find bundle.json candidates beneath the evidence root before verified source lookup.
 
-Use for source call hypotheses; get_fault_flow reconstructs recorded nesting and get_rpc_trace shows observed RPC boundaries. Returns function_id, direction, relations, evidence=static_index and bundle. Outbound includes unresolved edges; inbound includes indexed callers with matching callee IDs. A verified bundle is required. No runtime execution is proven, and capture/function Build-ID matching requires resolve_addresses. Missing IDs, unverified bundles or invalid directions produce MCP tool errors.""",
+Use before get_function_source or get_source_evidence when the bundle path is unknown; discover_artifacts finds captures only. Returns candidate paths (paged), total and rejected symlink/non-file counts. Discovery does not verify manifests or read source files; source tools verify a selected bundle. Invalid roots produce MCP tool errors. No network lookup occurs.""",
+    "get_function_source": """Read source lines for one function ID in a verified local bundle.
+
+Use a function ID from resolve_addresses or the bundle index; get_source_evidence verifies source references for a stored incident. Returns resolved, function_id, file, start_line, end_line and source text. A verified bundle is required. This focused catalog leaves advanced static call-graph exploration to --tool-profile full. Invalid IDs, unverified bundles or unsafe paths produce MCP tool errors; no network lookup occurs.""",
 }
 
 # MCP's top-level Tool.title is distinct from the legacy annotation title. Keep
@@ -167,7 +170,7 @@ def _bundle(root: Path, name: str):
     try: return load_bundle(path)
     except BundleError as exc: raise ValueError(str(exc)) from exc
 
-def make_server(root: Path, *, tool_profile: str = "full"):
+def make_server(root: Path, *, tool_profile: str = "focused"):
     if type(tool_profile) is not str or tool_profile not in {"full", "focused"}:
         raise ValueError("tool_profile must be 'full' or 'focused'")
     try:

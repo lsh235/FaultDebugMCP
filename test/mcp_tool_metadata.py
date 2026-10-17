@@ -31,7 +31,7 @@ OUTPUT_SCHEMA_TOOLS = {
     'get_capabilities', 'check_store', 'discover_artifacts', 'discover_bundles',
     'get_function_source', 'list_incidents', 'list_sessions', 'get_source_evidence',
     'get_rpc_trace', 'get_fault_flow', 'get_incident_report', 'resolve_addresses',
-    'get_call_relations', 'get_thread_trace',
+    'get_call_relations', 'get_thread_trace', 'get_incident_slice',
 }
 FOCUSED_OUTPUT_SCHEMA_TOOLS = OUTPUT_SCHEMA_TOOLS - {'list_sessions'}
 PROFILE_DESCRIPTION_EXPECTATIONS = {
@@ -229,6 +229,17 @@ def assert_thread_trace_contract(result, output_schema, text_result):
     return structured
 
 
+def assert_incident_slice_contract(result, output_schema, text_result):
+    structured = validate_structured_payload(result, output_schema)
+    assert set(structured) == {'result'}
+    output = structured['result']
+    omitted = set(output) - set(text_result)
+    assert omitted <= {'observed_event_total'}, omitted
+    assert all(output[field] is None for field in omitted)
+    assert {field: output[field] for field in text_result} == text_result
+    return output
+
+
 def assert_profile_descriptions(full_tools, focused_tools):
     hidden_names = set(full_tools) - set(focused_tools)
     for name, tool in focused_tools.items():
@@ -326,6 +337,16 @@ async def audit(root):
         'process': {'pid': 9, 'start_monotonic_ns': 100,
                     'identity': {'schema': 1, 'session_id': 'session-a',
                                  'process_id': 'proc-a', 'process_generation': 1}},
+        'peer_snapshots': [{'producer_extension': {'source': 'fixture'}}, 'opaque-peer-row'],
+        'hypotheses': [{'producer_hypothesis': 'unverified'}],
+        'rpc_trace': {
+            'schema': 1,
+            'complete': False,
+            'static_candidates': [{'candidate_extension': ['retained']}],
+            'events': [{'sequence': index, 'monotonic_ns': index + 1,
+                        'rpc_id': 'incident-a-rpc', 'phase': 'status'}
+                       for index in range(1001)],
+        },
         'collector': {'incident_id': 'incident-a', 'trigger_process_id': 'proc-a',
                       'trigger_signal': 11, 'status': 'captured', 'phase': 'test',
                       'partial': True},
@@ -358,6 +379,34 @@ async def audit(root):
         for artifact in (capture, declared):
             ingested = store.ingest(artifact)
             assert ingested['status'] == 'ingested', ingested
+    evidence_db = sqlite3.connect(root / 'evidence.sqlite3')
+    try:
+        incident_artifact_id = evidence_db.execute(
+            'SELECT artifact_id FROM artifact WHERE path=?', (str(declared.resolve()),)
+        ).fetchone()[0]
+        for table in ('incident', 'artifact', 'process', 'source_reference'):
+            evidence_db.execute(f'ALTER TABLE {table} ADD COLUMN producer_extension TEXT')
+            evidence_db.execute(f'UPDATE {table} SET producer_extension=?', (f'{table}-v1',))
+        evidence_db.commit()
+        # Keep the stored-reference projection fixture separate from later verified
+        # source-evidence calls, which exercise the original store's claim resolution.
+        slice_db = sqlite3.connect(root / 'incident-slice.sqlite3')
+        try:
+            evidence_db.backup(slice_db)
+            slice_db.execute(
+                """INSERT INTO source_reference(
+                       incident_id,artifact_id,function_id,bundle_path,file,line_start,line_end,sha256,payload)
+                   VALUES(?,?,?,?,?,?,?,?,?)""",
+                ('incident-a', incident_artifact_id, 'fn-main', 'stored-bundle', 'main.c',
+                 1, 3, 'a' * 64, json.dumps({'fixture_extension': 'stored-claim'})))
+            slice_db.execute(
+                "UPDATE source_reference SET producer_extension=? WHERE incident_id=?",
+                ('source_reference-v1', 'incident-a'))
+            slice_db.commit()
+        finally:
+            slice_db.close()
+    finally:
+        evidence_db.close()
     index = ArtifactIndex(root / 'index.sqlite')
     index.add([capture])
     index.close()
@@ -386,6 +435,21 @@ async def audit(root):
                     assert incident_output_schema.get('type') == 'object'
                     assert incident_output_schema.get('required') == ['result']
                     assert len(incident_output_schema['properties']['result'].get('anyOf', [])) == 2
+                elif name == 'get_incident_slice':
+                    incident_slice_schema = tools[name].outputSchema
+                    assert set(incident_slice_schema['properties']) == {'result'}
+                    assert len(incident_slice_schema['properties']['result'].get('anyOf', [])) == 2
+                    incident_slice_defs = incident_slice_schema.get('$defs', {})
+                    assert set(incident_slice_defs['IncidentSliceSuccess']['properties']) == {
+                        'schema', 'incident', 'artifacts', 'participants', 'observed', 'derived',
+                        'static_candidates', 'unresolved', 'hypotheses', 'source_references',
+                        'page', 'page_size', 'total_artifacts', 'event_total',
+                        'observed_event_total', 'event_truncated'}
+                    assert 'observed_event_total' not in incident_slice_defs[
+                        'IncidentSliceSuccess'].get('required', [])
+                    for row_model in ('IncidentSliceIncident', 'IncidentSliceArtifact',
+                                      'IncidentSliceParticipant', 'IncidentSliceSourceReference'):
+                        assert incident_slice_defs[row_model]['additionalProperties'] is True
                 else:
                     assert tools[name].outputSchema.get('type') == 'object', (name, tools[name].outputSchema)
             assert 'schema' in tools['get_capabilities'].outputSchema['properties']
@@ -663,6 +727,41 @@ async def audit(root):
             assert incident_structured == {'result': incidents}
             assert incidents['total'] == 1 and incidents['incidents'][0]['incident_id'] == 'incident-a'
             assert incidents['incidents'][0]['partial'] == 1
+            incident_slice_result = await session.call_tool(
+                'get_incident_slice', {'incident_id': 'incident-a', 'db': 'incident-slice.sqlite3'})
+            incident_slice_text = payload(incident_slice_result)
+            incident_slice = assert_incident_slice_contract(
+                incident_slice_result, incident_slice_schema, incident_slice_text)
+            assert incident_slice['total_artifacts'] == 1
+            assert incident_slice['event_total'] == incident_slice['observed_event_total'] == 1001
+            assert incident_slice['event_truncated'] is True
+            assert len(incident_slice['observed']['rpc_events']) == 1000
+            assert 'event_limit_reached' in {
+                row.get('reason') for row in incident_slice['unresolved']
+                if isinstance(row, dict)}
+            assert incident_slice['incident']['producer_extension'] == 'incident-v1'
+            assert incident_slice['artifacts'][0]['producer_extension'] == 'artifact-v1'
+            assert incident_slice['participants'][0]['producer_extension'] == 'process-v1'
+            assert incident_slice['source_references'][0]['producer_extension'] == 'source_reference-v1'
+            assert json.loads(incident_slice['source_references'][0]['payload']) == {
+                'fixture_extension': 'stored-claim'}
+            assert incident_slice['observed']['peer_snapshots'][-1] == 'opaque-peer-row'
+            assert incident_slice['observed']['peer_snapshots'][0]['producer_extension'] == {
+                'source': 'fixture'}
+            assert incident_slice['static_candidates'][0]['candidate_extension'] == ['retained']
+            assert incident_slice['hypotheses'][0]['producer_hypothesis'] == 'unverified'
+            incident_slice_empty_page_result = await session.call_tool(
+                'get_incident_slice', {'incident_id': 'incident-a',
+                                       'db': 'incident-slice.sqlite3', 'page': 1})
+            incident_slice_empty_page_text = payload(incident_slice_empty_page_result)
+            incident_slice_empty_page = assert_incident_slice_contract(
+                incident_slice_empty_page_result, incident_slice_schema,
+                incident_slice_empty_page_text)
+            assert incident_slice_empty_page_text['artifacts'] == []
+            assert 'observed_event_total' not in incident_slice_empty_page_text
+            assert incident_slice_empty_page['observed_event_total'] is None
+            assert incident_slice_empty_page['event_total'] == 0
+            assert incident_slice_empty_page['event_truncated'] is False
             source_single_result = await session.call_tool('get_source_evidence', {
                 'incident_id': 'incident-a', 'bundle': source_bundle_path,
                 'function_ids': ['fn-main']})
@@ -865,8 +964,24 @@ async def audit(root):
             for name, arguments in invalid:
                 result = await session.call_tool(name, arguments)
                 assert result.isError is True, (name, result)
-            error = payload(await session.call_tool('get_incident_slice', {'incident_id': 'absent'}))
+            error_result = await session.call_tool(
+                'get_incident_slice', {'incident_id': 'absent'})
+            error = payload(error_result)
+            assert_incident_slice_contract(error_result, incident_slice_schema, error)
             assert error['error']['code'] == 'INCIDENT_QUERY_ERROR'
+            missing_slice_store_result = await session.call_tool(
+                'get_incident_slice', {'incident_id': 'incident-a', 'db': 'absent.sqlite'})
+            missing_slice_store = payload(missing_slice_store_result)
+            assert_incident_slice_contract(
+                missing_slice_store_result, incident_slice_schema, missing_slice_store)
+            assert missing_slice_store['error']['code'] == 'INCIDENT_QUERY_ERROR'
+            unavailable_slice_store_result = await session.call_tool(
+                'get_incident_slice', {'incident_id': 'incident-a', 'db': 'empty.sqlite'})
+            unavailable_slice_store = payload(unavailable_slice_store_result)
+            assert_incident_slice_contract(
+                unavailable_slice_store_result, incident_slice_schema,
+                unavailable_slice_store)
+            assert unavailable_slice_store['error']['code'] == 'INCIDENT_QUERY_ERROR'
             health_result = await session.call_tool('check_store', {'db': 'absent.sqlite'})
             health = payload(health_result)
             health_structured = validate_structured_payload(
@@ -911,6 +1026,7 @@ async def audit(root):
             assert focused_tools['resolve_addresses'].outputSchema == resolve_addresses_schema
             assert focused_tools['get_call_relations'].outputSchema == call_relations_schema
             assert focused_tools['get_thread_trace'].outputSchema == thread_trace_schema
+            assert focused_tools['get_incident_slice'].outputSchema == incident_slice_schema
             assert all(tool.annotations and tool.annotations.readOnlyHint is True
                        for tool in focused_tools.values())
             focused_parameters = 0
@@ -932,6 +1048,23 @@ async def audit(root):
                 focused_empty_incidents_result, focused_tools['list_incidents'].outputSchema
             ) == {'result': focused_empty_incidents}
             assert focused_empty_incidents['incidents'] == []
+            focused_incident_slice_result = await session.call_tool(
+                'get_incident_slice', {'incident_id': 'incident-a', 'db': 'incident-slice.sqlite3'})
+            focused_incident_slice_text = payload(focused_incident_slice_result)
+            focused_incident_slice = assert_incident_slice_contract(
+                focused_incident_slice_result,
+                focused_tools['get_incident_slice'].outputSchema,
+                focused_incident_slice_text)
+            assert focused_incident_slice['event_total'] == 1001
+            assert focused_incident_slice['event_truncated'] is True
+            focused_missing_slice_result = await session.call_tool(
+                'get_incident_slice', {'incident_id': 'absent'})
+            focused_missing_slice = payload(focused_missing_slice_result)
+            assert_incident_slice_contract(
+                focused_missing_slice_result,
+                focused_tools['get_incident_slice'].outputSchema,
+                focused_missing_slice)
+            assert focused_missing_slice['error']['code'] == 'INCIDENT_QUERY_ERROR'
             focused_source_result = await session.call_tool('get_source_evidence', {
                 'incident_id': 'incident-a', 'bundle': source_bundle_path,
                 'function_ids': ['fn-main']})

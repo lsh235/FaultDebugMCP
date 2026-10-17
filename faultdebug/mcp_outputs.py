@@ -253,6 +253,123 @@ IncidentListOutput = Annotated[
 ]
 
 
+class IncidentSliceRow(OutputModel):
+    """SQLite-backed row with forward-compatible columns."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+
+class IncidentSliceIncident(IncidentSliceRow):
+    incident_id: Annotated[str, Field(description="Agent-declared incident ID used to group stored evidence.")]
+    session_id: Annotated[str | None, Field(description="Declared session ID, when recorded.")] = None
+    trigger_process_id: Annotated[str | None, Field(description="Declared triggering process ID, when recorded.")] = None
+    trigger_signal: Annotated[int | None, Field(description="Declared signal number, when recorded.")] = None
+    status: Annotated[str | None, Field(description="Producer-declared incident status; not inferred by the store.")] = None
+    phase: Annotated[str | None, Field(description="Producer-declared incident phase; not inferred by the store.")] = None
+    partial: Annotated[int | None, Field(description="Stored SQLite partial flag; copied, not reinterpreted.")] = None
+    first_seen_ns: Annotated[int | None, Field(description="Earliest stored captured monotonic timestamp; not wall-clock time.")] = None
+    trust_state: Annotated[str, Field(description="Stored provenance summary for the incident; not a root-cause confidence score.")]
+    payload: Annotated[str, Field(description="Original incident metadata serialized as JSON text in the evidence store.")]
+
+
+class IncidentSliceArtifact(IncidentSliceRow):
+    artifact_id: Annotated[int, Field(ge=1, description="Persistent evidence-store artifact row ID.")]
+    path: Annotated[str, Field(description="Stored artifact path at ingestion time.")]
+    sha256: Annotated[str, Field(description="SHA-256 recorded at ingestion; this query does not re-hash the artifact.")]
+    size: Annotated[int, Field(ge=0, description="Artifact byte size recorded at ingestion.")]
+    ingested_ns: Annotated[int, Field(description="Evidence-store ingestion timestamp in nanoseconds.")]
+    session_id: Annotated[str | None, Field(description="Declared session ID, when present.")] = None
+    identity_source: Annotated[str, Field(description="Source label used by the store when assigning session identity.")]
+    status: Annotated[str, Field(description="Stored artifact validity state; this projection selects valid artifacts.")]
+    trust_state: Annotated[str, Field(description="Stored provenance state, not a fresh verification result.")]
+    collector_ok: Annotated[int | None, Field(description="Collector success flag recorded at ingestion, when supplied.")] = None
+    collector_status: Annotated[str | None, Field(description="Collector status copied from the capture, when supplied.")] = None
+    collector_phase: Annotated[str | None, Field(description="Collector phase copied from the capture, when supplied.")] = None
+    collector_partial: Annotated[int | None, Field(description="Collector partial flag recorded at ingestion, when supplied.")] = None
+    process_start_ns: Annotated[int | None, Field(description="Captured process-start monotonic timestamp, when supplied.")] = None
+    target_returncode: Annotated[int | None, Field(description="Recorded target return code, when supplied.")] = None
+    target_signal: Annotated[int | None, Field(description="Recorded target signal, when supplied.")] = None
+    incident_evidence_class: Annotated[str | None, Field(description="Producer-declared evidence class attached to this incident-artifact link.")] = None
+
+
+class IncidentSliceParticipant(IncidentSliceRow):
+    process_row_id: Annotated[int, Field(description="Persistent process-participant row ID.")]
+    artifact_id: Annotated[int, Field(description="Artifact row ID owning this participant.")]
+    participant_id: Annotated[str, Field(description="Session-manifest participant identity; not inferred from a PID.")]
+    session_id: Annotated[str | None, Field(description="Declared session ID, when present.")] = None
+    runtime_process_id: Annotated[str | None, Field(description="Declared runtime process identity, when present.")] = None
+    process_generation: Annotated[int | None, Field(description="Declared process generation, when present.")] = None
+    parent_process_id: Annotated[str | None, Field(description="Declared parent process identity, when present.")] = None
+    role: Annotated[str | None, Field(description="Producer-declared participant role, when present.")] = None
+    pid: Annotated[int | None, Field(description="Recorded operating-system process ID; not a persistent identity.")] = None
+    parent_pid: Annotated[int | None, Field(description="Recorded parent process ID; not a persistent identity.")] = None
+    executable: Annotated[str | None, Field(description="Recorded executable path, when present.")] = None
+    start_monotonic_ns: Annotated[int | None, Field(description="Recorded process-start monotonic timestamp, when present.")] = None
+    trust_state: Annotated[str, Field(description="Stored provenance state for the owning artifact.")]
+    process_id: Annotated[str | None, Field(description="Compatibility alias copied from runtime_process_id.")] = None
+
+
+class IncidentSliceSourceReference(IncidentSliceRow):
+    source_reference_id: Annotated[int, Field(description="Persistent saved-source-reference row ID.")]
+    incident_id: Annotated[str | None, Field(description="Associated declared incident ID, when stored.")] = None
+    artifact_id: Annotated[int, Field(description="Artifact row ID associated with this reference.")]
+    function_id: Annotated[str | None, Field(description="Producer-declared function ID, when supplied.")] = None
+    bundle_path: Annotated[str | None, Field(description="Stored bundle path claim; it has not been verified by this query.")] = None
+    file: Annotated[str | None, Field(description="Producer-declared source file path, when supplied.")] = None
+    line_start: Annotated[int | None, Field(description="Producer-declared one-based start line, when supplied.")] = None
+    line_end: Annotated[int | None, Field(description="Producer-declared inclusive end line, when supplied.")] = None
+    sha256: Annotated[str | None, Field(description="Producer-declared file hash, when supplied; not re-checked here.")] = None
+    payload: Annotated[str, Field(description="Original source-reference metadata serialized as JSON text.")]
+
+
+class IncidentSliceObserved(OutputModel):
+    rpc_events: Annotated[list[Any], Field(description="Stored observed RPC payloads for artifacts on this page; producer fields are preserved as supplied.")]
+    peer_snapshots: Annotated[list[Any], Field(description="Stored peer-snapshot payloads for artifacts on this page; producer fields are preserved as supplied.")]
+
+
+class IncidentSliceDerived(OutputModel):
+    process_relations: Annotated[list[Any], Field(description="Stored derived process-relation payloads; they remain separate from direct observations.")]
+
+
+class IncidentSliceSuccess(OutputModel):
+    """One page of stored incident evidence with producer payloads kept open."""
+
+    schema_: Annotated[Literal[2], Field(alias="schema", description="Evidence-store schema version.")]
+    incident: Annotated[IncidentSliceIncident, Field(description="Stored agent-declared incident row; status and phase are producer supplied.")]
+    artifacts: Annotated[list[IncidentSliceArtifact], Field(description="Valid artifact rows selected for this page, with stored ingestion and provenance metadata.")]
+    participants: Annotated[list[IncidentSliceParticipant], Field(description="Stored process-participant rows associated with artifacts on this page.")]
+    observed: Annotated[IncidentSliceObserved, Field(description="Observed RPC and peer-snapshot payloads; their fields are producer-defined.")]
+    derived: Annotated[IncidentSliceDerived, Field(description="Derived relation payloads, kept distinct from observed evidence.")]
+    static_candidates: Annotated[list[Any], Field(description="Stored static candidate payloads; they do not prove runtime execution.")]
+    unresolved: Annotated[list[Any], Field(description="Stored evidence gaps and query-limit rows; reasons vary by producer and limit.")]
+    hypotheses: Annotated[list[Any], Field(description="Stored producer hypotheses; these are not verified conclusions.")]
+    source_references: Annotated[list[IncidentSliceSourceReference], Field(description="Stored source-reference claims; use get_source_evidence to verify them against an immutable bundle.")]
+    page: Annotated[int, Field(ge=0, description="Zero-based page of incident artifacts.")]
+    page_size: Annotated[Literal[200], Field(description="Maximum number of incident artifacts on one page.")]
+    total_artifacts: Annotated[int, Field(ge=0, description="Total valid artifacts linked to this incident before pagination.")]
+    event_total: Annotated[int, Field(ge=0, description="Observed RPC event count for selected artifacts before the response cap.")]
+    observed_event_total: Annotated[int | None, Field(ge=0, description="Observed RPC event count; omitted by text JSON when this page selects no artifacts.")] = None
+    event_truncated: Annotated[bool, Field(description="True when observed RPC rows were capped at 1,000; false does not prove capture completeness.")]
+
+
+class IncidentSliceErrorDetail(OutputModel):
+    code: Annotated[Literal["INCIDENT_QUERY_ERROR"], Field(description="Stable payload-level code for missing incidents, invalid stores or unavailable incident tables.")]
+    message: Annotated[str, Field(description="Store or query detail; no evidence rows were returned.")]
+
+
+class IncidentSliceError(OutputModel):
+    """Existing structured query failure returned by get_incident_slice."""
+
+    schema_: Annotated[Literal[2], Field(alias="schema", description="Evidence-store schema version.")]
+    error: Annotated[IncidentSliceErrorDetail, Field(description="Read-only incident-slice query error; no store mutation was performed.")]
+
+
+IncidentSliceOutput = Annotated[
+    IncidentSliceSuccess | IncidentSliceError,
+    Field(description="Either one page of stored incident evidence or the stable INCIDENT_QUERY_ERROR response."),
+]
+
+
 class SessionListItem(OutputModel):
     """One aggregated runtime-session row from the read-only store query."""
 

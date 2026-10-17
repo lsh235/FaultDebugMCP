@@ -29,7 +29,7 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-개발 버전은 **1.3.0a30** (`v1.3.0-alpha.30`)이며, 문서의 증거 기반 구현은
+개발 버전은 **1.3.0a31** (`v1.3.0-alpha.31`)이며, 문서의 증거 기반 구현은
 [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)로 고정했습니다.
 기존 프로젝트용 정적 ELF 점검과 분리된 CMake 적용 경로를 제공합니다.
 `faultdebug self-test`가 설치된 경로의 고정 fixture capture를 확인하고,
@@ -91,6 +91,11 @@ Glama 점수 변화는 재평가 전까지 확인되지 않았습니다.](docs/r
 ID의 세대 재사용, 조건부 retention, raw address/event 값과 확장 필드를 구분하며 기존
 이벤트 순서·페이지 처리·텍스트 응답은 유지합니다. Glama 재평가와 점수 변화는 확인되지
 않았습니다.](docs/releases/v1.3.0-alpha.30.md)
+[알파31은 `get_incident_slice`에 성공/오류 구조화 출력 계약을 추가합니다. SQLite 행 확장과
+생산자 증거 payload는 열린 형태로 보존하고, 페이지·이벤트 상한 및 source reference 검증 경계를
+명시합니다. Glama 재평가와 점수 변화는 확인되지 않았습니다.](docs/releases/v1.3.0-alpha.31.md)
+[incident-slice 출력 스키마 리서치](docs/mcp-incident-slice-output-research.md) ·
+[incident-slice 출력 스키마 검토](docs/mcp-incident-slice-output-review.md) ·
 [thread-trace 출력 스키마 리서치](docs/mcp-thread-trace-output-research.md) ·
 [thread-trace 출력 스키마 검토](docs/mcp-thread-trace-output-review.md) ·
 [호출 관계 출력 스키마 리서치](docs/mcp-call-relations-output-research.md) ·

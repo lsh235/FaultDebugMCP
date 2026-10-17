@@ -62,10 +62,8 @@ Capture and bundle paths are relative to the configured root; absolute paths,
 parent traversal and escaping symlinks are rejected. Address resolution may read
 recorded local ELF paths and run a local symbolizer with remote lookup disabled.
 
-The pinned MCP Python SDK `mcp==1.30.0` publishes non-empty `outputSchema`
-contracts for `get_capabilities`, `check_store`, `discover_artifacts`, and
-`discover_bundles`.
-Successful calls provide `structuredContent` alongside the existing JSON text;
+The pinned MCP Python SDK `mcp==1.30.0` carries the tool output schemas exposed
+by both profiles. Successful calls provide `structuredContent` alongside the existing JSON text;
 the real stdio audit validates both profiles against the published schemas.
 Optional status-specific fields can appear as `null` in `structuredContent`,
 while the text response retains its original keys.
@@ -85,13 +83,14 @@ Choose tools by evidence source and question:
 list all sessions. `get_thread_trace` pages thread records, `get_rpc_trace` pages
 RPC observations, and store incident/session tools page artifacts. Returned
 counts and truncation flags describe the corresponding collection. The full
-profile publishes fourteen typed output schemas and the focused profile
-publishes thirteen, including verified source citations, normalized RPC
+profile publishes fifteen typed output schemas and the focused profile
+publishes fourteen, including verified source citations, normalized RPC
 observations with separate uncertainty diagnostics, typed fault-flow and
 multi-capture incident-report results, per-address resolution rows, and open
-static call-relations rows, and generation-aware raw thread records. Other
-return details remain in descriptions, including the distinction between MCP
-tool errors and structured `error.code` payloads.
+static call-relations rows, generation-aware raw thread records, and the
+incident-slice success/error envelope with open SQLite rows. Other return
+details remain in descriptions, including the distinction between MCP tool
+errors and structured `error.code` payloads.
 
 The focused profile tailors its descriptions so named alternatives remain
 available in that 15-tool catalog; the full profile retains cross-catalog
@@ -147,16 +146,18 @@ and set these fields:
     "mcp", "--root", "/app/artifacts", "--tool-profile", "focused"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "4a796fea690df0dc19417da303b40aa61be7f3fb",
+  "pinnedCommit": "89d07b30c89719961a887373214e28874eeae199",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }
 ```
 
-This full implementation SHA selects the alpha30 `focused` 15-tool first-line
-workflow, thirteen structured response contracts, and descriptive titles; omit
-the profile argument for the complete 27-tool catalog, which exposes fourteen
-typed contracts. It includes normalized RPC diagnostics, typed fault-flow,
+This full implementation SHA selects the alpha31 `focused` 15-tool first-line
+workflow, fourteen structured response contracts, and descriptive titles; omit
+the profile argument for the complete 27-tool catalog, which exposes fifteen
+typed contracts. Alpha31 also types the incident-slice success/error envelope
+and known SQLite rows while leaving database extensions and producer payloads
+open. It includes normalized RPC diagnostics, typed fault-flow,
 multi-capture incident-report, address-resolution, and static call-relations
 outputs in both profiles, plus a typed raw thread trace with open row
 extensions. Relation rows remain open because source-index extensions are

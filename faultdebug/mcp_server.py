@@ -18,7 +18,7 @@ from .capabilities import get_capabilities as capability_contract
 from .mcp_outputs import (ArtifactDiscoveryOutput, BundleDiscoveryOutput,
                           CallRelationsOutput,
                           CapabilitiesOutput, FaultFlowOutput, FunctionSourceOutput,
-                          IncidentListOutput, SessionListOutput, SourceEvidenceOutput,
+                          IncidentListOutput, IncidentSliceOutput, SessionListOutput, SourceEvidenceOutput,
                           IncidentReportOutput, ResolveAddressesOutput, RpcTraceOutput,
                           ThreadTraceOutput,
                           StoreCheckOutput)
@@ -523,16 +523,15 @@ def make_server(root: Path, *, tool_profile: str = "full"):
             return {"schema": 2, "error": {"code": "INCIDENT_QUERY_ERROR", "message": str(exc)}}
     @register_tool(annotations=_read_only("Get incident slice"))
     def get_incident_slice(incident_id: IncidentId, db: StorePath = "evidence.sqlite3",
-                           trust_state: TrustState = None, page: Page = 0) -> dict:
+                           trust_state: TrustState = None, page: Page = 0) -> IncidentSliceOutput:
         """Read artifact, process, RPC and source-reference evidence for one stored declared incident.
 
-        Use an ID from list_incidents; get_incident_report uses filenames instead, and
-        get_unresolved returns only gaps. Returns incident, artifacts (paged),
-        participants, observed, derived, static_candidates, unresolved, hypotheses and
-        source_references. Each page includes evidence for up to 200 artifacts, capped
-        at 1,000 observed events; inspect event_truncated/event_total before concluding
-        completeness. Source references are not verified citations. Unknown IDs/store
-        failures return error.code=INCIDENT_QUERY_ERROR without modifying the store."""
+        Use an ID from list_incidents; get_incident_report analyzes capture filenames,
+        while get_unresolved reads only gaps. Each call reads at most 200 linked artifacts;
+        observed RPC payloads are capped at 1,000, so check event_truncated/event_total
+        before treating them as complete. Stored source references are claims until
+        get_source_evidence verifies them against a bundle. The query is read-only and
+        does not migrate or repair the store; failures return INCIDENT_QUERY_ERROR."""
 
         try:
             store = EvidenceStore(_safe_store(root, db), readonly=True)

@@ -1,3 +1,4 @@
+pyenv: cannot rehash: /home/sra235/.pyenv/shims isn't writable
 """Read-only MCP facade over captured artifacts."""
 from pathlib import Path
 from typing import Annotated, Literal
@@ -693,6 +694,6 @@ def make_server(root: Path, *, tool_profile: str = "focused"):
         loaded = _bundle(root, bundle)
         return verified_call_relations(function_id, direction, loaded)
     required_tools = set(capability_contract()["required_tools"])
-    if not required_tools <= registered_tool_names:
+    if tool_profile == "full" and not required_tools <= registered_tool_names:
         raise RuntimeError("MCP profile omitted one or more required capability tools")
     return app

@@ -72,6 +72,8 @@ below records the compatible development milestones that led to this break.
 See the [major-change research](docs/mcp-v2-major-profile-research.md),
 [review decision](docs/mcp-v2-major-profile-review.md), and
 [v2.0 release objective](docs/next-version-v2.md).
+The first candidate's scope and verification are recorded in
+[v2.0.0-alpha.1](docs/releases/v2.0.0-alpha.1.md).
 The existing-project path provides static ELF preflight and isolated opt-in
 CMake integration. `faultdebug self-test` verifies one bounded installed capture;
 alpha9 added `faultdebug integrate --execute-build` for the isolated

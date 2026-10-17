@@ -31,6 +31,7 @@ OUTPUT_SCHEMA_TOOLS = {
     'get_capabilities', 'check_store', 'discover_artifacts', 'discover_bundles',
     'get_function_source', 'list_incidents', 'list_sessions', 'get_source_evidence',
     'get_rpc_trace', 'get_fault_flow', 'get_incident_report', 'resolve_addresses',
+    'get_call_relations',
 }
 FOCUSED_OUTPUT_SCHEMA_TOOLS = OUTPUT_SCHEMA_TOOLS - {'list_sessions'}
 PROFILE_DESCRIPTION_EXPECTATIONS = {
@@ -175,6 +176,23 @@ def assert_resolve_addresses_contract(result, output_schema, text_result):
     return structured
 
 
+def assert_call_relations_contract(result, output_schema, text_result):
+    structured = validate_structured_payload(result, output_schema)
+    assert set(structured) == set(text_result)
+    for key, value in text_result.items():
+        if key != 'relations':
+            assert structured[key] == value, key
+            continue
+        assert len(structured['relations']) == len(value)
+        allowed_optional = set(output_schema['$defs']['StaticCallRelation']['properties'])
+        for structured_row, text_row in zip(structured['relations'], value):
+            omitted = set(structured_row) - set(text_row)
+            assert omitted <= allowed_optional - set(text_row), omitted
+            assert all(structured_row[field] is None for field in omitted)
+            assert {field: structured_row[field] for field in text_row} == text_row
+    return structured
+
+
 def assert_profile_descriptions(full_tools, focused_tools):
     hidden_names = set(full_tools) - set(focused_tools)
     for name, tool in focused_tools.items():
@@ -257,7 +275,11 @@ async def audit(root):
     source_index = root / 'index.json'
     source_index.write_text(json.dumps({'functions': [
         {'id': 'fn-main', 'name': 'main', 'file': 'main.c', 'line': 1,
-         'source_range': {'start': 1, 'end': 3}, 'edges': [], 'unresolved_edges': []},
+         'source_range': {'start': 1, 'end': 3},
+         'edges': [{'callee_id': 'fn-helper', 'kind': 'direct',
+                    'confidence': 'index-fixture'}],
+         'unresolved_edges': [{'spelling': 'callback', 'kind': 'indirect_or_virtual',
+                               'confidence': 'index-fixture'}]},
         {'id': 'fn-helper', 'name': 'helper', 'file': 'main.c', 'line': 4,
          'source_range': {'start': 4, 'end': 5}, 'edges': [], 'unresolved_edges': []},
     ]}))
@@ -384,6 +406,16 @@ async def audit(root):
             assert set(resolve_addresses_schema['properties']) == {'items'}
             assert resolve_addresses_schema['$defs']['FaultFlowResolution'] == \
                 fault_flow_schema['$defs']['FaultFlowResolution']
+            call_relations_schema = tools['get_call_relations'].outputSchema
+            assert set(call_relations_schema['properties']) == {
+                'function_id', 'direction', 'relations', 'evidence', 'bundle'}
+            assert set(call_relations_schema['properties']['direction']['enum']) == {
+                'inbound', 'outbound'}
+            assert call_relations_schema['properties']['evidence']['const'] == 'static_index'
+            assert set(call_relations_schema['$defs']['StaticCallRelation']['properties']) == {
+                'caller_id', 'callee_id', 'spelling', 'kind', 'edge'}
+            assert call_relations_schema['$defs']['StaticCallRelation'][
+                'additionalProperties'] is True
             parameters = 0
             for name, tool in tools.items():
                 assert tool.description and 30 <= len(tool.description) <= 1600, name
@@ -438,9 +470,34 @@ async def audit(root):
             assert validate_structured_payload(
                 source_result, source_schema) == source
             assert source['resolved'] is True and 'int main' in source['source'], source
-            relations = payload(await session.call_tool('get_call_relations', {
-                'name': capture.name, 'function_id': 'fn-main', 'bundle': source_bundle_path}))
+            relations_result = await session.call_tool('get_call_relations', {
+                'name': capture.name, 'function_id': 'fn-main', 'bundle': source_bundle_path})
+            relations = payload(relations_result)
+            assert_call_relations_contract(relations_result, call_relations_schema, relations)
             assert relations['evidence'] == 'static_index' and relations['direction'] == 'outbound', relations
+            assert [row['kind'] for row in relations['relations']] == [
+                'direct', 'indirect_or_virtual']
+            assert relations['relations'][0]['callee_id'] == 'fn-helper'
+            assert relations['relations'][0]['confidence'] == 'index-fixture'
+            assert relations['relations'][1]['spelling'] == 'callback'
+            assert relations['relations'][1]['confidence'] == 'index-fixture'
+            inbound_result = await session.call_tool('get_call_relations', {
+                'name': capture.name, 'function_id': 'fn-helper',
+                'bundle': source_bundle_path, 'direction': 'inbound'})
+            inbound_relations = payload(inbound_result)
+            assert_call_relations_contract(
+                inbound_result, call_relations_schema, inbound_relations)
+            assert inbound_relations['relations'] == [{
+                'caller_id': 'fn-main',
+                'edge': {'callee_id': 'fn-helper', 'kind': 'direct',
+                         'confidence': 'index-fixture'}}]
+            empty_relations_result = await session.call_tool('get_call_relations', {
+                'name': capture.name, 'function_id': 'fn-helper',
+                'bundle': source_bundle_path, 'direction': 'outbound'})
+            empty_relations = payload(empty_relations_result)
+            assert_call_relations_contract(
+                empty_relations_result, call_relations_schema, empty_relations)
+            assert empty_relations['relations'] == []
             caps = payload(await session.call_tool('get_capabilities', {}))
             assert caps['platform_toolchain']['mcp_transport'] == 'stdio'
             opened = payload(await session.call_tool('open_fault', {'name': capture.name}))
@@ -677,6 +734,10 @@ async def audit(root):
                 ('get_fault_flow', {'name': capture.name, 'max_events': 501}),
                 ('get_fault_flow', {'name': capture.name, 'debug_directory': '../outside'}),
                 ('get_call_relations', {'name': capture.name, 'function_id': 'f', 'direction': 'both'}),
+                ('get_call_relations', {'name': capture.name, 'function_id': 'absent-function',
+                                        'bundle': source_bundle_path}),
+                ('get_call_relations', {'name': capture.name, 'function_id': 'fn-main',
+                                        'bundle': 'malformed-bundle'}),
                 ('get_function_source', {'name': capture.name, 'function_id': 'fn-main'}),
                 ('get_call_relations', {'name': capture.name, 'function_id': 'fn-main'}),
                 ('get_function_source', {'name': capture.name, 'function_id': 'fn-main',
@@ -740,6 +801,7 @@ async def audit(root):
             assert focused_tools['get_fault_flow'].outputSchema == fault_flow_schema
             assert focused_tools['get_incident_report'].outputSchema == incident_report_schema
             assert focused_tools['resolve_addresses'].outputSchema == resolve_addresses_schema
+            assert focused_tools['get_call_relations'].outputSchema == call_relations_schema
             assert all(tool.annotations and tool.annotations.readOnlyHint is True
                        for tool in focused_tools.values())
             focused_parameters = 0
@@ -769,6 +831,24 @@ async def audit(root):
                 focused_source_result, focused_tools['get_source_evidence'].outputSchema,
                 focused_source)
             assert focused_source['resolved'] is True and focused_source['total'] == 1
+            focused_relations_result = await session.call_tool('get_call_relations', {
+                'name': capture.name, 'function_id': 'fn-main',
+                'bundle': source_bundle_path})
+            focused_relations = payload(focused_relations_result)
+            assert_call_relations_contract(
+                focused_relations_result,
+                focused_tools['get_call_relations'].outputSchema,
+                focused_relations)
+            assert focused_relations['relations'][0]['confidence'] == 'index-fixture'
+            focused_inbound_result = await session.call_tool('get_call_relations', {
+                'name': capture.name, 'function_id': 'fn-helper',
+                'bundle': source_bundle_path, 'direction': 'inbound'})
+            focused_inbound = payload(focused_inbound_result)
+            assert_call_relations_contract(
+                focused_inbound_result,
+                focused_tools['get_call_relations'].outputSchema,
+                focused_inbound)
+            assert focused_inbound['relations'][0]['caller_id'] == 'fn-main'
             focused_rpc_result = await session.call_tool('get_rpc_trace', {'name': rpc_good.name})
             focused_rpc = payload(focused_rpc_result)
             assert_rpc_trace_contract(

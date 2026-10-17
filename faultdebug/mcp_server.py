@@ -16,6 +16,7 @@ from .discovery import inspect_spool
 from .evidence_store import EvidenceStore, EvidenceStoreError
 from .capabilities import get_capabilities as capability_contract
 from .mcp_outputs import (ArtifactDiscoveryOutput, BundleDiscoveryOutput,
+                          CallRelationsOutput,
                           CapabilitiesOutput, FaultFlowOutput, FunctionSourceOutput,
                           IncidentListOutput, SessionListOutput, SourceEvidenceOutput,
                           IncidentReportOutput, ResolveAddressesOutput, RpcTraceOutput,
@@ -670,7 +671,7 @@ def make_server(root: Path, *, tool_profile: str = "full"):
     @register_tool(annotations=_read_only("Get call relations"))
     def get_call_relations(name: CaptureName, function_id: FunctionId,
                            bundle: RequiredBundlePath,
-                           direction: Annotated[Literal["outbound", "inbound"], Field(description="outbound: indexed callees/unresolved edges of this function; inbound: indexed callers whose edge targets this exact function ID.")] = "outbound") -> dict:
+                           direction: Annotated[Literal["outbound", "inbound"], Field(description="outbound: indexed callees/unresolved edges of this function; inbound: indexed callers whose edge targets this exact function ID.")] = "outbound") -> CallRelationsOutput:
         """Read inbound callers or outbound call candidates for one function in a verified static index.
 
         Use for source call hypotheses; get_fault_flow reconstructs recorded nesting and

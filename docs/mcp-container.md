@@ -85,10 +85,11 @@ Choose tools by evidence source and question:
 list all sessions. `get_thread_trace` pages thread records, `get_rpc_trace` pages
 RPC observations, and store incident/session tools page artifacts. Returned
 counts and truncation flags describe the corresponding collection. The full
-profile publishes twelve typed output schemas and the focused profile
-publishes eleven, including verified source citations, normalized RPC
+profile publishes thirteen typed output schemas and the focused profile
+publishes twelve, including verified source citations, normalized RPC
 observations with separate uncertainty diagnostics, typed fault-flow and
-multi-capture incident-report results, and per-address resolution rows. Other
+multi-capture incident-report results, per-address resolution rows, and open
+static call-relations rows. Other
 return details remain in descriptions, including the distinction between MCP
 tool errors and structured `error.code` payloads.
 
@@ -146,18 +147,19 @@ and set these fields:
     "mcp", "--root", "/app/artifacts", "--tool-profile", "focused"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "da4bf732b8b67d4a427d13532e06a5abaa85b28d",
+  "pinnedCommit": "37b0931bc07b2265f0210c37bcbd3c5c2bb0d09b",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }
 ```
 
-This full implementation SHA selects the alpha28 `focused` 15-tool first-line
-workflow, eleven structured response contracts, and descriptive titles; omit
-the profile argument for the complete 27-tool catalog, which exposes twelve
-typed contracts. It includes normalized RPC diagnostics, typed fault-flow and
-multi-capture incident-report outputs, and address-resolution rows in both
-profiles. Focused descriptions
+This full implementation SHA selects the alpha29 `focused` 15-tool first-line
+workflow, twelve structured response contracts, and descriptive titles; omit
+the profile argument for the complete 27-tool catalog, which exposes thirteen
+typed contracts. It includes normalized RPC diagnostics, typed fault-flow,
+multi-capture incident-report, address-resolution, and static call-relations
+outputs in both profiles. Relation rows remain open because source-index
+extensions are hash-verified but producer-defined. Focused descriptions
 refer only to alternatives in that catalog; full-profile descriptions retain
 the broader sibling guidance. The administrator's external pin must still be
 updated separately, and this repository example does not change Glama settings.
@@ -174,7 +176,9 @@ typed incident-list result, alpha22 adds a typed session-list result to the
 full profile, alpha23 adds typed verified source evidence to both profiles,
 alpha24 types `get_rpc_trace`, alpha25 types `get_fault_flow` in both profiles,
 alpha26 tailors focused-profile descriptions without changing membership,
-alpha27 types `get_incident_report`, and alpha28 types address resolution.
+alpha27 types `get_incident_report`, alpha28 types address resolution, and
+alpha29 types the stable `get_call_relations` envelope while preserving open
+static-index rows.
 Check the
 generated Dockerfile's `git checkout` before deploying. A null pin alone
 does not prove that the generated checkout contains your latest changes.

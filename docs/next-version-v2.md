@@ -12,7 +12,7 @@ and the static call-relations behavior remain available.
 
 This is an explicit public API break, so it justifies the major number. The
 first candidate is `2.0.0a1` / `v2.0.0-alpha.1`; the active candidate is
-`2.0.0a4` / `v2.0.0-alpha.4`. These prereleases are not the stable release.
+`2.0.0a5` / `v2.0.0-alpha.5`. These prereleases are not the stable release.
 Candidate feature reviews must classify the intended stable increment
 under [`versioning-policy.md`](versioning-policy.md); an alpha number advances
 the current target and does not itself mean a stable minor or patch release.
@@ -61,7 +61,7 @@ neither is silently substituted with local tests.
 
 ## Version contract
 
-- Python distribution: `2.0.0a4` for the current candidate; stable target
+- Python distribution: `2.0.0a5` for the current candidate; stable target
   `2.0.0`.
 - Native CMake project package: `2.0.0`; runtime shared-library SONAME stays
   `1` because the C ABI is unchanged.
@@ -84,3 +84,8 @@ neither is silently substituted with local tests.
   `faultdebug_view.events_omitted_from_view` row extension, without changing
   producer loss counters or other extensions. A producer collision fails closed.
   This is also a stable minor-class addition within the v2.0.0 prerelease.
+- `triage_capture` and `investigate_incident` are optional user-selected MCP
+  prompts available in both profiles. Prompt retrieval returns instructions
+  only; it does not read evidence, invoke tools, or change the 15/27 tool
+  catalogs. This is a stable MINOR-class capability within the v2.0.0 alpha
+  sequence, with host UI and Glama score effects unverified.

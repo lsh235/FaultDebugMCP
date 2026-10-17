@@ -1,6 +1,6 @@
 # FaultDebug 한국어 안내
 
-[![개발 이정표](https://img.shields.io/badge/development-v2.0.0--alpha.4-orange)](docs/mcp-thread-trace-bounds-review-v2.md)
+[![개발 이정표](https://img.shields.io/badge/development-v2.0.0--alpha.5-orange)](docs/mcp-guided-prompts-review-v2.md)
 
 [English](README.md) · **한국어** · [简体中文](README.zh-CN.md) · [日本語](README.ja.md)
 
@@ -31,7 +31,7 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-현재 개발 목표는 **2.0.0a4** (`v2.0.0-alpha.4`)이며, 문서의 증거 기반 구현은
+현재 개발 목표는 **2.0.0a5** (`v2.0.0-alpha.5`)이며, 문서의 증거 기반 구현은
 [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)를 기준으로 합니다.
 이번 메이저 후보는 기본 MCP 도구 목록을 27개에서 15개 `focused` 흐름으로 바꾸고
 고급 정적 호출 관계 도구를 해당 기본 목록에서 제외합니다. 전체 27개 도구가 필요하면
@@ -56,6 +56,12 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 [리서치](docs/mcp-batch-evidence-summary-research-v2.md),
 [검토](docs/mcp-batch-evidence-summary-review-v2.md),
 [릴리스 기록](docs/releases/v2.0.0-alpha.2.md)에 남아 있습니다.
+알파5는 캡처 초기 조사와 저장된 incident 검토를 위한 사용자 선택형 MCP 프롬프트
+두 개를 추가합니다. 프롬프트 요청은 안내문만 반환하며 서버가 증거나 도구를 직접
+읽거나 실행하지 않습니다. 도구 목록과 Glama 도구 정의 점수는 변경/검증되지
+않았습니다. [알파5 리서치](docs/mcp-guided-prompts-research-v2.md),
+[버전 분류 검토](docs/mcp-guided-prompts-review-v2.md),
+[검증 기록](docs/releases/v2.0.0-alpha.5.md)을 확인하세요.
 기존 프로젝트용 정적 ELF 점검과 분리된 CMake 적용 경로를 제공합니다.
 `faultdebug self-test`가 설치된 경로의 고정 fixture capture를 확인하고,
 알파9의 `faultdebug integrate --execute-build`는 격리된 configure/build/index/bundle 단계를 명시적으로 실행합니다.

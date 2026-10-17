@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [2.0.0-alpha.5] - 2026-10-17
+
+- Add two user-selected MCP prompts for capture triage and stored-incident
+  review. Prompt retrieval returns bounded instructions only; it does not read
+  evidence or execute tools. Both prompts use tools available in the focused
+  and full profiles, and the tool inventories remain unchanged.
+- Classify the prompts as a future MINOR capability within the unreleased v2
+  MAJOR target. Host UI behavior and Glama score impact remain unverified.
+
 ## [2.0.0-alpha.4] - 2026-10-17
 
 - Add optional `page_size` (1–200) for outer `get_thread_trace` pages and

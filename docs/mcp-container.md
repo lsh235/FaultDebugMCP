@@ -146,18 +146,20 @@ and set these fields:
     "mcp", "--root", "/app/artifacts", "--tool-profile", "focused"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "cd45e67d269cf8b487072b4204542e8904082ecb",
+  "pinnedCommit": "33b066364a342353e1f64df27e4c85fda10c6197",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }
 ```
 
-This full implementation SHA selects the alpha26 `focused` 15-tool first-line
-workflow, nine structured response contracts, and descriptive titles; omit
-the profile argument for the complete 27-tool catalog, which exposes ten typed
-contracts. It includes normalized RPC diagnostics and a typed fault-flow view
-in both profiles. Focused descriptions refer only to alternatives in that
-catalog; full-profile descriptions retain the broader sibling guidance. This repository example
+This full implementation SHA selects the alpha27 `focused` 15-tool first-line
+workflow, ten structured response contracts, and descriptive titles; omit the
+profile argument for the complete 27-tool catalog, which exposes eleven typed
+contracts. It includes normalized RPC diagnostics, typed fault-flow and
+multi-capture incident-report outputs in both profiles. Focused descriptions
+refer only to alternatives in that catalog; full-profile descriptions retain
+the broader sibling guidance. The administrator's external pin must still be
+updated separately, and this repository example does not change Glama settings.
 does not update the external Glama setting. The
 previously documented
 `255395c86809cce886ce58cdc5736b2a4c0f8aaa` revision predates it and exposed 25

@@ -852,7 +852,10 @@ async def audit(root):
             assert [row['rpc_status'] for row in mixed_summary['items']] == [
                 'unresolved', 'complete']
             assert mixed_summary['observed'] == {'rpc_events': 1, 'process_relations': 0}
-            assert mixed_summary['unresolved'] == {'semantic_rpc_extension_absent': 1}
+            assert mixed_summary['unresolved'] == {
+                'no_explicit_ipc_pair': 1,
+                'semantic_rpc_extension_absent': 1,
+            }
             for batch_size in (8, 16, 32):
                 names = batch_capture_names[:batch_size]
                 batch_result = await session.call_tool(

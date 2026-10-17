@@ -419,3 +419,158 @@ class RpcTraceOutput(OutputModel):
     total: Annotated[int, Field(ge=0, description="Total normalized observed events across all pages, not just this page.")]
     page: Annotated[int, Field(ge=0, description="Zero-based page of observed events returned.")]
     page_size: Annotated[Literal[200], Field(description="Maximum observed RPC events per page.")]
+
+
+class FaultFlowSnapshot(OutputModel):
+    """Snapshot-read consistency; future producer metadata is preserved."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    stable: Annotated[Any, Field(description="Raw producer stability value; only the literal boolean true is considered stable by the report builder.")] = None
+    unstable_records: Annotated[Any, Field(description="Raw producer unstable-record details; the report preserves their shape.")] = None
+
+
+class FaultFlowCapture(OutputModel):
+    complete: Annotated[Any, Field(description="Raw capture completeness marker; only the literal boolean true is considered complete by the report builder.")]
+    status: Annotated[int, Field(ge=0, description="Native capture status bit field retained from the artifact header.")]
+    evidence_status: Annotated[Literal["capture_complete", "limited"], Field(description="Summary label: limited means one or more explicit gaps were retained.")]
+    snapshot_consistency: Annotated[FaultFlowSnapshot, Field(description="Snapshot-read state; this is separate from capture loss and report-view omission.")]
+
+
+class FaultFlowResolution(OutputModel):
+    """Address lookup result with known fields typed and extension evidence retained."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    address: Annotated[int, Field(ge=0, description="Captured function or program-counter address checked against the artifact and optional bundle.")]
+    kind: Annotated[str | None, Field(description="Address category supplied to the resolver.")] = None
+    resolved: Annotated[bool, Field(description="True only when the resolver found one matching module/symbol and any requested source verification succeeded.")]
+    reason: Annotated[str | None, Field(description="Unresolved reason code; absent on resolved addresses.")] = None
+    module: Annotated[str | None, Field(description="Captured module path, when one address range matched.")] = None
+    build_id: Annotated[str | None, Field(description="Captured or verified module Build ID, when available.")] = None
+    actual_build_id: Annotated[str | None, Field(description="Build ID read from the candidate binary when it mismatched the captured identity.")] = None
+    load_bias: Annotated[int | None, Field(ge=0, description="Recorded module load bias used to calculate the relative address.")] = None
+    relative_address: Annotated[int | None, Field(ge=0, description="Address relative to the captured module load bias.")] = None
+    symbol: Annotated[str | None, Field(description="Unique symbol name when resolved.")] = None
+    function_id: Annotated[str | None, Field(description="Verified source-index function ID when a unique function row matched.")] = None
+    candidates: Annotated[list[str | int | None] | None, Field(description="Symbol or function-index candidate IDs that remain ambiguous.")] = None
+    debug_file: Annotated[str | None, Field(description="Separate debug-file path used after its Build ID matched.")] = None
+    debug_file_build_id: Annotated[str | None, Field(description="Build ID verified for the separate debug file.")] = None
+    static_edges: Annotated[list[Any] | None, Field(description="Static index edges kept as static evidence, never as observed runtime nesting.")] = None
+    static_unresolved_edges: Annotated[list[Any] | None, Field(description="Unresolved static-index edges retained from the verified function row.")] = None
+    source: Annotated[dict[str, Any] | None, Field(description="Offline symbolizer location metadata; it is not verified source text.")] = None
+
+
+class FaultFlowEvent(OutputModel):
+    id: Annotated[str, Field(description="Stable report-local event identifier; not a capture-global identity.")]
+    kind: Annotated[Literal["enter", "exit", "marker"], Field(description="Decoded native record kind; marker includes unknown/unsupported event types.")]
+    sequence: Annotated[int, Field(ge=0, description="Per-thread publication sequence from the captured event ring.")]
+    monotonic_ns: Annotated[int | None, Field(ge=0, description="Captured event time in the process monotonic clock domain, when recorded.")]
+    function: Annotated[int, Field(ge=0, description="Recorded function address; symbol names are reported separately as resolution evidence.")]
+    callsite: Annotated[int, Field(ge=0, description="Recorded callsite address, when present in the capture.")]
+    depth: Annotated[int, Field(ge=0, description="Retained nesting depth at this event; gaps can clear the reconstruction stack.")]
+    gaps_before: Annotated[list[str], Field(description="Explicit record-order/generation gaps before this node; an empty list does not establish root cause.")]
+    resolution: Annotated[FaultFlowResolution, Field(description="Address-to-module/symbol lookup result, with unresolved candidates kept explicit.")]
+    label: Annotated[str, Field(description="Display label from a resolved symbol or the captured address.")]
+    source_verified: Annotated[bool, Field(description="True only when the event resolved to source verified in the supplied immutable bundle.")]
+
+
+class FaultFlowCrash(OutputModel):
+    id: Annotated[str, Field(description="Report-local crash identifier.")]
+    kind: Annotated[Literal["crash"], Field(description="Fixed crash-node category.")]
+    flags: Annotated[int, Field(ge=0, description="Recorded crash-field validity bits; null optional values mean their fields were not captured.")]
+    signal: Annotated[int | None, Field(description="Captured signal number when the validity bit is set.")]
+    signal_name: Annotated[str, Field(description="Signal name derived from the captured signal, or an explicit unrecorded label.")]
+    si_code: Annotated[int | None, Field(description="Captured signal subcode when its validity bit is set.")]
+    pc: Annotated[int | None, Field(ge=0, description="Program counter only when the capture marks it valid.")]
+    fault_address: Annotated[int | None, Field(ge=0, description="Fault address only when the capture marks it valid; zero is preserved.")]
+    tid: Annotated[int, Field(ge=0, description="Captured OS thread ID; PID/TID reuse can still occur.")]
+    generation: Annotated[int, Field(ge=0, description="Thread generation matched to the crash record.")]
+    monotonic_ns: Annotated[int, Field(ge=0, description="Crash timestamp in the captured monotonic clock domain.")]
+    thread: Annotated[str | None, Field(description="Unique matching report thread ID; null means the matching generation was absent or ambiguous.")]
+    last_event: Annotated[str | None, Field(description="Last retained event before the crash time, when one was matched.")]
+    resolution: Annotated[FaultFlowResolution, Field(description="Crash-PC resolution evidence; it is not a fault-cause verdict.")]
+    label: Annotated[str, Field(description="Display label from a resolved symbol, signal, or captured program counter.")]
+    source_verified: Annotated[bool, Field(description="True only when crash source text was verified against the supplied immutable bundle.")]
+
+
+class FaultFlowThreadGap(OutputModel):
+    """One explicit gap row; optional fields vary by the reported gap reason."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    reason: Annotated[str | None, Field(description="Gap category when this row summarizes a capture, thread or crash condition.")] = None
+    thread: Annotated[str | None, Field(description="Report-local thread ID when the gap is thread-specific.")] = None
+    sequence: Annotated[int | None, Field(ge=0, description="Event sequence when the gap is tied to a retained event.")] = None
+    reasons: Annotated[list[str] | None, Field(description="Event-level reasons that cleared or limited reconstructed nesting.")] = None
+    status: Annotated[int | None, Field(ge=0, description="Native status bit field when the capture header caused this gap.")] = None
+    unstable_records: Annotated[int | None, Field(ge=0, description="Count of unstable snapshot records when summarized by this gap.")] = None
+    count: Annotated[int | None, Field(ge=0, description="Dropped records or retired generations, according to the reason.")] = None
+    retired_event_count: Annotated[int | None, Field(ge=0, description="Retired-event count when recorded; null means unavailable.")] = None
+    crash: Annotated[str | None, Field(description="Report-local crash ID when the gap concerns a crash node.")] = None
+
+
+class FaultFlowUnmatchedEntry(OutputModel):
+    function: Annotated[int, Field(ge=0, description="Function address left on the retained nesting stack.")]
+    event_id: Annotated[str, Field(description="Report-local enter-event ID for this unmatched stack entry.")]
+
+
+class FaultFlowGraphEdge(OutputModel):
+    source: Annotated[str, Field(alias="from", description="Report-local source node ID.")]
+    target: Annotated[str, Field(alias="to", description="Report-local target node ID.")]
+    kind: Annotated[Literal["observed_nesting", "record_order", "crash_context"], Field(description="Evidence relation; observed nesting and record order are not root-cause conclusions.")]
+
+
+class FaultFlowDiagnostic(OutputModel):
+    code: Annotated[Literal["FD-MISSING-SYMBOL", "FD-PROVENANCE-MISMATCH", "FD-INCOMPLETE-TRACE"], Field(description="Stable diagnostic family for missing symbols, provenance mismatch, or incomplete trace evidence.")]
+    severity: Annotated[Literal["error", "warning"], Field(description="Report severity assigned to this evidence-bound diagnostic.")]
+    message: Annotated[str, Field(description="Actionable summary; the diagnostic does not infer application root cause.")]
+    evidence: Annotated[dict[str, Any], Field(description="Address/trace evidence supporting the diagnostic; shape depends on its code.")]
+
+
+class FaultFlowSource(OutputModel):
+    resolved: Annotated[Literal[True], Field(description="True only for source read from the verified immutable bundle.")]
+    function_id: Annotated[str, Field(description="Exact function identifier matched in the verified source index.")]
+    bundle: Annotated[str, Field(description="Verified immutable bundle root.")]
+    file: Annotated[str, Field(description="Verified source file path in the bundle.")]
+    start_line: Annotated[int, Field(ge=1, description="First one-based line of returned verified source.")]
+    end_line: Annotated[int, Field(ge=0, description="Last one-based line in the source index range; zero is retained for an empty source file.")]
+    display_end_line: Annotated[int, Field(ge=0, description="Last line actually included in this bounded report excerpt; zero is retained for an empty source file.")]
+    source: Annotated[str, Field(description="Source text read only after immutable-bundle verification.")]
+
+
+class FaultFlowBundle(OutputModel):
+    path: Annotated[str, Field(description="Resolved immutable bundle root used for verified source lookup.")]
+    verified: Annotated[Literal[True], Field(description="The bundle passed the report's existing verification checks.")]
+
+
+class FaultFlowThread(OutputModel):
+    id: Annotated[str, Field(description="Report-local thread ID, assigned in capture order.")]
+    slot: Annotated[int | None, Field(ge=0, description="Native thread-ring slot when recorded.")]
+    tid: Annotated[int, Field(ge=0, description="Captured operating-system thread ID; reused IDs can have separate generations.")]
+    generation: Annotated[int, Field(ge=0, description="Captured thread generation that disambiguates TID reuse.")]
+    dropped_count: Annotated[int, Field(ge=0, description="Recorder drop count for this thread slot's lifetime.")]
+    retained_events: Annotated[int, Field(ge=0, description="Number of validated events retained in the capture before report view limits.")]
+    omitted_from_view: Annotated[int, Field(ge=0, description="Older pre-crash events omitted by max_events; these remain in the capture and do not imply loss.")]
+    post_crash_events: Annotated[int, Field(ge=0, description="Captured events after the matching crash timestamp and therefore excluded from this thread view.")]
+    events: Annotated[list[FaultFlowEvent], Field(description="Bounded execution nodes; nesting edges are reconstructed only across retained contiguous evidence.")]
+    gaps: Annotated[list[FaultFlowThreadGap], Field(description="Thread-specific capture and reconstruction gaps.")]
+    unmatched_entries: Annotated[list[FaultFlowUnmatchedEntry], Field(description="Enter events still on the retained nesting stack when processing ended.")]
+
+
+class FaultFlowOutput(OutputModel):
+    """Versioned execution view with capture gaps, resolution and verified source kept distinct."""
+
+    schema_version: Annotated[Literal[1], Field(description="Version of the fault-flow report contract.")]
+    kind: Annotated[Literal["faultdebug-fault-flow"], Field(description="Fixed report discriminator.")]
+    language: Annotated[Literal["en", "ko"], Field(description="Language selected for this report invocation.")]
+    capture: Annotated[FaultFlowCapture, Field(description="Capture completeness and snapshot-read state; this is independent from display truncation.")]
+    target: Annotated[Any, Field(description="Original target exit and process metadata recorded in the capture; passed through without reinterpretation.")]
+    threads: Annotated[list[FaultFlowThread], Field(description="Per-thread retained execution view; omitted_from_view counts display-bounded events only.")]
+    crashes: Annotated[list[FaultFlowCrash], Field(description="Crash records linked to a unique matching thread generation when possible.")]
+    edges: Annotated[list[FaultFlowGraphEdge], Field(description="Observed nesting, contiguous record order and crash-context edges; none is a root-cause verdict.")]
+    sources: Annotated[dict[str, FaultFlowSource], Field(description="Verified source excerpts keyed by function ID; empty when no supplied bundle resolved one.")]
+    gaps: Annotated[list[FaultFlowThreadGap], Field(description="Capture, thread and crash gaps retained as explicit evidence; extra reason-specific fields remain preserved.")]
+    diagnostics: Annotated[list[FaultFlowDiagnostic], Field(description="Stable diagnostic summaries with their supporting evidence payloads.")]
+    limitations: Annotated[list[str], Field(description="Fixed interpretation limits for this reconstructed execution view.")]
+    bundle: Annotated[FaultFlowBundle | None, Field(description="Verified bundle marker, or null when no bundle was supplied.")]

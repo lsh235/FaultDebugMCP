@@ -13,6 +13,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from faultdebug.artifact import write_artifact
 from faultdebug.fault_report import build_fault_report, write_fault_report
+from faultdebug.mcp_outputs import FaultFlowOutput
 from faultdebug.mcp_server import make_server
 from faultdebug.report_view import render_html
 from faultdebug.bundle import create_bundle
@@ -131,6 +132,29 @@ class FaultReportTests(unittest.TestCase):
         self.assertIn("connect-src 'none'", html)
         self.assertIn("\\u003c/script", html)
 
+    def test_verified_source_entry_matches_typed_output_model(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name)
+            source = root / "source"
+            source.mkdir()
+            (source / "main.c").write_text("int main(void) {\n  return 0;\n}\n")
+            source_index = root / "index.json"
+            source_index.write_text(json.dumps({"functions": [{
+                "id": "fn-main", "name": "main", "file": "main.c", "line": 1,
+                "source_range": {"start": 1, "end": 3}, "edges": [],
+                "unresolved_edges": [],
+            }]}))
+            bundle = create_bundle(source, root / "bundle", index=source_index)
+            addresses = {100, 200, 207}
+            rows = [{"address": address, "resolved": True, "symbol": "main",
+                     "function_id": "fn-main"} for address in addresses]
+            with patch("faultdebug.fault_report.resolve_addresses", return_value=rows):
+                model = build_fault_report(capture(), bundle=bundle)
+            typed = FaultFlowOutput.model_validate(model)
+            self.assertEqual(typed.sources["fn-main"].source, "int main(void) {\n  return 0;\n}")
+            self.assertTrue(typed.threads[0].events[0].source_verified)
+            self.assertTrue(typed.bundle.verified)
+
     def test_uint64_preserved_in_browser_payload(self):
         raw = capture()
         raw["threads"][0]["tid"] = (1 << 63) + 1
@@ -177,8 +201,12 @@ class FaultReportTests(unittest.TestCase):
             registered = {t.name for t in await server.list_tools()}
             self.assertIn("get_fault_flow", registered)
             result = await server.call_tool("get_fault_flow", {"name": "fault-7.fault", "max_events": 1})
-            # FastMCP returns text content for dict-valued tools.
-            model = json.loads(result[0].text)
+            # Typed tool output returns text content plus the structured result.
+            content, structured = result
+            model = json.loads(content[0].text)
+            self.assertEqual(structured["kind"], model["kind"])
+            self.assertEqual(structured["threads"][0]["omitted_from_view"],
+                             model["threads"][0]["omitted_from_view"])
             self.assertEqual(model["kind"], "faultdebug-fault-flow")
             self.assertEqual(len(model["threads"][0]["events"]), 1)
             with self.assertRaises(Exception):

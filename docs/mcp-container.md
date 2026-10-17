@@ -85,9 +85,10 @@ Choose tools by evidence source and question:
 list all sessions. `get_thread_trace` pages thread records, `get_rpc_trace` pages
 RPC observations, and store incident/session tools page artifacts. Returned
 counts and truncation flags describe the corresponding collection. The full
-profile publishes nine typed output schemas and the focused profile publishes
-eight, including explicit verified/unresolved source-citation results and
-normalized RPC observations with separate uncertainty diagnostics. Other
+profile publishes ten typed output schemas and the focused profile publishes
+nine, including verified source citations, normalized RPC observations with
+separate uncertainty diagnostics, and a typed fault-flow view with explicit
+gaps and verified-source markers. Other
 return details remain in descriptions, including the distinction between MCP
 tool errors and structured `error.code` payloads.
 

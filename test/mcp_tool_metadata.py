@@ -29,7 +29,7 @@ FOCUSED_TOOLS = {
 OUTPUT_SCHEMA_TOOLS = {
     'get_capabilities', 'check_store', 'discover_artifacts', 'discover_bundles',
     'get_function_source', 'list_incidents', 'list_sessions', 'get_source_evidence',
-    'get_rpc_trace',
+    'get_rpc_trace', 'get_fault_flow',
 }
 FOCUSED_OUTPUT_SCHEMA_TOOLS = OUTPUT_SCHEMA_TOOLS - {'list_sessions'}
 
@@ -78,6 +78,32 @@ def rpc_artifact(root, stem, extension=None, header=None):
     return write_artifact(report, root, 100, artifact_stem=stem)
 
 
+def flow_artifact(root, stem, *, status=0, complete=True, dropped=0):
+    report = {
+        'complete': complete,
+        'header': {'status': status},
+        'snapshot_consistency': {'stable': True, 'unstable_records': []},
+        'target': {'returncode': -11, 'signal': 11},
+        'modules': [],
+        'threads': [{
+            'slot': 0, 'tid': 100, 'generation': 1, 'flags': 0,
+            'event_count': 2, 'dropped_count': dropped,
+            'events': [
+                {'sequence': 0, 'monotonic_ns': 10, 'function': 4096,
+                 'callsite': 0, 'type': 1, 'generation': 1},
+                {'sequence': 1, 'monotonic_ns': 20, 'function': 4096,
+                 'callsite': 0, 'type': 1, 'generation': 1},
+            ],
+        }],
+        'crashes': [{
+            'flags': 15, 'tid': 100, 'thread_generation': 1,
+            'pc': 8192, 'fault_address': 0, 'signal': 11,
+            'si_code': 1, 'monotonic_ns': 25,
+        }],
+    }
+    return write_artifact(report, root, 100, artifact_stem=stem)
+
+
 def assert_rpc_trace_contract(result, output_schema, text_result):
     structured = validate_structured_payload(result, output_schema)
     assert set(structured) == set(text_result)
@@ -94,8 +120,22 @@ def assert_rpc_trace_contract(result, output_schema, text_result):
     return structured
 
 
+def assert_fault_flow_contract(result, output_schema, text_result):
+    structured = validate_structured_payload(result, output_schema)
+    assert set(structured) == set(text_result)
+    assert structured['schema_version'] == text_result['schema_version'] == 1
+    assert structured['kind'] == text_result['kind'] == 'faultdebug-fault-flow'
+    assert structured['capture']['evidence_status'] == text_result['capture']['evidence_status']
+    assert len(structured['threads']) == len(text_result['threads'])
+    assert len(structured['crashes']) == len(text_result['crashes'])
+    return structured
+
+
 async def audit(root):
     capture = write_artifact({'process': {'pid': 7}, 'threads': [], 'crashes': []}, root, 7)
+    flow_good = flow_artifact(root, 'flow-good')
+    flow_limited = flow_artifact(root, 'flow-limited', status=1 << 9,
+                                 complete=False, dropped=3)
     rpc_events = [
         {'sequence': index, 'monotonic_ns': index * 10, 'rpc_id': 7,
          'kind': 'client', 'phase': 'status'}
@@ -245,6 +285,16 @@ async def audit(root):
                 'stream', 'streaming', 'pid', 'peer_pid', 'flags', 'generation',
                 'publication', 'source'}
             assert len(rpc_schema['properties']['unresolved']['items']['discriminator']['mapping']) == 6
+            fault_flow_schema = tools['get_fault_flow'].outputSchema
+            assert set(fault_flow_schema['properties']) == {
+                'schema_version', 'kind', 'language', 'capture', 'target', 'threads',
+                'crashes', 'edges', 'sources', 'gaps', 'diagnostics', 'limitations', 'bundle'}
+            assert set(fault_flow_schema['$defs']['FaultFlowEvent']['properties']) == {
+                'id', 'kind', 'sequence', 'monotonic_ns', 'function', 'callsite',
+                'depth', 'gaps_before', 'resolution', 'label', 'source_verified'}
+            assert set(fault_flow_schema['$defs']['FaultFlowSource']['properties']) == {
+                'resolved', 'function_id', 'bundle', 'file', 'start_line', 'end_line',
+                'display_end_line', 'source'}
             parameters = 0
             for name, tool in tools.items():
                 assert tool.description and 30 <= len(tool.description) <= 1600, name
@@ -393,6 +443,42 @@ async def audit(root):
             assert_source_evidence_contract(
                 source_bundle_error_result, source_evidence_schema, source_bundle_error)
             assert source_bundle_error['error']['code'] == 'SOURCE_EVIDENCE_ERROR'
+            fault_flow_result = await session.call_tool(
+                'get_fault_flow', {'name': flow_good.name})
+            fault_flow_text = payload(fault_flow_result)
+            fault_flow_structured = assert_fault_flow_contract(
+                fault_flow_result, fault_flow_schema, fault_flow_text)
+            assert fault_flow_text['capture']['evidence_status'] == 'capture_complete'
+            assert len(fault_flow_text['threads'][0]['events']) == 2
+            assert fault_flow_text['crashes'][0]['last_event'] == 'thread-0-event-1'
+            assert {edge['kind'] for edge in fault_flow_text['edges']} == {
+                'observed_nesting', 'record_order', 'crash_context'}
+            assert fault_flow_structured['threads'][0]['events'][0]['kind'] == 'enter'
+            assert fault_flow_structured['crashes'][0]['resolution']['reason'] == 'missing_module'
+            fault_flow_truncated_result = await session.call_tool(
+                'get_fault_flow', {'name': flow_good.name, 'max_events': 1})
+            fault_flow_truncated = payload(fault_flow_truncated_result)
+            assert_fault_flow_contract(
+                fault_flow_truncated_result, fault_flow_schema, fault_flow_truncated)
+            assert fault_flow_truncated['threads'][0]['omitted_from_view'] == 1
+            assert fault_flow_truncated['capture']['evidence_status'] == 'capture_complete'
+            fault_flow_limited_result = await session.call_tool(
+                'get_fault_flow', {'name': flow_limited.name})
+            fault_flow_limited = payload(fault_flow_limited_result)
+            assert_fault_flow_contract(
+                fault_flow_limited_result, fault_flow_schema, fault_flow_limited)
+            assert fault_flow_limited['capture']['evidence_status'] == 'limited'
+            assert any(gap.get('reason') == 'dropped_records'
+                       for gap in fault_flow_limited['gaps'])
+            fault_flow_empty_result = await session.call_tool(
+                'get_fault_flow', {'name': capture.name})
+            fault_flow_empty = payload(fault_flow_empty_result)
+            assert_fault_flow_contract(
+                fault_flow_empty_result, fault_flow_schema, fault_flow_empty)
+            assert not fault_flow_empty['threads'] and not fault_flow_empty['crashes']
+            fault_flow_bad_bundle = await session.call_tool(
+                'get_fault_flow', {'name': flow_good.name, 'bundle': '../escape'})
+            assert fault_flow_bad_bundle.isError
             rpc_result = await session.call_tool('get_rpc_trace', {'name': rpc_good.name})
             rpc_text = payload(rpc_result)
             assert_rpc_trace_contract(rpc_result, rpc_schema, rpc_text)
@@ -505,6 +591,7 @@ async def audit(root):
             assert focused_tools['list_incidents'].outputSchema == incident_schema
             assert focused_tools['get_source_evidence'].outputSchema == source_evidence_schema
             assert focused_tools['get_rpc_trace'].outputSchema == rpc_schema
+            assert focused_tools['get_fault_flow'].outputSchema == fault_flow_schema
             assert all(tool.annotations and tool.annotations.readOnlyHint is True
                        for tool in focused_tools.values())
             focused_parameters = 0
@@ -539,6 +626,14 @@ async def audit(root):
             assert_rpc_trace_contract(
                 focused_rpc_result, focused_tools['get_rpc_trace'].outputSchema, focused_rpc)
             assert focused_rpc['status'] == 'complete' and focused_rpc['total'] == 201
+            focused_fault_flow_result = await session.call_tool(
+                'get_fault_flow', {'name': flow_good.name})
+            focused_fault_flow = payload(focused_fault_flow_result)
+            assert_fault_flow_contract(
+                focused_fault_flow_result,
+                focused_tools['get_fault_flow'].outputSchema,
+                focused_fault_flow)
+            assert focused_fault_flow['threads'][0]['events'][0]['kind'] == 'enter'
             focused_capabilities_result = await session.call_tool('get_capabilities', {})
             focused_capabilities = payload(focused_capabilities_result)
             assert validate_structured_payload(

@@ -20,6 +20,7 @@ from .mcp_outputs import (ArtifactDiscoveryOutput, BundleDiscoveryOutput,
                           CapabilitiesOutput, FaultFlowOutput, FunctionSourceOutput,
                           IncidentListOutput, SessionListOutput, SourceEvidenceOutput,
                           IncidentReportOutput, ResolveAddressesOutput, RpcTraceOutput,
+                          ThreadTraceOutput,
                           StoreCheckOutput)
 
 # Field metadata is exported in tools/list; docstring Args alone is not a schema.
@@ -275,7 +276,7 @@ def make_server(root: Path, *, tool_profile: str = "full"):
         if bundle: report["bundle"] = {"path": str(_bundle(root, bundle).root), "verified": True}
         return report
     @register_tool(annotations=_read_only("Get thread trace"))
-    def get_thread_trace(name: CaptureName, tid: Annotated[int | None, Field(ge=0, description="Captured OS thread ID; null includes all thread generations. A reused ID can match more than one thread record.")] = None, page: Page = 0) -> dict:
+    def get_thread_trace(name: CaptureName, tid: Annotated[int | None, Field(ge=0, description="Captured OS thread ID; null includes all thread generations. A reused ID can match more than one thread record.")] = None, page: Page = 0) -> ThreadTraceOutput:
         """Read captured thread records and their retained function events from one artifact.
 
         Use for raw thread histories, not semantic RPCs (get_rpc_trace) or reconstructed

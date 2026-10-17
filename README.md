@@ -4,7 +4,7 @@
 > Follow recorded calls across services, inspect the fault location, and see
 > which evidence is missing.
 
-[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.29-orange)](docs/releases/v1.3.0-alpha.29.md)
+[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.30-orange)](docs/releases/v1.3.0-alpha.30.md)
 [![Release gates](https://img.shields.io/github/actions/workflow/status/lsh235/FaultDebugMCP/v12-release-gate.yml?branch=main&label=release%20gates)](https://github.com/lsh235/FaultDebugMCP/actions/workflows/v12-release-gate.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 [![Clang 18](https://img.shields.io/badge/Clang-18-orange)](https://clang.llvm.org/)
@@ -61,7 +61,7 @@ static call-graph candidates as observed execution.
 
 ## Project status
 
-The development package is **1.3.0a29** (`v1.3.0-alpha.29`); the evidence-foundation
+The development package is **1.3.0a30** (`v1.3.0-alpha.30`); the evidence-foundation
 baseline is [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2).
 The existing-project path provides static ELF preflight and isolated opt-in
 CMake integration. `faultdebug self-test` verifies one bounded installed capture;
@@ -112,12 +112,18 @@ contract in both profiles, including observed RPC events and paging while
 preserving dynamic evidence rows; its score impact remains unverified. Alpha28
 adds a typed per-address `resolve_addresses` result in both profiles so callers
 can read function IDs, Build-ID matches and unresolved reasons as structured
-data. Resolver behavior is unchanged and Glama score impact remains unverified. Alpha29
-publishes the typed `get_call_relations` envelope in both profiles while keeping
-producer-defined static relation rows open; its score impact remains unverified. See the
+data. Resolver behavior is unchanged and Glama score impact remains unverified.
+Alpha29 publishes the typed `get_call_relations` envelope in both profiles while
+keeping producer-defined static relation rows open; its score impact remains
+unverified. Alpha30 types the `get_thread_trace` page and raw thread/event rows in both
+profiles while preserving unknown fields, conditional retention and evidence
+boundaries. Its score impact remains unverified. See the
 [call-relations output-schema research](docs/mcp-call-relations-output-research.md),
 [call-relations output-schema review](docs/mcp-call-relations-output-review.md),
 [alpha29 scope and verification](docs/releases/v1.3.0-alpha.29.md),
+[thread-trace output-schema research](docs/mcp-thread-trace-output-research.md),
+[thread-trace output-schema review](docs/mcp-thread-trace-output-review.md),
+[alpha30 scope and verification](docs/releases/v1.3.0-alpha.30.md),
 [adoption guide](docs/existing-project-adoption.md),
 [report-output review](docs/integration-report-output-review.md), and
 [MCP bundle review](docs/mcp-required-bundle-review.md),

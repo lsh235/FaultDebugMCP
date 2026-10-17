@@ -29,7 +29,7 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-개발 버전은 **1.3.0a29** (`v1.3.0-alpha.29`)이며, 문서의 증거 기반 구현은
+개발 버전은 **1.3.0a30** (`v1.3.0-alpha.30`)이며, 문서의 증거 기반 구현은
 [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)로 고정했습니다.
 기존 프로젝트용 정적 ELF 점검과 분리된 CMake 적용 경로를 제공합니다.
 `faultdebug self-test`가 설치된 경로의 고정 fixture capture를 확인하고,
@@ -87,6 +87,12 @@ Glama 점수 변화는 재평가 전까지 확인되지 않았습니다.](docs/r
 [알파29는 `get_call_relations`의 고정 envelope를 full/focused 양쪽에서 typed로 게시합니다.
 정적 index의 직접·미해결 relation 행과 알 수 없는 확장 필드는 보존하며, 실제 런타임 호출
 증거로 표현하지 않습니다. Glama 재평가와 점수 변화는 확인되지 않았습니다.](docs/releases/v1.3.0-alpha.29.md)
+[알파30은 `get_thread_trace`의 페이지와 thread/event 결과를 typed로 게시합니다. OS thread
+ID의 세대 재사용, 조건부 retention, raw address/event 값과 확장 필드를 구분하며 기존
+이벤트 순서·페이지 처리·텍스트 응답은 유지합니다. Glama 재평가와 점수 변화는 확인되지
+않았습니다.](docs/releases/v1.3.0-alpha.30.md)
+[thread-trace 출력 스키마 리서치](docs/mcp-thread-trace-output-research.md) ·
+[thread-trace 출력 스키마 검토](docs/mcp-thread-trace-output-review.md) ·
 [호출 관계 출력 스키마 리서치](docs/mcp-call-relations-output-research.md) ·
 [호출 관계 출력 스키마 검토](docs/mcp-call-relations-output-review.md) ·
 [기존 프로젝트 적용 안내](docs/existing-project-adoption.md) ·

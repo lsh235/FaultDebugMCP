@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.3.0-alpha.33] - 2026-10-17
+
+- Publish an open typed output schema for `open_fault` in both MCP profiles.
+- Type stable native capture fields and preserve sparse JSON plus unknown
+  producer extensions; all focused tools now publish output schemas.
+- Capture decoding and text response remain unchanged; Glama score impact is
+  unverified.
+
 ## [1.3.0-alpha.32] - 2026-10-17
 
 - Add the compact `get_evidence_summary` tool and typed count/diagnostic output

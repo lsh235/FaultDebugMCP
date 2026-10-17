@@ -723,6 +723,93 @@ class ThreadTraceOutput(OutputModel):
     total: Annotated[int, Field(ge=0, description="Number of matching thread records before pagination.")]
 
 
+class OpenFaultHeader(OutputModel):
+    """Known native capture-header counters; unknown compatibility fields stay open."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    total_size: Annotated[int | None, Field(ge=0, description="Captured shared-memory size in bytes, when present.")] = None
+    status: Annotated[int | None, Field(ge=0, description="Native capture-status bit field; it is not an application or RPC status code.")] = None
+    event_capacity: Annotated[int | None, Field(ge=0, description="Native event-ring capacity when captured.")] = None
+    thread_capacity: Annotated[int | None, Field(ge=0, description="Native thread-slot capacity when captured.")] = None
+    module_capacity: Annotated[int | None, Field(ge=0, description="Native module-slot capacity when captured.")] = None
+    crash_capacity: Annotated[int | None, Field(ge=0, description="Native crash-slot capacity when captured.")] = None
+    creator_pid: Annotated[int | None, Field(ge=0, description="Process ID that created the native mapping; it is not a persistent identity.")] = None
+    start_ns: Annotated[int | None, Field(ge=0, description="Recorded process start in its monotonic clock domain.")] = None
+    ready_ns: Annotated[int | None, Field(ge=0, description="Recorded collector-ready time in the same monotonic clock domain.")] = None
+    crash_ns: Annotated[int | None, Field(ge=0, description="Recorded crash time in the same monotonic clock domain.")] = None
+    threads_offset: Annotated[int | None, Field(ge=0, description="Native thread-region byte offset.")] = None
+    modules_offset: Annotated[int | None, Field(ge=0, description="Native module-region byte offset.")] = None
+    crashes_offset: Annotated[int | None, Field(ge=0, description="Native crash-region byte offset.")] = None
+
+
+class OpenFaultModule(OutputModel):
+    """Known loaded-module fields; additional producer fields are preserved."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    slot: Annotated[int | None, Field(ge=0, description="Native module-table slot when present.")] = None
+    load_bias: Annotated[int | None, Field(ge=0, description="Recorded runtime load bias.")] = None
+    text_start: Annotated[int | None, Field(ge=0, description="Recorded start of the module text range.")] = None
+    text_end: Annotated[int | None, Field(ge=0, description="Recorded end of the module text range.")] = None
+    build_id: Annotated[str | None, Field(description="Recorded GNU Build ID; a later source lookup still verifies the candidate binary.")] = None
+    path: Annotated[str | None, Field(description="Recorded module path; it is not proof that the current file matches the capture.")] = None
+
+
+class OpenFaultCrash(OutputModel):
+    """Raw native crash fields without a fault-cause interpretation."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    slot: Annotated[int | None, Field(description="Crash-record slot when present.")] = None
+    flags: Annotated[int | None, Field(description="Raw crash validity and state flags.")] = None
+    signal: Annotated[int | None, Field(description="Recorded signal number when present.")] = None
+    si_code: Annotated[int | None, Field(description="Recorded signal subcode when present.")] = None
+    fault_address: Annotated[int | None, Field(description="Recorded fault address; zero is preserved when marked valid.")] = None
+    pc: Annotated[int | None, Field(description="Recorded program counter; it is not resolved to a symbol here.")] = None
+    tid: Annotated[int | None, Field(description="Captured OS thread ID; it may be reused across thread generations.")] = None
+    monotonic_ns: Annotated[int | None, Field(description="Crash timestamp in the recorded process clock domain.")] = None
+    thread_generation: Annotated[int | None, Field(description="Thread generation matched to this crash row when captured.")] = None
+
+
+class OpenFaultSnapshotConsistency(OutputModel):
+    """Snapshot-read state; this does not establish global atomicity."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    stable: Annotated[bool | None, Field(description="True when no record changed during the decoder's bounded copy.")] = None
+    unstable_records: Annotated[list[Any] | None, Field(description="Open diagnostic rows for records omitted or changed during the read.")] = None
+
+
+class OpenFaultBundleMarker(OutputModel):
+    """Optional source-bundle integrity result attached by open_fault."""
+
+    path: Annotated[str, Field(description="Resolved root path of the verified immutable bundle.")]
+    verified: Annotated[Literal[True], Field(description="True only after the bundle manifest and files pass verification.")]
+
+
+class OpenFaultOutput(OutputModel):
+    """Raw capture sections with known native fields typed and producer extensions open."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    header: Annotated[OpenFaultHeader | None, Field(description="Native format header when available; legacy and sparse JSON may omit it.")] = None
+    threads: Annotated[list[ThreadTraceThread] | None, Field(description="Raw captured thread rows; pagination and event reconstruction are provided by dedicated tools.")] = None
+    modules: Annotated[list[OpenFaultModule] | None, Field(description="Captured loaded-module rows; recorded paths and IDs are not independently verified here.")] = None
+    crashes: Annotated[list[OpenFaultCrash] | None, Field(description="Raw crash rows; these fields do not by themselves establish a root cause.")] = None
+    complete: Annotated[bool | None, Field(description="Capture-completeness marker when recorded; true does not imply application success.")] = None
+    snapshot_consistency: Annotated[OpenFaultSnapshotConsistency | None, Field(description="Decoder snapshot-read consistency, separate from root cause and application outcome.")] = None
+    rpc: Annotated[dict[str, Any] | None, Field(description="Optional producer-defined semantic-RPC sidecar and its header, events and completeness metadata.")] = None
+    rpc_events: Annotated[list[Any] | None, Field(description="Optional raw RPC-event alias; use get_rpc_trace for normalized observations and explicit diagnostics.")] = None
+    process: Annotated[dict[str, Any] | None, Field(description="Optional launcher process identity metadata; PID alone is not a persistent identity.")] = None
+    target: Annotated[dict[str, Any] | None, Field(description="Optional recorded target exit information; it is not a root-cause verdict.")] = None
+    collector: Annotated[dict[str, Any] | None, Field(description="Optional collector status and loss information.")] = None
+    session: Annotated[dict[str, Any] | None, Field(description="Optional declared session identity metadata.")] = None
+    context: Annotated[dict[str, Any] | None, Field(description="Optional producer context metadata; missing fields are not inferred.")] = None
+    artifact: Annotated[str | None, Field(description="Optional artifact path recorded by the launcher.")] = None
+    bundle: Annotated[OpenFaultBundleMarker | None, Field(description="Present only when the optional source bundle was verified.")] = None
+
+
 class FaultFlowEvent(OutputModel):
     id: Annotated[str, Field(description="Stable report-local event identifier; not a capture-global identity.")]
     kind: Annotated[Literal["enter", "exit", "marker"], Field(description="Decoded native record kind; marker includes unknown/unsupported event types.")]

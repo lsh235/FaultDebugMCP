@@ -18,7 +18,7 @@ from .capabilities import get_capabilities as capability_contract
 from .mcp_outputs import (ArtifactDiscoveryOutput, BundleDiscoveryOutput,
                           CallRelationsOutput,
                           CapabilitiesOutput, EvidenceSummaryOutput, FaultFlowOutput,
-                          FunctionSourceOutput,
+                          FunctionSourceOutput, OpenFaultOutput,
                           IncidentListOutput, IncidentSliceOutput, SessionListOutput, SourceEvidenceOutput,
                           IncidentReportOutput, ResolveAddressesOutput, RpcTraceOutput,
                           ThreadTraceOutput,
@@ -270,7 +270,7 @@ def make_server(root: Path, *, tool_profile: str = "full"):
                     "error": {"code": "STORE_PATH_INVALID", "message": "evidence store is outside the allowlisted root"}}
         return EvidenceStore.inspect_health(path)
     @register_tool(annotations=_read_only("Open fault"))
-    def open_fault(name: CaptureName, bundle: BundlePath = None) -> dict:
+    def open_fault(name: CaptureName, bundle: BundlePath = None) -> OpenFaultOutput:
         """Decode one capture's process, thread, crash and integrity records for initial triage.
 
         Use after discover_artifacts; get_fault_flow instead produces a bounded execution

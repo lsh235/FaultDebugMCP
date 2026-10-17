@@ -314,7 +314,8 @@ def _mcp_capabilities(ns: argparse.Namespace, work: pathlib.Path, db: pathlib.Pa
     if probe["returncode"] != 0:
         return result("mcp_capabilities_store", "NOT RUN", "official MCP Python SDK is unavailable")
     root = db.parent
-    process = subprocess.Popen([str(ns.python), "-m", "faultdebug.cli", "mcp", "--root", str(root)],
+    process = subprocess.Popen([str(ns.python), "-m", "faultdebug.cli", "mcp", "--root", str(root),
+                                "--tool-profile", "full"],
                                cwd=ROOT, env={**os.environ, "PYTHONPATH": str(ROOT)},
                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                text=True, encoding="utf-8", errors="backslashreplace",

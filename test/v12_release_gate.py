@@ -85,7 +85,8 @@ def _v10_compatibility(report_path: Path, profile: str) -> dict[str, Any]:
 
 
 def _mcp_exchange(executable: Path, root: Path, env: dict[str, str]) -> dict[str, Any]:
-    process = subprocess.Popen([str(executable), "mcp", "--root", str(root)], cwd=root, env=env,
+    process = subprocess.Popen([str(executable), "mcp", "--root", str(root),
+                                "--tool-profile", "full"], cwd=root, env=env,
                                stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                                text=True, encoding="utf-8", errors="replace", bufsize=1)
     responses: queue.Queue[dict[str, Any] | None] = queue.Queue()

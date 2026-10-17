@@ -142,7 +142,8 @@ def _mcp_stdio_check(root: Path, artifact: str, bundle: str,
     env = os.environ.copy()
     env["PYTHONPATH"] = str(REPOSITORY) + (os.pathsep + env.get("PYTHONPATH", ""))
     process = subprocess.Popen(
-        [sys.executable, "-m", "faultdebug.cli", "mcp", "--root", str(root)],
+        [sys.executable, "-m", "faultdebug.cli", "mcp", "--root", str(root),
+         "--tool-profile", "full"],
         cwd=REPOSITORY, env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE,
         stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", bufsize=1)
     requests = [

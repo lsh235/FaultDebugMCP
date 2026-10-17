@@ -148,7 +148,8 @@ class ServiceQueryTests(unittest.TestCase):
         async def run(root):
             before = digest(root)
             params = StdioServerParameters(command=sys.executable,
-                args=['-m', 'faultdebug.cli', 'mcp', '--root', str(root)])
+                args=['-m', 'faultdebug.cli', 'mcp', '--root', str(root),
+                      '--tool-profile', 'full'])
             async with stdio_client(params) as (read, write):
                 async with ClientSession(read, write) as session:
                     await session.initialize()

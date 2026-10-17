@@ -65,6 +65,10 @@ incident evidence payload는 별도 검토 전까지 스키마 범위에서 제�
 알파22는 full 프로필의 `list_sessions`에 6개 필드의 typed 결과를 제공합니다. focused
 카탈로그 범위와 세션 도구 제외 정책은 유지합니다. 공식 Glama 점수는 재평가 전까지
 확인되지 않았습니다.
+알파23은 focused에도 포함된 `get_source_evidence`에 검증된 citation과 unresolved 사유,
+오류를 구분하는 typed 결과를 추가합니다. 기존 텍스트 응답과 단일 citation 편의 필드는
+유지하고, source 본문은 별도의 `get_function_source`로 제공합니다. Glama 재평가와 점수는
+확인되지 않았습니다.
 [기존 프로젝트 적용 안내](docs/existing-project-adoption.md) ·
 [보고서 언어 검토](docs/integration-report-language-review.md) ·
 [이벤트 상한 검토](docs/integration-report-event-limit-review.md) ·
@@ -81,6 +85,9 @@ incident evidence payload는 별도 검토 전까지 스키마 범위에서 제�
 [incident 목록 출력 스키마 검토](docs/mcp-incident-list-output-review.md) ·
 [session 목록 출력 스키마 리서치](docs/mcp-session-list-output-research.md) ·
 [session 목록 출력 스키마 검토](docs/mcp-session-list-output-review.md) ·
+[source evidence 출력 스키마 리서치](docs/mcp-source-evidence-output-research.md) ·
+[source evidence 출력 스키마 검토](docs/mcp-source-evidence-output-review.md) ·
+[알파23 범위와 검증](docs/releases/v1.3.0-alpha.23.md) ·
 [알파22 범위와 검증](docs/releases/v1.3.0-alpha.22.md) ·
 [구현 범위와 검증](docs/releases/v1.3.0-alpha.21.md)
 

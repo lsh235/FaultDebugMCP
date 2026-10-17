@@ -17,7 +17,8 @@ from .evidence_store import EvidenceStore, EvidenceStoreError
 from .capabilities import get_capabilities as capability_contract
 from .mcp_outputs import (ArtifactDiscoveryOutput, BundleDiscoveryOutput,
                           CapabilitiesOutput, FunctionSourceOutput,
-                          IncidentListOutput, SessionListOutput, StoreCheckOutput)
+                          IncidentListOutput, SessionListOutput, SourceEvidenceOutput,
+                          StoreCheckOutput)
 
 # Field metadata is exported in tools/list; docstring Args alone is not a schema.
 CaptureName = Annotated[str, Field(min_length=1, description="Root-relative .fault or decoded .json capture path, e.g. fault-1234.fault; no absolute paths, '..', or escaping symlinks.")]
@@ -528,7 +529,7 @@ def make_server(root: Path, *, tool_profile: str = "full"):
     @register_tool(annotations=_read_only("Get source evidence"))
     def get_source_evidence(incident_id: IncidentId, bundle: RequiredBundlePath,
                             db: StorePath = "evidence.sqlite3",
-                            function_ids: Annotated[list[FunctionId] | None, Field(max_length=100, description="Up to 100 exact index IDs to request in addition to incident references. Null/empty uses stored references; IDs outside the bundle stay unresolved.")] = None, page: Page = 0) -> dict:
+                            function_ids: Annotated[list[FunctionId] | None, Field(max_length=100, description="Up to 100 exact index IDs to request in addition to incident references. Null/empty uses stored references; IDs outside the bundle stay unresolved.")] = None, page: Page = 0) -> SourceEvidenceOutput:
         """Verify one stored incident's source references against a supplied immutable bundle.
 
         Use after get_incident_slice to obtain citation paths/line ranges/hashes; get_function_source

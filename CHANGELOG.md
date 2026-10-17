@@ -2,6 +2,45 @@
 
 ## [Unreleased]
 
+## [2.0.0-alpha.5] - 2026-10-17
+
+- Add two user-selected MCP prompts for capture triage and stored-incident
+  review. Prompt retrieval returns bounded instructions only; it does not read
+  evidence or execute tools. Both prompts use tools available in the focused
+  and full profiles, and the tool inventories remain unchanged.
+- Classify the prompts as a future MINOR capability within the unreleased v2
+  MAJOR target. Host UI behavior and Glama score impact remain unverified.
+
+## [2.0.0-alpha.4] - 2026-10-17
+
+- Add optional `page_size` (1–200) for outer `get_thread_trace` pages and
+  `max_events_per_thread` (1–500) to shape nested raw histories. Complete event
+  rows remain the default; opt-in omission is reported under a reserved row
+  extension, separate from capture loss. A producer-key collision fails closed.
+  Focused profile remains 15 tools and grows to 45 parameters.
+- Python package metadata is `2.0.0a4`; this MINOR-class feature is part of the
+  unreleased v2.0.0 MAJOR candidate. Stable v2 acceptance remains NO-GO and
+  Glama TDQS impact remains unverified.
+
+## [2.0.0-alpha.3] - 2026-10-17
+
+- Add optional `page_size` (1–200, default 200) to `get_rpc_trace` and
+  `get_incident_report`; only observed RPC rows are paged. Existing requests
+  retain their default output, and the 15-tool focused profile now has 43
+  parameters. This additive feature is a future MINOR change under the
+  versioning policy, delivered in the unreleased v2.0.0 alpha train.
+- No response-byte ceiling or reduced decode-work claim; Glama score remains
+  unverified and stable v2 acceptance remains NO-GO.
+
+## [2.0.0-alpha.2] - 2026-10-17
+
+- Batch count-only `get_evidence_summary` across 1–32 unique captures in one
+  MCP call, with per-capture rows and aggregate observed/static/unresolved
+  counts. The focused profile remains 15 tools and 41 parameters.
+- Version the batched summary representation as `summary_schema: 2` while
+  keeping semantic RPC evidence schema v1. Glama pin, scan and score remain
+  unverified; stable v2 acceptance remains NO-GO.
+
 ## [1.3.0-alpha.34] - 2026-10-17
 
 - Publish a typed summary/page output contract for `get_service_flow` in the

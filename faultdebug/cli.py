@@ -360,8 +360,8 @@ def main() -> int:
         print(json.dumps(result, sort_keys=True)); return 0
     mcp = sub.add_parser("mcp", help="serve read-only diagnostics over MCP stdio")
     mcp.add_argument("--root", required=True)
-    mcp.add_argument("--tool-profile", choices=("full", "focused"), default="full",
-                     help="exposed MCP tool catalog; full preserves all tools, focused exposes the 15-tool investigation workflow")
+    mcp.add_argument("--tool-profile", choices=("full", "focused"), default="focused",
+                     help="exposed MCP tool catalog; focused is the default 15-tool investigation workflow, full exposes all tools")
     def serve(n):
         from .mcp_server import make_server
         make_server(__import__('pathlib').Path(n.root), tool_profile=n.tool_profile).run(transport="stdio")

@@ -14,4 +14,4 @@ RUN pip install --no-cache-dir . \
 
 USER 65532:65532
 ENTRYPOINT ["fault-debug"]
-CMD ["mcp", "--root", "/artifacts"]
+CMD ["mcp", "--root", "/artifacts", "--tool-profile", "focused"]

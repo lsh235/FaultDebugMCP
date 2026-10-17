@@ -58,8 +58,24 @@ def main() -> int:
     }])
     assert not any(item.get("kind") == "rpc" for item in ambiguous["observed"])
     assert any(item.get("reason") == "rpc_endpoint_pair_not_unique" for item in ambiguous["unresolved"])
-    summary = evidence_summary([report, peer])
+    summary = evidence_summary([report, peer], artifact_names=["report", "peer"])
     assert summary["observed"]["rpc_events"] == 4
+    assert summary["observed"]["process_relations"] == 1
+    assert summary["items"][0]["name"] == "report"
+    assert summary["items"][0]["observed_rpc_events"] == 2
+    assert summary["items"][1]["name"] == "peer"
+    assert summary["items"][1]["observed_rpc_events"] == 2
+    assert sum(item["observed_rpc_events"] for item in summary["items"]) == summary["observed"]["rpc_events"]
+    assert sum(item["static_candidates"] for item in summary["items"]) == summary["static_candidates"]
+    try:
+        evidence_summary([report, peer], artifact_names=["report", "report"])
+    except ValueError:
+        pass
+    else:
+        raise AssertionError("duplicate summary names were accepted")
+    missing_rpc_summary = evidence_summary([{"process": {"pid": 9}}],
+                                           artifact_names=["missing-rpc.fault"])
+    assert missing_rpc_summary["unresolved"] == {"semantic_rpc_extension_absent": 1}
     try:
         rpc_trace({"header": {"abi_version": 1}, "rpc_trace": {"schema": 99, "events": []}})
     except RPCDecodeError:

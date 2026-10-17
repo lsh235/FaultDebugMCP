@@ -53,10 +53,10 @@ sensitive; do not expose them to untrusted MCP clients.
 
 ## Tool definitions and Glama
 
-The MCP `tools/list` response contains descriptions and per-parameter JSON Schema
-metadata for all 27 tools in the default `full` profile. The optional `focused`
-profile exposes a bounded 16-tool capture/incident/source workflow. Every tool
-in either profile declares `readOnlyHint=true`,
+The MCP `tools/list` response defaults to the bounded 15-tool `focused`
+capture/incident/source workflow. Add `--tool-profile full` to expose all 27
+tools, including advanced session, provenance, and static call-relation queries.
+Every tool in either profile declares `readOnlyHint=true`,
 `destructiveHint=false`, `idempotentHint=true`, and `openWorldHint=false`.
 Capture and bundle paths are relative to the configured root; absolute paths,
 parent traversal and escaping symlinks are rejected. Address resolution may read
@@ -83,11 +83,11 @@ Choose tools by evidence source and question:
 list all sessions. `get_thread_trace` pages thread records, `get_rpc_trace` pages
 RPC observations, and store incident/session tools page artifacts. Returned
 counts and truncation flags describe the corresponding collection. The full
-profile publishes seventeen typed output schemas and the focused profile
-publishes sixteen, including verified source citations, normalized RPC
+profile publishes eighteen typed output schemas and the focused profile
+publishes fifteen, including verified source citations, normalized RPC
 observations with separate uncertainty diagnostics, typed fault-flow and
-multi-capture incident-report results, per-address resolution rows, and open
-static call-relations rows, generation-aware raw thread records, the
+multi-capture incident-report results, per-address resolution rows,
+generation-aware raw thread records, the
 incident-slice success/error envelope with open SQLite rows, and a typed
 count-only evidence summary with open diagnostics. `open_fault` types stable
 native header/module/crash sections while keeping capture extensions, sparse
@@ -96,8 +96,9 @@ details remain in descriptions, including the distinction between MCP tool
 errors and structured `error.code` payloads.
 
 The focused profile tailors its descriptions so named alternatives remain
-available in that 16-tool catalog; the full profile retains cross-catalog
-guidance for its 27 tools.
+available in that 15-tool catalog. Advanced static call relations remain
+available in the full profile, which retains cross-catalog guidance for its 27
+tools.
 
 Run the protocol and read-only audit from the repository root:
 
@@ -149,17 +150,22 @@ and set these fields:
     "mcp", "--root", "/app/artifacts", "--tool-profile", "focused"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "a07591b5908c61fb1c029d424923f98d10d3a8be",
+  "pinnedCommit": "9b936f12e3203e321ddaf19a759e6899d1999b02",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }
 ```
 
-This full implementation SHA selects the alpha34 `focused` 16-tool first-line
-workflow and its current output contracts. `get_service_flow` is available in
-the full profile with a discriminated summary/page schema and open collection
-rows; the complete 27-tool catalog exposes eighteen typed contracts. This
-focused example does not expose `get_service_flow`. Alpha31 types the incident-slice success/error envelope and known SQLite rows
+This implementation SHA selects the `v2.0.0-alpha.2` candidate's 15-tool
+`focused` first-line workflow. `get_call_relations` and `get_service_flow`
+remain available with their existing behavior in the explicit 27-tool `full`
+profile; the focused profile omits both. The complete catalog exposes eighteen
+typed contracts. The administrator's external pin must still be updated
+separately, and this repository example does not change Glama settings. Alpha2
+changes `get_evidence_summary` from a one-capture call to 1–32 count-only rows
+in request order, with aggregate unresolved reason counts (`summary_schema: 2`);
+the semantic RPC evidence schema remains v1. Alpha31
+types the incident-slice success/error envelope and known SQLite rows
 while leaving database extensions and producer payloads open. Alpha32 adds the
 count-only `get_evidence_summary` to the focused profile with typed status,
 observed counts, static-candidate count and extensible unresolved diagnostics.
@@ -168,10 +174,9 @@ fields open. It includes normalized RPC diagnostics, typed fault-flow,
 multi-capture incident-report, address-resolution, and static call-relations
 outputs in both profiles, plus a typed raw thread trace with open row
 extensions. Relation rows remain open because source-index extensions are
-hash-verified but producer-defined. Focused descriptions
-refer only to alternatives in that catalog; full-profile descriptions retain
-the broader sibling guidance. The administrator's external pin must still be
-updated separately, and this repository example does not change Glama settings.
+hash-verified but producer-defined. Focused descriptions refer only to
+alternatives in that catalog; full-profile descriptions retain the broader
+sibling guidance.
 The previously documented
 `255395c86809cce886ce58cdc5736b2a4c0f8aaa` revision predates it and exposed 25
 tools with 76 described parameters. Alpha15 exposed 26 tools and 83 described
@@ -206,9 +211,10 @@ directory does not contain sample captures or expose the checkout as evidence.
 Click **Deploy** to test the image. After a successful test, select **Make
 Release** or **Create Release**, then **Create & Publish Release**, as described
 in [Glama's release guide](https://glama.ai/blog/2026-03-15-how-to-make-a-release).
-Check that inspection sees 15 focused tools, including `discover_bundles`,
-before checking the new TDQS scan. A successful image build is separate from an
-official score.
+Check that inspection sees 15 focused tools, including `discover_bundles`, and
+that `get_call_relations` is absent from that profile before checking the new
+TDQS scan. Use `--tool-profile full` to restore the complete catalog. A
+successful image build is separate from an official score.
 
 The old pinned revision was validated locally with Glama's generated Dockerfile
 template and `mcp-proxy@6.7.16`: image build, HTTP MCP initialization, its

@@ -4,7 +4,7 @@
 > Follow recorded calls across services, inspect the fault location, and see
 > which evidence is missing.
 
-[![Development milestone](https://img.shields.io/badge/development-v1.3.0--alpha.34-orange)](docs/releases/v1.3.0-alpha.34.md)
+[![Development milestone](https://img.shields.io/badge/development-v2.0.0--alpha.5-orange)](docs/mcp-guided-prompts-review-v2.md)
 [![Release gates](https://img.shields.io/github/actions/workflow/status/lsh235/FaultDebugMCP/v12-release-gate.yml?branch=main&label=release%20gates)](https://github.com/lsh235/FaultDebugMCP/actions/workflows/v12-release-gate.yml)
 [![Python 3.12](https://img.shields.io/badge/python-3.12-blue)](https://www.python.org/)
 [![Clang 18](https://img.shields.io/badge/Clang-18-orange)](https://clang.llvm.org/)
@@ -61,8 +61,42 @@ static call-graph candidates as observed execution.
 
 ## Project status
 
-The development package is **1.3.0a34** (`v1.3.0-alpha.34`); the evidence-foundation
-baseline is [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2).
+The current development target is **2.0.0a5** (`v2.0.0-alpha.5`), based on the
+evidence foundation in [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2).
+This major-version candidate changes the default MCP catalog from 27 tools to
+the 15-tool `focused` workflow and moves advanced static call relations out of
+that catalog. Add `--tool-profile full` to keep the complete 27-tool catalog;
+`get_call_relations` remains available there. Stable v2.0.0 acceptance remains
+pending its full release gates and independent audit. The v1.3 alpha history
+below records the compatible development milestones that led to this break.
+See the [major-change research](docs/mcp-v2-major-profile-research.md),
+[review decision](docs/mcp-v2-major-profile-review.md), and
+[v2.0 release objective](docs/next-version-v2.md) and
+[major/minor/patch policy](docs/versioning-policy.md).
+The first candidate's scope and verification are recorded in
+[v2.0.0-alpha.1](docs/releases/v2.0.0-alpha.1.md). Alpha3 added optional
+1–200 row pages for observed RPC events in two existing MCP tools. Alpha4 adds
+optional bounds for thread rows and nested raw events in `get_thread_trace`,
+keeps all events by default, and reports per-thread view-only omissions when
+requested under a reserved row extension while preserving other raw producer
+extensions.
+It does not cap response bytes or reduce total decode work. Read the
+[alpha4 research](docs/mcp-thread-trace-bounds-research-v2.md),
+[version-classified review](docs/mcp-thread-trace-bounds-review-v2.md), and
+[verification record](docs/releases/v2.0.0-alpha.4.md). Alpha3's RPC page
+controls are recorded in its [research](docs/mcp-rpc-page-size-research-v2.md),
+[review](docs/mcp-rpc-page-size-review-v2.md), and
+[release record](docs/releases/v2.0.0-alpha.3.md). Alpha2's prior count-only
+summary is recorded in its [research](docs/mcp-batch-evidence-summary-research-v2.md),
+[review](docs/mcp-batch-evidence-summary-review-v2.md), and
+[release record](docs/releases/v2.0.0-alpha.2.md).
+Alpha5 adds two user-selected MCP prompts for capture triage and stored-incident
+review. They return bounded workflow instructions only; the server does not
+read evidence or execute tools when a prompt is requested. Tool catalogs and
+Glama's tool-definition score are unchanged/unverified. See the
+[alpha5 research](docs/mcp-guided-prompts-research-v2.md),
+[version-classified review](docs/mcp-guided-prompts-review-v2.md), and
+[release record](docs/releases/v2.0.0-alpha.5.md).
 The existing-project path provides static ELF preflight and isolated opt-in
 CMake integration. `faultdebug self-test` verifies one bounded installed capture;
 alpha9 added `faultdebug integrate --execute-build` for the isolated
@@ -80,8 +114,10 @@ required in the MCP schemas for source lookup and static call relations, matchin
 their existing runtime behavior. Alpha16 adds bounded, read-only `discover_bundles`
 so MCP clients can locate candidate source bundles before calling those tools; it
 does not verify candidates until a source tool consumes one.
-Alpha17 adds `--tool-profile focused`, a 15-tool evidence workflow for smaller
-MCP catalogs; the default `full` profile preserves all 27 tools. Alpha18 moves
+Alpha17 added `--tool-profile focused`, a 15-tool evidence workflow for smaller
+MCP catalogs; at that time the default `full` profile preserved all 27 tools.
+The v2.0.0 candidate makes `focused` the default and narrows it to 15 tools;
+`--tool-profile full` preserves the full 27-tool catalog. Alpha18 moves
 to the official MCP Python SDK v1.30 and publishes validated structured-output
 schemas for capabilities, store health, artifact discovery and bundle discovery.
 It adds a machine-readable response channel while retaining text results. The

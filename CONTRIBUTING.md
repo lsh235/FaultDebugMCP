@@ -47,6 +47,12 @@ source-resolution correctness.
 
 ## Design and review expectations
 
+Classify every proposed release as major, minor, or patch against the public
+contract and follow the research/review gate in
+[`docs/versioning-policy.md`](docs/versioning-policy.md). A prerelease number
+tracks iterations of its target release; it does not replace the stable
+compatibility classification.
+
 - Keep observed runtime events, static candidates, derived relations, and
   unresolved evidence in separate fields.
 - Do not infer cross-process causality from names, parent PIDs, shared IDs, or

@@ -1,5 +1,10 @@
 # v1.3 후보 실행 계획: 컨테이너 서비스 장애 보고서
 
+> Status update, 2026-10-17: the compatible v1.3 alpha history is retained as
+> evidence, but the active release objective is now [v2.0](next-version-v2.md).
+> The default MCP catalog change is reviewed as an intentional public API break;
+> do not promote v1.3 stable as a substitute for the v2 acceptance gates.
+
 작성일: **2026-10-11, Asia/Seoul**.
 기준 revision: `70d6771386a97778bdad167c6508827d6c1d56b4`.
 상태: **IN PROGRESS — P0-01 완료, P0-02 로컬·hosted gate PASS, 최종 수락 pending**.

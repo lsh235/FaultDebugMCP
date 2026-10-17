@@ -398,24 +398,59 @@ def process_relations(reports: list[dict[str, Any]]) -> dict[str, Any]:
             "observed": observed, "static_candidates": static_candidates, "unresolved": unresolved}
 
 
-def evidence_summary(reports: list[dict[str, Any]]) -> dict[str, Any]:
-    """Return counts and limits without collapsing evidence classes."""
+def evidence_summary(reports: list[dict[str, Any]], *,
+                    artifact_names: list[str]) -> dict[str, Any]:
+    """Return bounded per-capture and aggregate evidence counts."""
+    if not 1 <= len(reports) <= 32 or len(reports) != len(artifact_names):
+        raise ValueError("evidence summary requires 1-32 names, one for each capture")
+    if any(not isinstance(name, str) or not name for name in artifact_names):
+        raise ValueError("evidence summary capture names must be non-empty strings")
+    if len(set(artifact_names)) != len(artifact_names):
+        raise ValueError("evidence summary capture names must be unique")
+
     decoded: list[dict[str, Any]] = []
-    unresolved: list[dict[str, Any]] = []
-    for report in reports:
+    items: list[dict[str, Any]] = []
+    unresolved_counts: dict[str, int] = defaultdict(int)
+    for name, report in zip(artifact_names, reports):
         try:
-            decoded.append(rpc_trace(report))
-        except RPCDecodeError as exc:
-            unresolved.append({"reason": "rpc_decode_error", "message": str(exc)})
+            row = rpc_trace(report)
+        except RPCDecodeError:
+            row = {"status": "unresolved", "observed": [], "static_candidates": [],
+                   "unresolved": [{"reason": "rpc_decode_error"}]}
+        decoded.append(row)
+        per_artifact_counts: dict[str, int] = defaultdict(int)
+        for diagnostic in row["unresolved"]:
+            reason = str(diagnostic.get("reason", "unknown"))
+            per_artifact_counts[reason] += 1
+            unresolved_counts[reason] += 1
+        items.append({
+            "name": name,
+            "rpc_status": row["status"],
+            "observed_rpc_events": len(row["observed"]),
+            "static_candidates": len(row["static_candidates"]),
+            "unresolved_by_reason": dict(sorted(per_artifact_counts.items())),
+        })
+
     relations = process_relations(reports)
-    unresolved.extend(relations["unresolved"])
+    remaining_artifact_diagnostics = dict(unresolved_counts)
+    for diagnostic in relations["unresolved"]:
+        reason = str(diagnostic.get("reason", "unknown"))
+        # process_relations includes each capture's rpc_trace diagnostics before
+        # adding cross-capture findings. Those were already counted per item;
+        # retain only additional occurrences here.
+        if remaining_artifact_diagnostics.get(reason, 0):
+            remaining_artifact_diagnostics[reason] -= 1
+            continue
+        unresolved_counts[reason] += 1
     return {"schema": RPC_SCHEMA_VERSION,
-            "status": "complete" if not unresolved else "limited",
+            "summary_schema": 2,
+            "status": "complete" if not unresolved_counts else "limited",
             "artifacts": len(reports),
+            "items": items,
             "observed": {"rpc_events": sum(len(row["observed"]) for row in decoded),
                          "process_relations": len(relations["observed"])},
             "static_candidates": sum(len(row["static_candidates"]) for row in decoded),
-            "unresolved": unresolved}
+            "unresolved": dict(sorted(unresolved_counts.items()))}
 
 
 def incident_report(reports: list[dict[str, Any]]) -> dict[str, Any]:

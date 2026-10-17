@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.3.0-alpha.30] - 2026-10-17
+
+- Publish a typed `get_thread_trace` page and raw thread/event result in full
+  and focused MCP profiles; keep conditional retention and unknown row
+  extensions visible.
+- Preserve event order, `tid` matching, pagination, text output and capture
+  evidence; Glama re-scan and score remain unverified.
+
 ## [1.3.0-alpha.29] - 2026-10-17
 
 - Publish a typed `get_call_relations` result in full and focused MCP profiles,

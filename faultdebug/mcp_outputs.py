@@ -535,6 +535,55 @@ class CallRelationsOutput(OutputModel):
     bundle: Annotated[str, Field(description="Resolved root path of the verified immutable bundle containing the index.")]
 
 
+class ThreadTraceRetention(OutputModel):
+    """Conditional native thread-history accounting; unknown producer fields remain open."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    scope: Annotated[str, Field(description="Retention scope for the thread slot.")]
+    event_count_scope: Annotated[str, Field(description="Generation scope of the retained event count.")]
+    dropped_count_scope: Annotated[str, Field(description="Lifetime scope of the dropped event count.")]
+    retired_generations: Annotated[int, Field(ge=0, description="Number of retired thread generations represented by the slot.")]
+    retired_event_count: Annotated[int | None, Field(ge=0, description="Retired-generation event count, when the recorder knows it.")]
+
+
+class ThreadTraceEvent(OutputModel):
+    """One raw event; older JSON captures may omit fields available in the native ABI."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    sequence: Annotated[int | None, Field(ge=0, description="Per-thread publication sequence when recorded in the event ring.")] = None
+    monotonic_ns: Annotated[int | None, Field(ge=0, description="Event timestamp in the process monotonic clock domain, when recorded.")] = None
+    function: Annotated[int | None, Field(ge=0, description="Recorded function address; this field is not a resolved symbol.")] = None
+    callsite: Annotated[int | None, Field(ge=0, description="Recorded callsite address when present in the source capture.")] = None
+    type: Annotated[int | None, Field(ge=0, description="Raw native event type value when present; interpretation follows the capture ABI.")] = None
+    generation: Annotated[int | None, Field(ge=0, description="Thread generation that owns this event record, when recorded.")] = None
+
+
+class ThreadTraceThread(OutputModel):
+    """Thread row that preserves sparse JSON captures and optional generation accounting."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    slot: Annotated[int | None, Field(ge=0, description="Native shared-memory thread slot, when present in the capture.")] = None
+    tid: Annotated[int | None, Field(ge=0, description="Captured operating-system thread ID; it may be reused across generations.")] = None
+    generation: Annotated[int | None, Field(ge=0, description="Current generation recorded in this thread slot, when present.")] = None
+    flags: Annotated[int | None, Field(ge=0, description="Raw thread-slot flags describing generation and retained history, when present.")] = None
+    event_count: Annotated[int | None, Field(ge=0, description="Native ring publication count, when present; it can exceed retained events after wraparound.")] = None
+    dropped_count: Annotated[int | None, Field(ge=0, description="Slot-lifetime dropped-event count, when present; distinct from the retained array.")] = None
+    events: Annotated[list[ThreadTraceEvent] | None, Field(description="Retained raw events in publication-sequence order when present; this list alone does not establish capture completeness.")] = None
+    retention: Annotated[ThreadTraceRetention | None, Field(description="Present when the recorder advertises generation-aware history accounting.")] = None
+
+
+class ThreadTraceOutput(OutputModel):
+    """Paged raw thread histories from one immutable capture."""
+
+    items: Annotated[list[ThreadTraceThread], Field(description="Thread records on this page; pagination slices threads, not their events.")]
+    page: Annotated[int, Field(ge=0, description="Zero-based thread page.")]
+    page_size: Annotated[Literal[200], Field(description="Maximum thread records per page.")]
+    total: Annotated[int, Field(ge=0, description="Number of matching thread records before pagination.")]
+
+
 class FaultFlowEvent(OutputModel):
     id: Annotated[str, Field(description="Stable report-local event identifier; not a capture-global identity.")]
     kind: Annotated[Literal["enter", "exit", "marker"], Field(description="Decoded native record kind; marker includes unknown/unsupported event types.")]

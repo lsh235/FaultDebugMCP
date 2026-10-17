@@ -31,7 +31,7 @@ OUTPUT_SCHEMA_TOOLS = {
     'get_capabilities', 'check_store', 'discover_artifacts', 'discover_bundles',
     'get_function_source', 'list_incidents', 'list_sessions', 'get_source_evidence',
     'get_rpc_trace', 'get_fault_flow', 'get_incident_report', 'resolve_addresses',
-    'get_call_relations',
+    'get_call_relations', 'get_thread_trace',
 }
 FOCUSED_OUTPUT_SCHEMA_TOOLS = OUTPUT_SCHEMA_TOOLS - {'list_sessions'}
 PROFILE_DESCRIPTION_EXPECTATIONS = {
@@ -193,6 +193,42 @@ def assert_call_relations_contract(result, output_schema, text_result):
     return structured
 
 
+def assert_open_row(structured_row, text_row, allowed_optional, *, skip=()):
+    omitted = set(structured_row) - set(text_row)
+    assert omitted <= set(allowed_optional) - set(text_row), omitted
+    assert all(structured_row[field] is None for field in omitted)
+    for field, value in text_row.items():
+        if field not in skip:
+            assert structured_row[field] == value, field
+
+
+def assert_thread_trace_contract(result, output_schema, text_result):
+    structured = validate_structured_payload(result, output_schema)
+    assert set(structured) == set(text_result)
+    for field in ('page', 'page_size', 'total'):
+        assert structured[field] == text_result[field], field
+    thread_fields = output_schema['$defs']['ThreadTraceThread']['properties']
+    event_fields = output_schema['$defs']['ThreadTraceEvent']['properties']
+    assert len(structured['items']) == len(text_result['items'])
+    for structured_thread, text_thread in zip(structured['items'], text_result['items']):
+        assert_open_row(structured_thread, text_thread,
+                        set(thread_fields) - set(output_schema['$defs']['ThreadTraceThread'].get('required', [])),
+                        skip={'events', 'retention'})
+        assert len(structured_thread['events']) == len(text_thread['events'])
+        for structured_event, text_event in zip(
+                structured_thread['events'], text_thread['events']):
+            assert_open_row(
+                structured_event, text_event,
+                set(event_fields) - set(output_schema['$defs']['ThreadTraceEvent'].get('required', [])))
+        if 'retention' in text_thread:
+            assert_open_row(structured_thread['retention'], text_thread['retention'],
+                            set(output_schema['$defs']['ThreadTraceRetention']['properties']))
+        else:
+            assert structured_thread['retention'] is None
+        assert set(structured_thread) <= set(thread_fields) | set(text_thread)
+    return structured
+
+
 def assert_profile_descriptions(full_tools, focused_tools):
     hidden_names = set(full_tools) - set(focused_tools)
     for name, tool in focused_tools.items():
@@ -213,6 +249,32 @@ def assert_profile_descriptions(full_tools, focused_tools):
 
 async def audit(root):
     capture = write_artifact({'process': {'pid': 7}, 'threads': [], 'crashes': []}, root, 7)
+    thread_history = write_artifact({
+        'process': {'pid': 77},
+        'threads': [
+            {'slot': 0, 'tid': 77, 'generation': 1, 'flags': 0,
+             'event_count': 1, 'dropped_count': 0,
+             'events': [{'sequence': 0, 'monotonic_ns': 10, 'function': 4096,
+                         'callsite': 0, 'type': 1, 'generation': 1,
+                         'producer_extension': 'event-v1'}],
+             'producer_extension': {'source': 'index-fixture'}},
+            {'slot': 1, 'tid': 77, 'generation': 2, 'flags': 3,
+             'event_count': 2, 'dropped_count': 0,
+             'events': [{'sequence': 1, 'monotonic_ns': 20, 'function': 8192,
+                         'callsite': 4096, 'type': 2, 'generation': 2}],
+             'retention': {'scope': 'current_thread_generation',
+                           'event_count_scope': 'current_generation',
+                           'dropped_count_scope': 'slot_lifetime',
+                           'retired_generations': 1, 'retired_event_count': None,
+                           'producer_extension': 'retention-v1'}},
+        ],
+        'crashes': [],
+    }, root, 77, artifact_stem='thread-history')
+    sparse_thread_history = root / 'fault-sparse-thread.json'
+    sparse_thread_history.write_text(json.dumps({
+        'threads': [{'tid': 78, 'generation': 3,
+                     'events': [{'sequence': 4, 'type': 9}]}],
+    }))
     flow_good = flow_artifact(root, 'flow-good')
     flow_limited = flow_artifact(root, 'flow-limited', status=1 << 9,
                                  complete=False, dropped=3)
@@ -416,6 +478,12 @@ async def audit(root):
                 'caller_id', 'callee_id', 'spelling', 'kind', 'edge'}
             assert call_relations_schema['$defs']['StaticCallRelation'][
                 'additionalProperties'] is True
+            thread_trace_schema = tools['get_thread_trace'].outputSchema
+            assert set(thread_trace_schema['properties']) == {
+                'items', 'page', 'page_size', 'total'}
+            assert thread_trace_schema['properties']['page_size']['const'] == 200
+            for model in ('ThreadTraceThread', 'ThreadTraceEvent', 'ThreadTraceRetention'):
+                assert thread_trace_schema['$defs'][model]['additionalProperties'] is True
             parameters = 0
             for name, tool in tools.items():
                 assert tool.description and 30 <= len(tool.description) <= 1600, name
@@ -502,6 +570,45 @@ async def audit(root):
             assert caps['platform_toolchain']['mcp_transport'] == 'stdio'
             opened = payload(await session.call_tool('open_fault', {'name': capture.name}))
             assert opened['process']['pid'] == 7
+            thread_trace_result = await session.call_tool('get_thread_trace', {
+                'name': thread_history.name})
+            thread_trace_text = payload(thread_trace_result)
+            thread_trace = assert_thread_trace_contract(
+                thread_trace_result, thread_trace_schema, thread_trace_text)
+            assert thread_trace_text['total'] == 2 and thread_trace_text['page_size'] == 200
+            assert [row['generation'] for row in thread_trace['items']] == [1, 2]
+            assert thread_trace['items'][0]['retention'] is None
+            assert thread_trace['items'][0]['producer_extension'] == {'source': 'index-fixture'}
+            assert thread_trace['items'][0]['events'][0]['producer_extension'] == 'event-v1'
+            assert thread_trace['items'][1]['retention']['producer_extension'] == 'retention-v1'
+            sparse_result = await session.call_tool('get_thread_trace', {
+                'name': sparse_thread_history.name})
+            sparse_text = payload(sparse_result)
+            sparse_structured = assert_thread_trace_contract(
+                sparse_result, thread_trace_schema, sparse_text)
+            assert set(sparse_text['items'][0]) == {'tid', 'generation', 'events'}
+            assert set(sparse_text['items'][0]['events'][0]) == {'sequence', 'type'}
+            assert sparse_structured['items'][0]['slot'] is None
+            assert sparse_structured['items'][0]['events'][0]['callsite'] is None
+            filtered_thread_trace_result = await session.call_tool('get_thread_trace', {
+                'name': thread_history.name, 'tid': 77})
+            filtered_thread_trace = payload(filtered_thread_trace_result)
+            assert_thread_trace_contract(
+                filtered_thread_trace_result, thread_trace_schema, filtered_thread_trace)
+            assert [row['generation'] for row in filtered_thread_trace['items']] == [1, 2]
+            missing_thread_trace_result = await session.call_tool('get_thread_trace', {
+                'name': thread_history.name, 'tid': 78})
+            missing_thread_trace = payload(missing_thread_trace_result)
+            assert_thread_trace_contract(
+                missing_thread_trace_result, thread_trace_schema, missing_thread_trace)
+            assert missing_thread_trace['items'] == [] and missing_thread_trace['total'] == 0
+            exhausted_thread_trace_result = await session.call_tool('get_thread_trace', {
+                'name': thread_history.name, 'page': 1})
+            exhausted_thread_trace = payload(exhausted_thread_trace_result)
+            assert_thread_trace_contract(
+                exhausted_thread_trace_result, thread_trace_schema, exhausted_thread_trace)
+            assert exhausted_thread_trace['items'] == []
+            assert exhausted_thread_trace['total'] == 2 and exhausted_thread_trace['page'] == 1
             empty_resolutions_result = await session.call_tool('resolve_addresses', {
                 'name': capture.name, 'addresses': [], 'debug_directory': 'debug'})
             empty_resolutions = payload(empty_resolutions_result)
@@ -731,6 +838,7 @@ async def audit(root):
                 ('get_incident_report', {'names': ['../escape.fault']}),
                 ('get_incident_report', {'names': ['nested/fault-malformed.json']}),
                 ('get_thread_trace', {'name': capture.name, 'page': -1}),
+                ('get_thread_trace', {'name': '../escape.fault'}),
                 ('get_fault_flow', {'name': capture.name, 'max_events': 501}),
                 ('get_fault_flow', {'name': capture.name, 'debug_directory': '../outside'}),
                 ('get_call_relations', {'name': capture.name, 'function_id': 'f', 'direction': 'both'}),
@@ -802,6 +910,7 @@ async def audit(root):
             assert focused_tools['get_incident_report'].outputSchema == incident_report_schema
             assert focused_tools['resolve_addresses'].outputSchema == resolve_addresses_schema
             assert focused_tools['get_call_relations'].outputSchema == call_relations_schema
+            assert focused_tools['get_thread_trace'].outputSchema == thread_trace_schema
             assert all(tool.annotations and tool.annotations.readOnlyHint is True
                        for tool in focused_tools.values())
             focused_parameters = 0
@@ -849,6 +958,24 @@ async def audit(root):
                 focused_tools['get_call_relations'].outputSchema,
                 focused_inbound)
             assert focused_inbound['relations'][0]['caller_id'] == 'fn-main'
+            focused_thread_trace_result = await session.call_tool('get_thread_trace', {
+                'name': thread_history.name, 'tid': 77})
+            focused_thread_trace = payload(focused_thread_trace_result)
+            assert_thread_trace_contract(
+                focused_thread_trace_result,
+                focused_tools['get_thread_trace'].outputSchema,
+                focused_thread_trace)
+            assert [row['generation'] for row in focused_thread_trace['items']] == [1, 2]
+            focused_sparse_result = await session.call_tool('get_thread_trace', {
+                'name': sparse_thread_history.name})
+            focused_sparse_text = payload(focused_sparse_result)
+            focused_sparse = assert_thread_trace_contract(
+                focused_sparse_result,
+                focused_tools['get_thread_trace'].outputSchema,
+                focused_sparse_text)
+            assert set(focused_sparse_text['items'][0]) == {'tid', 'generation', 'events'}
+            assert focused_sparse['items'][0]['event_count'] is None
+            assert focused_sparse['items'][0]['events'][0]['generation'] is None
             focused_rpc_result = await session.call_tool('get_rpc_trace', {'name': rpc_good.name})
             focused_rpc = payload(focused_rpc_result)
             assert_rpc_trace_contract(

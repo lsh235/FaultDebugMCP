@@ -28,8 +28,9 @@ FOCUSED_TOOLS = {
 }
 OUTPUT_SCHEMA_TOOLS = {
     'get_capabilities', 'check_store', 'discover_artifacts', 'discover_bundles',
-    'get_function_source', 'list_incidents',
+    'get_function_source', 'list_incidents', 'list_sessions',
 }
+FOCUSED_OUTPUT_SCHEMA_TOOLS = OUTPUT_SCHEMA_TOOLS - {'list_sessions'}
 
 
 def payload(result):
@@ -142,6 +143,15 @@ async def audit(root):
             assert set(incident_defs['IncidentListSuccess']['properties']) == {
                 'schema', 'incidents', 'total', 'page', 'page_size'}
             assert set(incident_defs['IncidentListError']['properties']) == {'schema', 'error'}
+            session_schema = tools['list_sessions'].outputSchema
+            assert set(session_schema['properties']) == {
+                'schema', 'sessions', 'total', 'page', 'page_size'}
+            session_defs = session_schema.get('$defs', {})
+            assert set(session_defs['SessionListItem']['properties']) == {
+                'session_id', 'first_start_ns', 'artifact_count', 'verified_count',
+                'identity_source', 'trust_state'}
+            assert set(session_schema.get('required', [])) == {
+                'schema', 'sessions', 'total', 'page', 'page_size'}
             parameters = 0
             for name, tool in tools.items():
                 assert tool.description and 30 <= len(tool.description) <= 1600, name
@@ -219,8 +229,22 @@ async def audit(root):
             assert empty_discovery['total'] == empty_discovery['count'] == 0
             indexed = payload(await session.call_tool('query_artifact_index', {'name': 'index.sqlite'}))
             assert indexed['count'] == 1
-            sessions = payload(await session.call_tool('list_sessions', {}))
+            sessions_result = await session.call_tool('list_sessions', {})
+            sessions = payload(sessions_result)
+            assert validate_structured_payload(sessions_result, session_schema) == sessions
             assert sessions['total'] == 2
+            sessions_by_id = {row['session_id']: row for row in sessions['sessions']}
+            assert sessions_by_id['session-a']['first_start_ns'] == 100
+            assert sessions_by_id['session-a']['artifact_count'] == 1
+            assert sessions_by_id[None]['first_start_ns'] is None
+            assert sessions_by_id[None]['identity_source'] == 'absent'
+            empty_sessions_result = await session.call_tool('list_sessions', {'start_ns': 101})
+            empty_sessions = payload(empty_sessions_result)
+            assert validate_structured_payload(empty_sessions_result, session_schema) == empty_sessions
+            assert empty_sessions['sessions'] == [] and empty_sessions['total'] == 0
+            missing_sessions_result = await session.call_tool(
+                'list_sessions', {'db': 'absent.sqlite'})
+            assert missing_sessions_result.isError is True
             unassigned = payload(await session.call_tool('get_session', {'session_id': None}))
             assert unassigned['total_artifacts'] == 1
             assert unassigned['session']['session_id'] is None
@@ -302,7 +326,7 @@ async def audit(root):
             assert all(tool.title and tool.title != name and len(tool.title) > len(name)
                        and tool.annotations and tool.annotations.title == tool.title
                        for name, tool in focused_tools.items())
-            assert {name for name, tool in focused_tools.items() if tool.outputSchema} == OUTPUT_SCHEMA_TOOLS
+            assert {name for name, tool in focused_tools.items() if tool.outputSchema} == FOCUSED_OUTPUT_SCHEMA_TOOLS
             assert focused_tools['get_function_source'].outputSchema == source_schema
             assert focused_tools['list_incidents'].outputSchema == incident_schema
             assert all(tool.annotations and tool.annotations.readOnlyHint is True
@@ -359,6 +383,7 @@ async def audit(root):
             'annotated_tools': len(tools), 'invalid_call_checks': len(invalid),
             'evidence_files_unchanged': True,
             'structured_output_tools': sorted(OUTPUT_SCHEMA_TOOLS),
+            'focused_structured_output_tools': sorted(FOCUSED_OUTPUT_SCHEMA_TOOLS),
             'titled_tool_count': sum(bool(tool.title) for tool in tools.values()),
             'focused_titled_tool_count': sum(bool(tool.title) for tool in focused_tools.values()),
             'tdqs': {'status': 'NOT_EVALUATED', 'reason': 'Official score requires Glama rubric evaluation.'},
@@ -379,7 +404,7 @@ def main():
     print(f"PASS: {result['tool_count']} full-profile tools/{result['described_parameters']} parameters, "
           f"{result['focused_tool_count']} focused-profile tools/{result['focused_parameter_count']} parameters; "
           f"{result['titled_tool_count']} full and {result['focused_titled_tool_count']} focused titles, "
-          f"{len(result['structured_output_tools'])} structured-output tools, "
+          f"{len(result['structured_output_tools'])} full/{len(result['focused_structured_output_tools'])} focused structured-output tools, "
           f"{result['invalid_call_checks']} invalid calls rejected; evidence unchanged (TDQS not evaluated)")
     return 0
 

@@ -92,7 +92,9 @@ the annotation titles; both MCP profiles are checked over stdio. Alpha20 adds
 a typed structured result for verified function source while preserving the
 text response. Alpha21 adds documented success/error output schemas for
 `list_incidents`; dynamic incident evidence payloads remain outside that schema.
-The score still needs an external Glama re-scan. See the
+Alpha22 adds a six-field typed result for full-profile `list_sessions` while
+keeping the focused catalog and its scope unchanged. The score still needs an
+external Glama re-scan. See the
 [adoption guide](docs/existing-project-adoption.md),
 [report-output review](docs/integration-report-output-review.md), and
 [MCP bundle review](docs/mcp-required-bundle-review.md),
@@ -104,8 +106,10 @@ The score still needs an external Glama re-scan. See the
 [source output-schema research](docs/mcp-source-output-research.md),
 [source output-schema review](docs/mcp-source-output-review.md), and
 [incident-list output-schema research](docs/mcp-incident-list-output-research.md),
-[incident-list output-schema review](docs/mcp-incident-list-output-review.md), and
-[milestone scope and verification](docs/releases/v1.3.0-alpha.21.md).
+[incident-list output-schema review](docs/mcp-incident-list-output-review.md),
+[session-list output-schema research](docs/mcp-session-list-output-research.md),
+[session-list output-schema review](docs/mcp-session-list-output-review.md), and
+[milestone scope and verification](docs/releases/v1.3.0-alpha.22.md).
 
 Final independent stable acceptance, current-revision full core/gRPC profiles,
 kind and fresh 30-minute soak remain pending. Docker 8/16/32 results cover only

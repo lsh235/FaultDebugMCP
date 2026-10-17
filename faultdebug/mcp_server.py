@@ -17,7 +17,7 @@ from .evidence_store import EvidenceStore, EvidenceStoreError
 from .capabilities import get_capabilities as capability_contract
 from .mcp_outputs import (ArtifactDiscoveryOutput, BundleDiscoveryOutput,
                           CapabilitiesOutput, FunctionSourceOutput,
-                          IncidentListOutput, StoreCheckOutput)
+                          IncidentListOutput, SessionListOutput, StoreCheckOutput)
 
 # Field metadata is exported in tools/list; docstring Args alone is not a schema.
 CaptureName = Annotated[str, Field(min_length=1, description="Root-relative .fault or decoded .json capture path, e.g. fault-1234.fault; no absolute paths, '..', or escaping symlinks.")]
@@ -405,7 +405,7 @@ def make_server(root: Path, *, tool_profile: str = "full"):
     @register_tool(annotations=_read_only("List sessions"))
     def list_sessions(db: StorePath = "evidence.sqlite3", start_ns: StartNs = None,
                       end_ns: EndNs = None, trust_state: TrustState = None,
-                      page: Page = 0) -> dict:
+                      page: Page = 0) -> SessionListOutput:
         """List runtime session summaries from an existing SQLite evidence store.
 
         Use after check_store to obtain session IDs before get_session; get_session_manifest

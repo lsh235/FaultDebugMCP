@@ -251,3 +251,24 @@ IncidentListOutput = Annotated[
     IncidentListSuccess | IncidentListError,
     Field(description="Either a paginated incident list or the stable INCIDENT_QUERY_ERROR response."),
 ]
+
+
+class SessionListItem(OutputModel):
+    """One aggregated runtime-session row from the read-only store query."""
+
+    session_id: Annotated[str | None, Field(description="Runtime session ID; null denotes the unassigned artifact group, not all sessions.")]
+    first_start_ns: Annotated[int | None, Field(description="Earliest captured process-start monotonic timestamp in this group; null means none was recorded.")]
+    artifact_count: Annotated[int, Field(ge=1, description="Number of valid artifacts in this session or unassigned group.")]
+    verified_count: Annotated[int, Field(ge=0, description="Number of valid artifacts with verified provenance; it does not count processes.")]
+    identity_source: Annotated[str, Field(description="Lexicographically first stored session-identity source label among matching artifacts; open string.")]
+    trust_state: Annotated[Literal["verified", "unresolved"], Field(description="Aggregate provenance state; verified only when all listed artifacts are verified.")]
+
+
+class SessionListOutput(OutputModel):
+    """Paginated session summaries from the existing schema-v2 evidence store."""
+
+    schema_: Annotated[Literal[2], Field(alias="schema", description="SQLite evidence-store schema version.")]
+    sessions: Annotated[list[SessionListItem], Field(description="Matching session summaries, including a null-session group for unassigned artifacts.")]
+    total: Annotated[int, Field(ge=0, description="Number of matching session groups across all pages.")]
+    page: Annotated[int, Field(ge=0, description="Zero-based page returned.")]
+    page_size: Annotated[int, Field(ge=1, description="Maximum session summaries in this page.")]

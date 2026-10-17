@@ -1,4 +1,3 @@
-pyenv: cannot rehash: /home/sra235/.pyenv/shims isn't writable
 """Read-only MCP facade over captured artifacts."""
 from pathlib import Path
 from typing import Annotated, Literal

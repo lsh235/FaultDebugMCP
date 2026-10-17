@@ -432,8 +432,15 @@ def evidence_summary(reports: list[dict[str, Any]], *,
         })
 
     relations = process_relations(reports)
+    remaining_artifact_diagnostics = dict(unresolved_counts)
     for diagnostic in relations["unresolved"]:
         reason = str(diagnostic.get("reason", "unknown"))
+        # process_relations includes each capture's rpc_trace diagnostics before
+        # adding cross-capture findings. Those were already counted per item;
+        # retain only additional occurrences here.
+        if remaining_artifact_diagnostics.get(reason, 0):
+            remaining_artifact_diagnostics[reason] -= 1
+            continue
         unresolved_counts[reason] += 1
     return {"schema": RPC_SCHEMA_VERSION,
             "summary_schema": 2,

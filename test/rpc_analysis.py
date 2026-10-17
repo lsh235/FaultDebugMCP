@@ -73,6 +73,9 @@ def main() -> int:
         pass
     else:
         raise AssertionError("duplicate summary names were accepted")
+    missing_rpc_summary = evidence_summary([{"process": {"pid": 9}}],
+                                           artifact_names=["missing-rpc.fault"])
+    assert missing_rpc_summary["unresolved"] == {"semantic_rpc_extension_absent": 1}
     try:
         rpc_trace({"header": {"abi_version": 1}, "rpc_trace": {"schema": 99, "events": []}})
     except RPCDecodeError:

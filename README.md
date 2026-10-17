@@ -77,7 +77,8 @@ The first candidate's scope and verification are recorded in
 research and review add a count-only MCP summary for up to 32 captures in one
 call, without expanding the 15-tool focused catalog:
 [research](docs/mcp-batch-evidence-summary-research-v2.md) ·
-[review](docs/mcp-batch-evidence-summary-review-v2.md).
+[review](docs/mcp-batch-evidence-summary-review-v2.md) ·
+[alpha.2 scope and verification](docs/releases/v2.0.0-alpha.2.md).
 The existing-project path provides static ELF preflight and isolated opt-in
 CMake integration. `faultdebug self-test` verifies one bounded installed capture;
 alpha9 added `faultdebug integrate --execute-build` for the isolated

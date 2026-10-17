@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+## [2.0.0-alpha.2] - 2026-10-17
+
+- Batch count-only `get_evidence_summary` across 1–32 unique captures in one
+  MCP call, with per-capture rows and aggregate observed/static/unresolved
+  counts. The focused profile remains 15 tools and 41 parameters.
+- Version the batched summary representation as `summary_schema: 2` while
+  keeping semantic RPC evidence schema v1. Glama pin, scan and score remain
+  unverified; stable v2 acceptance remains NO-GO.
+
 ## [1.3.0-alpha.34] - 2026-10-17
 
 - Publish a typed summary/page output contract for `get_service_flow` in the

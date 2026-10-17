@@ -41,7 +41,8 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 첫 후보의 범위와 검증 결과는 [v2.0.0-alpha.1 기록](docs/releases/v2.0.0-alpha.1.md)에 있습니다.
 현재 후보는 focused 도구 수를 늘리지 않고 한 번의 MCP 호출로 최대 32개 캡처의
 count-only 요약을 비교합니다. [리서치](docs/mcp-batch-evidence-summary-research-v2.md)와
-[독립 검토](docs/mcp-batch-evidence-summary-review-v2.md)를 확인하세요.
+[독립 검토](docs/mcp-batch-evidence-summary-review-v2.md),
+[알파2 범위와 검증](docs/releases/v2.0.0-alpha.2.md)을 확인하세요.
 기존 프로젝트용 정적 ELF 점검과 분리된 CMake 적용 경로를 제공합니다.
 `faultdebug self-test`가 설치된 경로의 고정 fixture capture를 확인하고,
 알파9의 `faultdebug integrate --execute-build`는 격리된 configure/build/index/bundle 단계를 명시적으로 실행합니다.

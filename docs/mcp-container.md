@@ -150,18 +150,21 @@ and set these fields:
     "mcp", "--root", "/app/artifacts", "--tool-profile", "focused"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "a9148294e8bc8d6be06db8ceb23e88022b654a22",
+  "pinnedCommit": "9b936f12e3203e321ddaf19a759e6899d1999b02",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }
 ```
 
-This implementation SHA selects the `v2.0.0-alpha.1` candidate's 15-tool
+This implementation SHA selects the `v2.0.0-alpha.2` candidate's 15-tool
 `focused` first-line workflow. `get_call_relations` and `get_service_flow`
 remain available with their existing behavior in the explicit 27-tool `full`
 profile; the focused profile omits both. The complete catalog exposes eighteen
 typed contracts. The administrator's external pin must still be updated
-separately, and this repository example does not change Glama settings. Alpha31
+separately, and this repository example does not change Glama settings. Alpha2
+changes `get_evidence_summary` from a one-capture call to 1–32 count-only rows
+in request order, with aggregate unresolved reason counts (`summary_schema: 2`);
+the semantic RPC evidence schema remains v1. Alpha31
 types the incident-slice success/error envelope and known SQLite rows
 while leaving database extensions and producer payloads open. Alpha32 adds the
 count-only `get_evidence_summary` to the focused profile with typed status,

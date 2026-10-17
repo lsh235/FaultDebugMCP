@@ -28,7 +28,7 @@ FOCUSED_TOOLS = {
 }
 OUTPUT_SCHEMA_TOOLS = {
     'get_capabilities', 'check_store', 'discover_artifacts', 'discover_bundles',
-    'get_function_source', 'list_incidents', 'list_sessions',
+    'get_function_source', 'list_incidents', 'list_sessions', 'get_source_evidence',
 }
 FOCUSED_OUTPUT_SCHEMA_TOOLS = OUTPUT_SCHEMA_TOOLS - {'list_sessions'}
 
@@ -39,15 +39,27 @@ def payload(result):
 
 
 def structured_payload(result):
-    assert not result.isError, result
+    assert not result.isError, f"MCP call returned error: {result.content}"
     structured = getattr(result, 'structuredContent', None)
-    assert isinstance(structured, dict), result
+    assert isinstance(structured, dict), f"missing structuredContent: {result}"
     return structured
 
 
 def validate_structured_payload(result, output_schema):
     structured = structured_payload(result)
     jsonschema.validate(structured, output_schema)
+    return structured
+
+
+def assert_source_evidence_contract(result, output_schema, text_result):
+    structured = validate_structured_payload(result, output_schema)
+    assert set(structured) == {'result'}
+    structured_result = structured['result']
+    convenience = {'file', 'line_start', 'line_end', 'sha256', 'function_id'}
+    omitted = set(structured_result) - set(text_result)
+    assert omitted <= convenience
+    assert all(structured_result[key] is None for key in omitted)
+    assert {key: structured_result[key] for key in text_result} == text_result
     return structured
 
 
@@ -75,11 +87,14 @@ async def audit(root):
     }))
     source_root = root / 'source'
     source_root.mkdir()
-    (source_root / 'main.c').write_text('int main(void) {\n  return 0;\n}\n')
+    (source_root / 'main.c').write_text(
+        'int main(void) {\n  return 0;\n}\nvoid helper(void) {\n}\n')
     source_index = root / 'index.json'
     source_index.write_text(json.dumps({'functions': [
         {'id': 'fn-main', 'name': 'main', 'file': 'main.c', 'line': 1,
          'source_range': {'start': 1, 'end': 3}, 'edges': [], 'unresolved_edges': []},
+        {'id': 'fn-helper', 'name': 'helper', 'file': 'main.c', 'line': 4,
+         'source_range': {'start': 4, 'end': 5}, 'edges': [], 'unresolved_edges': []},
     ]}))
     bundle_directory = root / 'bundles with spaces' / 'build-001'
     create_bundle(source_root, bundle_directory, index=source_index)
@@ -152,6 +167,20 @@ async def audit(root):
                 'identity_source', 'trust_state'}
             assert set(session_schema.get('required', [])) == {
                 'schema', 'sessions', 'total', 'page', 'page_size'}
+            source_evidence_schema = tools['get_source_evidence'].outputSchema
+            assert set(source_evidence_schema.get('properties', {})) == {'result'}
+            assert len(source_evidence_schema['properties']['result'].get('anyOf', [])) == 2
+            source_evidence_defs = source_evidence_schema.get('$defs', {})
+            assert set(source_evidence_defs['SourceEvidenceSuccess']['properties']) == {
+                'schema', 'incident_id', 'bundle', 'citations', 'unresolved', 'total',
+                'page', 'page_size', 'resolved', 'file', 'line_start', 'line_end',
+                'sha256', 'function_id'}
+            assert set(source_evidence_defs['SourceEvidenceCitation']['properties']) == {
+                'incident_id', 'artifact_id', 'function_id', 'bundle', 'file', 'line_start',
+                'line_end', 'sha256', 'manifest_sha256', 'verified'}
+            assert set(source_evidence_defs['SourceEvidenceUnresolved']['properties']) == {
+                'function_id', 'reason', 'message'}
+            assert set(source_evidence_defs['SourceEvidenceError']['properties']) == {'schema', 'error'}
             parameters = 0
             for name, tool in tools.items():
                 assert tool.description and 30 <= len(tool.description) <= 1600, name
@@ -255,6 +284,51 @@ async def audit(root):
             assert incident_structured == {'result': incidents}
             assert incidents['total'] == 1 and incidents['incidents'][0]['incident_id'] == 'incident-a'
             assert incidents['incidents'][0]['partial'] == 1
+            source_single_result = await session.call_tool('get_source_evidence', {
+                'incident_id': 'incident-a', 'bundle': source_bundle_path,
+                'function_ids': ['fn-main']})
+            source_single = payload(source_single_result)
+            assert_source_evidence_contract(
+                source_single_result, source_evidence_schema, source_single)
+            assert source_single['total'] == 1 and source_single['resolved'] is True
+            assert source_single['file'] == source_single['citations'][0]['file']
+            assert source_single['sha256'] == source_single['citations'][0]['sha256']
+            assert source_single['citations'][0]['verified'] is True
+            source_many_result = await session.call_tool('get_source_evidence', {
+                'incident_id': 'incident-a', 'bundle': source_bundle_path,
+                'function_ids': ['fn-main', 'fn-helper']})
+            source_many = payload(source_many_result)
+            assert_source_evidence_contract(
+                source_many_result, source_evidence_schema, source_many)
+            assert source_many['total'] == 2 and len(source_many['citations']) == 2
+            assert 'file' not in source_many and 'line_start' not in source_many
+            source_none_result = await session.call_tool('get_source_evidence', {
+                'incident_id': 'incident-a', 'bundle': source_bundle_path, 'function_ids': []})
+            source_none = payload(source_none_result)
+            assert_source_evidence_contract(
+                source_none_result, source_evidence_schema, source_none)
+            assert source_none['citations'] == [] and source_none['resolved'] is False
+            source_unresolved_result = await session.call_tool('get_source_evidence', {
+                'incident_id': 'incident-a', 'bundle': source_bundle_path,
+                'function_ids': ['missing-function']})
+            source_unresolved = payload(source_unresolved_result)
+            assert_source_evidence_contract(
+                source_unresolved_result, source_evidence_schema, source_unresolved)
+            assert not source_unresolved['citations'] and len(source_unresolved['unresolved']) == 1
+            assert source_unresolved['unresolved'][0]['reason'] == 'source_citation_unresolved'
+            assert source_unresolved['resolved'] is False
+            source_error_result = await session.call_tool('get_source_evidence', {
+                'incident_id': 'incident-a', 'bundle': source_bundle_path, 'db': 'absent.sqlite'})
+            source_error = payload(source_error_result)
+            assert_source_evidence_contract(
+                source_error_result, source_evidence_schema, source_error)
+            assert source_error['error']['code'] == 'SOURCE_EVIDENCE_ERROR'
+            source_bundle_error_result = await session.call_tool('get_source_evidence', {
+                'incident_id': 'incident-a', 'bundle': 'malformed-bundle'})
+            source_bundle_error = payload(source_bundle_error_result)
+            assert_source_evidence_contract(
+                source_bundle_error_result, source_evidence_schema, source_bundle_error)
+            assert source_bundle_error['error']['code'] == 'SOURCE_EVIDENCE_ERROR'
             empty_incidents_result = await session.call_tool('list_incidents', {'session_id': 'absent'})
             empty_incidents = payload(empty_incidents_result)
             empty_incidents_structured = validate_structured_payload(
@@ -329,6 +403,7 @@ async def audit(root):
             assert {name for name, tool in focused_tools.items() if tool.outputSchema} == FOCUSED_OUTPUT_SCHEMA_TOOLS
             assert focused_tools['get_function_source'].outputSchema == source_schema
             assert focused_tools['list_incidents'].outputSchema == incident_schema
+            assert focused_tools['get_source_evidence'].outputSchema == source_evidence_schema
             assert all(tool.annotations and tool.annotations.readOnlyHint is True
                        for tool in focused_tools.values())
             focused_parameters = 0
@@ -350,6 +425,14 @@ async def audit(root):
                 focused_empty_incidents_result, focused_tools['list_incidents'].outputSchema
             ) == {'result': focused_empty_incidents}
             assert focused_empty_incidents['incidents'] == []
+            focused_source_result = await session.call_tool('get_source_evidence', {
+                'incident_id': 'incident-a', 'bundle': source_bundle_path,
+                'function_ids': ['fn-main']})
+            focused_source = payload(focused_source_result)
+            assert_source_evidence_contract(
+                focused_source_result, focused_tools['get_source_evidence'].outputSchema,
+                focused_source)
+            assert focused_source['resolved'] is True and focused_source['total'] == 1
             focused_capabilities_result = await session.call_tool('get_capabilities', {})
             focused_capabilities = payload(focused_capabilities_result)
             assert validate_structured_payload(

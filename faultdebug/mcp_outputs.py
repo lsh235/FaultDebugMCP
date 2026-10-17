@@ -272,3 +272,63 @@ class SessionListOutput(OutputModel):
     total: Annotated[int, Field(ge=0, description="Number of matching session groups across all pages.")]
     page: Annotated[int, Field(ge=0, description="Zero-based page returned.")]
     page_size: Annotated[int, Field(ge=1, description="Maximum session summaries in this page.")]
+
+
+class SourceEvidenceCitation(OutputModel):
+    """One source citation checked against the supplied immutable bundle."""
+
+    incident_id: Annotated[str, Field(description="Exact persisted incident ID whose source reference was checked.")]
+    artifact_id: Annotated[int | None, Field(description="Stored artifact row ID for this reference; null means the function ID was requested directly.")]
+    function_id: Annotated[str | None, Field(description="Exact indexed function ID, or null for a file-and-line reference.")]
+    bundle: Annotated[str, Field(description="Resolved root path of the immutable bundle whose manifest and source were verified.")]
+    file: Annotated[str, Field(description="Bundle-relative source file path; this is a verified citation, not source text.")]
+    line_start: Annotated[int, Field(ge=1, description="One-based first line of the verified citation range.")]
+    line_end: Annotated[int, Field(ge=1, description="One-based inclusive last line of the verified citation range.")]
+    sha256: Annotated[str, Field(pattern="^[0-9a-f]{64}$", description="SHA-256 of the source file bytes verified for this citation.")]
+    manifest_sha256: Annotated[str | None, Field(description="SHA-256 recorded for this file in the verified bundle manifest, when present.")]
+    verified: Annotated[Literal[True], Field(description="True only after bundle membership, source hash and line bounds pass verification.")]
+
+
+class SourceEvidenceUnresolved(OutputModel):
+    """A declared/requested source reference that could not be verified."""
+
+    function_id: Annotated[str | None, Field(description="Requested or recorded function ID; null means no ID was supplied.")]
+    reason: Annotated[Literal["source_citation_unresolved"], Field(description="Stable reason category; inspect message for the specific verification failure.")]
+    message: Annotated[str, Field(description="Why source lookup or citation verification failed; not proof that the source is defective.")]
+
+
+class SourceEvidenceSuccess(OutputModel):
+    """Verified source citations and unresolved references for an incident."""
+
+    schema_: Annotated[Literal[2], Field(alias="schema", description="SQLite evidence-store schema version.")]
+    incident_id: Annotated[str, Field(description="Exact incident whose saved or explicitly requested function references were checked.")]
+    bundle: Annotated[str, Field(description="Resolved immutable bundle root used for verification.")]
+    citations: Annotated[list[SourceEvidenceCitation], Field(description="Verified citation rows on this page; source text remains a separate get_function_source result.")]
+    unresolved: Annotated[list[SourceEvidenceUnresolved], Field(description="Saved or requested references not verified; these can remain visible on every page.")]
+    total: Annotated[int, Field(ge=0, description="Number of verified citations across all pages, excluding unresolved references.")]
+    page: Annotated[int, Field(ge=0, description="Zero-based citation page returned.")]
+    page_size: Annotated[int, Field(ge=1, description="Maximum verified citations per page.")]
+    resolved: Annotated[bool, Field(description="True only when this page has at least one verified citation and no unresolved references.")]
+    file: Annotated[str | None, Field(description="Compatibility convenience field copied from the sole citation when exactly one is returned; otherwise null.")] = None
+    line_start: Annotated[int | None, Field(description="One-based first line copied from the sole citation when exactly one is returned; otherwise null.")] = None
+    line_end: Annotated[int | None, Field(description="One-based inclusive last line copied from the sole citation when exactly one is returned; otherwise null.")] = None
+    sha256: Annotated[str | None, Field(description="Source hash copied from the sole citation when exactly one is returned; otherwise null.")] = None
+    function_id: Annotated[str | None, Field(description="Function ID copied from the sole citation when exactly one is returned; otherwise null.")] = None
+
+
+class SourceEvidenceErrorDetail(OutputModel):
+    code: Annotated[Literal["SOURCE_EVIDENCE_ERROR"], Field(description="Stable payload-level code for store or bundle failures.")]
+    message: Annotated[str, Field(description="Failure detail; the tool did not return verified citations.")]
+
+
+class SourceEvidenceError(OutputModel):
+    """Store or bundle failure represented by the existing tool payload."""
+
+    schema_: Annotated[Literal[2], Field(alias="schema", description="SQLite evidence-store schema version.")]
+    error: Annotated[SourceEvidenceErrorDetail, Field(description="Source-evidence query or bundle error; no source text was returned.")]
+
+
+SourceEvidenceOutput = Annotated[
+    SourceEvidenceSuccess | SourceEvidenceError,
+    Field(description="Either verified incident source citations or the stable SOURCE_EVIDENCE_ERROR payload."),
+]

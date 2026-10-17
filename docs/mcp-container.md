@@ -146,17 +146,18 @@ and set these fields:
     "mcp", "--root", "/app/artifacts", "--tool-profile", "focused"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "e277d336800f016f30a714a2b9e3169acbfa41f3",
+  "pinnedCommit": "cd45e67d269cf8b487072b4204542e8904082ecb",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }
 ```
 
-This full implementation SHA selects the alpha25 `focused` 15-tool first-line
+This full implementation SHA selects the alpha26 `focused` 15-tool first-line
 workflow, nine structured response contracts, and descriptive titles; omit
 the profile argument for the complete 27-tool catalog, which exposes ten typed
 contracts. It includes normalized RPC diagnostics and a typed fault-flow view
-in both profiles. This repository example
+in both profiles. Focused descriptions refer only to alternatives in that
+catalog; full-profile descriptions retain the broader sibling guidance. This repository example
 does not update the external Glama setting. The
 previously documented
 `255395c86809cce886ce58cdc5736b2a4c0f8aaa` revision predates it and exposed 25

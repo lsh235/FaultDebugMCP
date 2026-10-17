@@ -29,7 +29,7 @@ Clang/CMake 빌드 연동, Python CLI, 읽기 전용 MCP 검사기를 제공합�
 
 ## 현재 상태
 
-개발 버전은 **1.3.0a33** (`v1.3.0-alpha.33`)이며, 문서의 증거 기반 구현은
+개발 버전은 **1.3.0a34** (`v1.3.0-alpha.34`)이며, 문서의 증거 기반 구현은
 [v1.2.0-rc.2](https://github.com/lsh235/FaultDebugMCP/releases/tag/v1.2.0-rc.2)로 고정했습니다.
 기존 프로젝트용 정적 ELF 점검과 분리된 CMake 적용 경로를 제공합니다.
 `faultdebug self-test`가 설치된 경로의 고정 fixture capture를 확인하고,
@@ -100,6 +100,11 @@ ID의 세대 재사용, 조건부 retention, raw address/event 값과 확장 필
 [알파33은 `open_fault`의 안정된 native capture 필드를 타입화하고 sparse JSON과 생산자 확장 필드는
 열린 형태로 보존합니다. focused의 16개 도구 모두 출력 스키마를 제공합니다. Glama 점수 변화는
 공식 재평가 전까지 확인되지 않았습니다.](docs/releases/v1.3.0-alpha.33.md)
+[알파34는 `get_service_flow`의 요약과 페이지 응답에 구조화 출력 계약을 추가합니다. 일곱 수집 종류의
+행과 이후 확장은 열어 두고, CLI/MCP 공통 projection과 snapshot 재검사 동작을 유지합니다. Glama 점수는
+공식 재평가 전까지 확인되지 않았습니다.](docs/releases/v1.3.0-alpha.34.md)
+[service-flow 출력 스키마 리서치](docs/mcp-service-flow-output-research.md) ·
+[service-flow 출력 스키마 검토](docs/mcp-service-flow-output-review.md) ·
 [open-fault 출력 스키마 리서치](docs/mcp-open-fault-output-research.md) ·
 [open-fault 출력 스키마 검토](docs/mcp-open-fault-output-review.md) ·
 [focused evidence-summary 리서치](docs/mcp-focused-evidence-summary-research.md) ·

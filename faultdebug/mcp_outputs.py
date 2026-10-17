@@ -552,6 +552,56 @@ class EvidenceSummaryOutput(OutputModel):
     unresolved: Annotated[list[EvidenceSummaryDiagnostic], Field(description="Unresolved decoder and process-pairing diagnostics; additional diagnostic fields vary by reason.")]
 
 
+class ServiceFlowCounts(OutputModel):
+    """Stable collection counts; future collection counters remain open."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    services: Annotated[int, Field(ge=0, description="Native process/service summary rows.")]
+    calls: Annotated[int, Field(ge=0, description="RPC calls matched to application call labels and explicit endpoint evidence.")]
+    causes: Annotated[int, Field(ge=0, description="Application self-reported cause events; they are not root-cause verdicts.")]
+    events: Annotated[int, Field(ge=0, description="Validated application event rows.")]
+    native_relations: Annotated[int, Field(ge=0, description="Observed native endpoint relations, separate from application labels.")]
+    unresolved: Annotated[int, Field(ge=0, description="Unresolved evidence and correlation-limit rows.")]
+    evidence_files: Annotated[int, Field(ge=0, description="Frozen native capture and application-log files included in the fingerprint.")]
+
+
+class ServiceFlowOutputModel(OutputModel):
+    """Open root envelope for the frozen cross-service query projection."""
+
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    schema_: Annotated[Literal[1], Field(alias="schema", description="Service-flow query response schema version.")]
+    snapshot_id: Annotated[str, Field(pattern=r"^[0-9a-f]{64}$", description="SHA-256 content fingerprint that must be reused across pages; it is not an atomic filesystem snapshot.")]
+    session_id: Annotated[str, Field(min_length=1, description="Explicit runtime session ID shared by the included captures.")]
+    counts: Annotated[ServiceFlowCounts, Field(description="Total row counts for all supported collections, independent of the selected page.")]
+    limitations: Annotated[list[str], Field(description="Fixed interpretation limits; application explanations remain self-reports and do not establish cross-process causality.")]
+
+
+class ServiceFlowSummaryOutput(ServiceFlowOutputModel):
+    """Count-only service-flow response for section=summary."""
+
+    section: Annotated[Literal["summary"], Field(description="Summary mode returns counts and limitations without a collection page.")]
+
+
+class ServiceFlowPageOutput(ServiceFlowOutputModel):
+    """One bounded page from the selected service-flow collection."""
+
+    section: Annotated[Literal["services", "calls", "causes", "events", "native_relations", "unresolved", "evidence_files"], Field(description="The collection selected for this page.")]
+    page: Annotated[int, Field(ge=0, description="Zero-based page returned.")]
+    page_size: Annotated[int, Field(ge=1, le=200, description="Maximum rows requested for one page, from 1 through 200.")]
+    total: Annotated[int, Field(ge=0, description="Total rows in the selected collection before pagination.")]
+    returned: Annotated[int, Field(ge=0, description="Rows present in this page; an exhausted page returns zero.")]
+    next_page: Annotated[int | None, Field(ge=0, description="Next zero-based page, or null when the selected collection is exhausted.")]
+    items: Annotated[list[dict[str, Any]], Field(description="Selected collection rows. Row fields vary by evidence source and remain open to producer extensions.")]
+
+
+ServiceFlowOutput = Annotated[
+    ServiceFlowSummaryOutput | ServiceFlowPageOutput,
+    Field(discriminator="section"),
+]
+
+
 class RpcExtensionAbsent(OutputModel):
     reason: Annotated[Literal["semantic_rpc_extension_absent"], Field(description="The capture does not contain a semantic-RPC extension.")]
     evidence: Annotated[Literal["artifact"], Field(description="The absent extension was checked on the captured artifact.")]

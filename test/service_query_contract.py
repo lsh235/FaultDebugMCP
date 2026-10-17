@@ -13,7 +13,9 @@ import unittest
 from unittest.mock import patch
 
 import service_report_test as fixtures
+from pydantic import TypeAdapter
 from faultdebug import service_evidence as limits
+from faultdebug.mcp_outputs import ServiceFlowOutput
 from faultdebug.service_report import build_service_report
 from faultdebug.service_query import COLLECTIONS, query_service_flow
 from mcp import ClientSession, StdioServerParameters
@@ -30,6 +32,27 @@ def digest(root):
 
 
 class ServiceQueryTests(unittest.TestCase):
+    def test_output_schema_matches_summary_and_every_page_section(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp); fixture(root)
+            validator = TypeAdapter(ServiceFlowOutput)
+            summary = query_service_flow(root)
+            parsed_summary = validator.validate_python(summary)
+            self.assertEqual(parsed_summary.model_dump(by_alias=True), summary)
+            for section in COLLECTIONS:
+                with self.subTest(section=section):
+                    result = query_service_flow(root, section=section, page_size=1)
+                    parsed = validator.validate_python(result)
+                    self.assertEqual(parsed.section, section)
+                    self.assertEqual(parsed.model_dump(by_alias=True), result)
+            extended = query_service_flow(root, section='events', page_size=1)
+            extended['producer_extension'] = {'future': True}
+            extended['counts']['future_counter'] = 4
+            if extended['items']:
+                extended['items'][0]['future_row_field'] = ['preserved']
+            parsed_extended = validator.validate_python(extended)
+            self.assertEqual(parsed_extended.model_dump(by_alias=True), extended)
+
     def test_page_union_and_snapshot_relocation(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp) / 'inputs'; root.mkdir(); fixture(root)
@@ -129,10 +152,15 @@ class ServiceQueryTests(unittest.TestCase):
             async with stdio_client(params) as (read, write):
                 async with ClientSession(read, write) as session:
                     await session.initialize()
-                    result = await session.call_tool('get_service_flow', {'evidence': '.', 'section': 'events', 'page_size': 1})
-                    self.assertFalse(result.isError)
-                    payload = json.loads(next(block.text for block in result.content if block.type == 'text'))
-                    self.assertEqual(payload, query_service_flow(root, section='events', page_size=1))
+                    for section in ('summary', *COLLECTIONS):
+                        result = await session.call_tool('get_service_flow', {
+                            'evidence': '.', 'section': section, 'page_size': 1})
+                        self.assertFalse(result.isError, section)
+                        payload = json.loads(next(block.text for block in result.content if block.type == 'text'))
+                        self.assertEqual(payload, query_service_flow(
+                            root, section=section, page_size=1), section)
+                        self.assertEqual(set(result.structuredContent), {'result'}, section)
+                        self.assertEqual(result.structuredContent['result'], payload, section)
                     for args in ({'evidence': '../escape'}, {'evidence': str(root)},
                                  {'evidence': '.', 'page': -1}, {'evidence': '.', 'page_size': 201},
                                  {'evidence': '.', 'snapshot_id': '0' * 64}):

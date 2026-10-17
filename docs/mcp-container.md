@@ -55,7 +55,7 @@ sensitive; do not expose them to untrusted MCP clients.
 
 The MCP `tools/list` response contains descriptions and per-parameter JSON Schema
 metadata for all 27 tools in the default `full` profile. The optional `focused`
-profile exposes a bounded 15-tool capture/incident/source workflow. Every tool
+profile exposes a bounded 16-tool capture/incident/source workflow. Every tool
 in either profile declares `readOnlyHint=true`,
 `destructiveHint=false`, `idempotentHint=true`, and `openWorldHint=false`.
 Capture and bundle paths are relative to the configured root; absolute paths,
@@ -83,17 +83,18 @@ Choose tools by evidence source and question:
 list all sessions. `get_thread_trace` pages thread records, `get_rpc_trace` pages
 RPC observations, and store incident/session tools page artifacts. Returned
 counts and truncation flags describe the corresponding collection. The full
-profile publishes fifteen typed output schemas and the focused profile
-publishes fourteen, including verified source citations, normalized RPC
+profile publishes sixteen typed output schemas and the focused profile
+publishes fifteen, including verified source citations, normalized RPC
 observations with separate uncertainty diagnostics, typed fault-flow and
 multi-capture incident-report results, per-address resolution rows, and open
-static call-relations rows, generation-aware raw thread records, and the
-incident-slice success/error envelope with open SQLite rows. Other return
+static call-relations rows, generation-aware raw thread records, the
+incident-slice success/error envelope with open SQLite rows, and a typed
+count-only evidence summary with open diagnostics. Other return
 details remain in descriptions, including the distinction between MCP tool
 errors and structured `error.code` payloads.
 
 The focused profile tailors its descriptions so named alternatives remain
-available in that 15-tool catalog; the full profile retains cross-catalog
+available in that 16-tool catalog; the full profile retains cross-catalog
 guidance for its 27 tools.
 
 Run the protocol and read-only audit from the repository root:
@@ -146,18 +147,19 @@ and set these fields:
     "mcp", "--root", "/app/artifacts", "--tool-profile", "focused"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "89d07b30c89719961a887373214e28874eeae199",
+  "pinnedCommit": "3e0f13aeb8a6b019216e711881853a93637c1020",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }
 ```
 
-This full implementation SHA selects the alpha31 `focused` 15-tool first-line
-workflow, fourteen structured response contracts, and descriptive titles; omit
-the profile argument for the complete 27-tool catalog, which exposes fifteen
-typed contracts. Alpha31 also types the incident-slice success/error envelope
-and known SQLite rows while leaving database extensions and producer payloads
-open. It includes normalized RPC diagnostics, typed fault-flow,
+This full implementation SHA selects the alpha32 `focused` 16-tool first-line
+workflow, fifteen structured response contracts, and descriptive titles; omit
+the profile argument for the complete 27-tool catalog, which exposes sixteen
+typed contracts. Alpha31 types the incident-slice success/error envelope and known SQLite rows
+while leaving database extensions and producer payloads open. Alpha32 adds the
+count-only `get_evidence_summary` to the focused profile with typed status,
+observed counts, static-candidate count and extensible unresolved diagnostics. It includes normalized RPC diagnostics, typed fault-flow,
 multi-capture incident-report, address-resolution, and static call-relations
 outputs in both profiles, plus a typed raw thread trace with open row
 extensions. Relation rows remain open because source-index extensions are

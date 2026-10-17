@@ -530,6 +530,28 @@ class IncidentReportOutput(OutputModel):
     total_rpc_events: Annotated[int, Field(ge=0, description="Total normalized RPC observations across all pages.")]
 
 
+class EvidenceSummaryObserved(OutputModel):
+    rpc_events: Annotated[int, Field(ge=0, description="Number of normalized observed RPC events; candidates and unresolved rows are excluded.")]
+    process_relations: Annotated[int, Field(ge=0, description="Number of observed cross-process relations; static candidates are excluded.")]
+
+
+class EvidenceSummaryDiagnostic(OutputModel):
+    model_config = ConfigDict(extra="allow", populate_by_name=True)
+
+    reason: Annotated[str, Field(description="Stable reason code for an unresolved RPC or process-relation diagnostic.")]
+
+
+class EvidenceSummaryOutput(OutputModel):
+    """Compact counts for one capture; no RPC event histories are returned."""
+
+    schema_: Annotated[Literal[1], Field(alias="schema", description="Semantic RPC summary contract version.")]
+    status: Annotated[Literal["complete", "limited"], Field(description="Complete means this summary produced no unresolved diagnostic; it does not assert application success or full capture coverage.")]
+    artifacts: Annotated[Literal[1], Field(description="One named capture is summarized by each tool call.")]
+    observed: Annotated[EvidenceSummaryObserved, Field(description="Counts of directly observed RPC events and process relations only.")]
+    static_candidates: Annotated[int, Field(ge=0, description="Number of static RPC candidates; these are not observed execution.")]
+    unresolved: Annotated[list[EvidenceSummaryDiagnostic], Field(description="Unresolved decoder and process-pairing diagnostics; additional diagnostic fields vary by reason.")]
+
+
 class RpcExtensionAbsent(OutputModel):
     reason: Annotated[Literal["semantic_rpc_extension_absent"], Field(description="The capture does not contain a semantic-RPC extension.")]
     evidence: Annotated[Literal["artifact"], Field(description="The absent extension was checked on the captured artifact.")]

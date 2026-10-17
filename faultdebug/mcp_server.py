@@ -17,7 +17,8 @@ from .evidence_store import EvidenceStore, EvidenceStoreError
 from .capabilities import get_capabilities as capability_contract
 from .mcp_outputs import (ArtifactDiscoveryOutput, BundleDiscoveryOutput,
                           CallRelationsOutput,
-                          CapabilitiesOutput, FaultFlowOutput, FunctionSourceOutput,
+                          CapabilitiesOutput, EvidenceSummaryOutput, FaultFlowOutput,
+                          FunctionSourceOutput,
                           IncidentListOutput, IncidentSliceOutput, SessionListOutput, SourceEvidenceOutput,
                           IncidentReportOutput, ResolveAddressesOutput, RpcTraceOutput,
                           ThreadTraceOutput,
@@ -43,6 +44,7 @@ CorrelationId = Annotated[str | None, Field(description="Exact context.correlati
 
 FOCUSED_MCP_TOOL_NAMES = frozenset({
     "get_capabilities", "discover_artifacts", "discover_bundles", "open_fault",
+    "get_evidence_summary",
     "get_thread_trace", "get_fault_flow", "get_rpc_trace", "get_incident_report",
     "check_store", "list_incidents", "get_incident_slice", "get_source_evidence",
     "resolve_addresses", "get_function_source", "get_call_relations",
@@ -56,7 +58,10 @@ FOCUSED_MCP_TOOL_DESCRIPTIONS = {
 Use before list_incidents, especially for a missing or corrupt DB. Returns status, read_only, schema compatibility and diagnostics; STORE_PATH_INVALID is an error payload. An absent store is reported without creation. This profile does not expose provenance-record inspection; use the evidence CLI for a detailed trust audit. No migration or credential lookup occurs; use the evidence CLI separately if diagnostics require repair.""",
     "open_fault": """Decode one capture's process, thread, crash and integrity records for initial triage.
 
-Use after discover_artifacts; get_fault_flow produces a bounded execution view, while get_rpc_trace inspects recorded RPC boundaries. Returns the decoded capture and, if supplied, a verified bundle marker (not source lines). Names are relative to --root. Invalid paths, malformed captures or failed bundle verification produce MCP tool errors; partial captures retain their loss flags.""",
+Use after discover_artifacts; get_evidence_summary provides a count-only inventory, get_fault_flow builds a bounded execution view, and get_rpc_trace returns RPC histories. Returns the decoded capture and, if supplied, a verified bundle marker (not source lines). Names are relative to --root. Invalid paths, malformed captures or failed bundle verification produce MCP tool errors; partial captures retain their loss flags.""",
+    "get_evidence_summary": """Summarize one capture's observed RPC evidence counts and unresolved diagnostics without returning histories.
+
+Use before get_rpc_trace or get_fault_flow when a count-only triage step is enough; get_incident_report compares multiple captures. `status=complete` means this summary emitted no unresolved diagnostic, not that the application succeeded or every event was captured. Missing or empty RPC instrumentation remains unresolved. Invalid paths or malformed captures produce MCP tool errors. No target execution or evidence ingestion occurs.""",
     "get_rpc_trace": """Decode one capture's semantic RPC observations, static candidates and unresolved limits.
 
 Use to inspect recorded request/response boundaries; get_thread_trace is for function events and get_fault_flow for reconstructed nesting. Use get_incident_report for ad hoc cross-capture analysis. Returns observed (paged), total, page, page_size, static_candidates and unresolved. Only observed RPC rows are paged; uncertainty is retained on every page. Missing RPC instrumentation yields unresolved evidence rather than invented edges. Malformed captures, ambiguous RPC extensions or invalid paths produce MCP tool errors.""",
@@ -171,20 +176,21 @@ def make_server(root: Path, *, tool_profile: str = "full"):
         raise RuntimeError("official mcp Python SDK is required") from exc
     if tool_profile == "focused":
         instructions = (
-            "Focused evidence inspection: discover_artifacts locates captures; use open_fault/get_fault_flow and "
-            "discover_bundles before verified source tools. Stored incidents use check_store, list_incidents and "
-            "get_incident_slice. Session/timeline/index tools need full profile. Paths stay under --root. Keep observed, "
-            "derived, static_candidates, unresolved and hypotheses distinct; source needs a verified bundle, and "
-            "shared IDs/time order do not prove causality. No writes or network lookup."
+            "Focused: discover_artifacts finds captures; get_evidence_summary gives count-only triage before "
+            "open_fault, get_rpc_trace or get_fault_flow. discover_bundles finds source candidates; source needs "
+            "a verified bundle. Stored incidents use check_store, list_incidents and get_incident_slice. "
+            "Paths stay under --root. Keep observed, derived, "
+            "static_candidates, unresolved and hypotheses distinct. Shared IDs and time order do not prove "
+            "causality. Read-only; no network lookup."
         )
     else:
         instructions = (
-            "Inspect existing local captures; no recording, ingestion, repair, or report-file writes. "
-            "Start with get_capabilities/discover_artifacts; discover_bundles locates source bundles. "
-            "Use open_fault/get_fault_flow for captures. "
-            "For existing SQLite evidence, check_store then list_sessions/list_incidents and fetch a slice. "
-            "Paths are relative to --root. Keep observed, derived, static_candidates, unresolved and hypotheses "
-            "distinct. Source citations need a verified bundle; shared IDs/time order do not prove causality."
+            "Inspect local captures; no recording, ingestion, repair or report writes. Start with "
+            "get_capabilities/discover_artifacts; get_evidence_summary provides count-only triage before "
+            "open_fault/get_fault_flow. discover_bundles locates source. For SQLite, use check_store then "
+            "list_sessions/list_incidents and fetch a slice. Paths stay relative to --root. Keep observed, derived, "
+            "static_candidates, unresolved and hypotheses distinct. Source needs a verified bundle; shared IDs and "
+            "time order do not prove causality."
         )
     app = FastMCP("faultdebug", instructions=instructions)
     registered_tool_names: set[str] = set()
@@ -369,15 +375,15 @@ def make_server(root: Path, *, tool_profile: str = "full"):
         result["page_size"] = 200
         return result
     @register_tool(annotations=_read_only("Get evidence summary"))
-    def get_evidence_summary(name: CaptureName) -> dict:
+    def get_evidence_summary(name: CaptureName) -> EvidenceSummaryOutput:
         """Summarize RPC evidence counts and limits for one capture without returning full histories.
 
-        Use for a compact triage inventory before get_rpc_trace or get_fault_flow;
-        get_incident_report instead combines multiple captures. Returns status,
-        artifact/observed/static-candidate counts and unresolved rows; evidence classes
-        remain separate. Empty/missing RPC evidence is reported explicitly, not interpreted
-        as successful communication. Invalid capture paths or decode failures produce
-        MCP tool errors. No target execution or evidence ingestion occurs."""
+        Use before get_rpc_trace or get_fault_flow when a count-only triage step is enough;
+        get_incident_report instead compares multiple captures. `status=complete` means this
+        summary emitted no unresolved diagnostic, not that the application succeeded or every
+        event was captured. Missing or empty RPC instrumentation remains unresolved. Invalid
+        paths or malformed captures produce MCP tool errors. No target execution or evidence
+        ingestion occurs."""
         return evidence_summary([_load(root, name)])
     @register_tool(annotations=_read_only("Get incident report"))
     def get_incident_report(names: CaptureNames, page: Page = 0) -> IncidentReportOutput:

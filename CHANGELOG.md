@@ -2,6 +2,13 @@
 
 ## [Unreleased]
 
+## [1.3.0-alpha.32] - 2026-10-17
+
+- Add the compact `get_evidence_summary` tool and typed count/diagnostic output
+  to the focused MCP profile before detailed capture views.
+- Preserve its decoding, text result and evidence boundaries; the focused
+  catalog grows to 16 tools, and Glama score impact remains unverified.
+
 ## [1.3.0-alpha.31] - 2026-10-17
 
 - Publish a typed success/error output schema for `get_incident_slice` in full

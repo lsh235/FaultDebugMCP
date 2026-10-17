@@ -23,6 +23,7 @@ from faultdebug.evidence_store import EvidenceStore
 
 FOCUSED_TOOLS = {
     'get_capabilities', 'discover_artifacts', 'discover_bundles', 'open_fault',
+    'get_evidence_summary',
     'get_thread_trace', 'get_fault_flow', 'get_rpc_trace', 'get_incident_report',
     'check_store', 'list_incidents', 'get_incident_slice', 'get_source_evidence',
     'resolve_addresses', 'get_function_source', 'get_call_relations',
@@ -31,12 +32,12 @@ OUTPUT_SCHEMA_TOOLS = {
     'get_capabilities', 'check_store', 'discover_artifacts', 'discover_bundles',
     'get_function_source', 'list_incidents', 'list_sessions', 'get_source_evidence',
     'get_rpc_trace', 'get_fault_flow', 'get_incident_report', 'resolve_addresses',
-    'get_call_relations', 'get_thread_trace', 'get_incident_slice',
+    'get_call_relations', 'get_thread_trace', 'get_incident_slice', 'get_evidence_summary',
 }
 FOCUSED_OUTPUT_SCHEMA_TOOLS = OUTPUT_SCHEMA_TOOLS - {'list_sessions'}
 PROFILE_DESCRIPTION_EXPECTATIONS = {
     'check_store': ('get_provenance', ('list_incidents',)),
-    'open_fault': ('get_evidence_summary', ('discover_artifacts', 'get_fault_flow', 'get_rpc_trace')),
+    'open_fault': ('get_evidence_summary', ('get_evidence_summary', 'discover_artifacts', 'get_fault_flow', 'get_rpc_trace')),
     'get_rpc_trace': ('get_process_relations', ('get_thread_trace', 'get_fault_flow', 'get_incident_report')),
     'get_incident_report': ('get_evidence_summary', ('get_incident_slice', 'open_fault')),
     'list_incidents': ('get_unresolved', ('get_incident_slice', 'get_incident_report')),
@@ -240,6 +241,18 @@ def assert_incident_slice_contract(result, output_schema, text_result):
     return output
 
 
+def assert_evidence_summary_contract(result, output_schema, text_result):
+    structured = validate_structured_payload(result, output_schema)
+    assert structured == text_result
+    assert set(structured) == {
+        'schema', 'status', 'artifacts', 'observed', 'static_candidates', 'unresolved'}
+    assert structured['status'] in {'complete', 'limited'}
+    assert structured['artifacts'] == 1
+    assert set(structured['observed']) == {'rpc_events', 'process_relations'}
+    assert all(isinstance(row.get('reason'), str) for row in structured['unresolved'])
+    return structured
+
+
 def assert_profile_descriptions(full_tools, focused_tools):
     hidden_names = set(full_tools) - set(focused_tools)
     for name, tool in focused_tools.items():
@@ -250,8 +263,12 @@ def assert_profile_descriptions(full_tools, focused_tools):
     for name, (full_alternative, focused_alternatives) in PROFILE_DESCRIPTION_EXPECTATIONS.items():
         assert full_alternative in full_tools[name].description, (
             name, full_alternative, full_tools[name].description)
-        assert full_alternative not in focused_tools[name].description, (
-            name, full_alternative, focused_tools[name].description)
+        if full_alternative in focused_alternatives:
+            assert full_alternative in focused_tools[name].description, (
+                name, full_alternative, focused_tools[name].description)
+        else:
+            assert full_alternative not in focused_tools[name].description, (
+                name, full_alternative, focused_tools[name].description)
         for alternative in focused_alternatives:
             assert alternative in focused_tools, (name, alternative)
             assert alternative in focused_tools[name].description, (
@@ -260,6 +277,10 @@ def assert_profile_descriptions(full_tools, focused_tools):
 
 async def audit(root):
     capture = write_artifact({'process': {'pid': 7}, 'threads': [], 'crashes': []}, root, 7)
+    summary_complete_capture = rpc_artifact(root, 'summary-complete', {
+        'schema': 1,
+        'events': [{'sequence': 1, 'monotonic_ns': 10, 'phase': 'status'}],
+    }, pid=88)
     thread_history = write_artifact({
         'process': {'pid': 77},
         'threads': [
@@ -450,6 +471,19 @@ async def audit(root):
                     for row_model in ('IncidentSliceIncident', 'IncidentSliceArtifact',
                                       'IncidentSliceParticipant', 'IncidentSliceSourceReference'):
                         assert incident_slice_defs[row_model]['additionalProperties'] is True
+                elif name == 'get_evidence_summary':
+                    evidence_summary_schema = tools[name].outputSchema
+                    assert evidence_summary_schema.get('type') == 'object'
+                    summary_properties = evidence_summary_schema.get('properties', {})
+                    assert set(summary_properties) == {
+                        'schema', 'status', 'artifacts', 'observed',
+                        'static_candidates', 'unresolved'}
+                    assert set(evidence_summary_schema.get('required', [])) == set(summary_properties)
+                    summary_defs = evidence_summary_schema.get('$defs', {})
+                    assert set(summary_defs['EvidenceSummaryObserved']['properties']) == {
+                        'rpc_events', 'process_relations'}
+                    assert summary_defs['EvidenceSummaryDiagnostic'][
+                        'additionalProperties'] is True
                 else:
                     assert tools[name].outputSchema.get('type') == 'object', (name, tools[name].outputSchema)
             assert 'schema' in tools['get_capabilities'].outputSchema['properties']
@@ -634,6 +668,24 @@ async def audit(root):
             assert caps['platform_toolchain']['mcp_transport'] == 'stdio'
             opened = payload(await session.call_tool('open_fault', {'name': capture.name}))
             assert opened['process']['pid'] == 7
+            summary_limited_result = await session.call_tool(
+                'get_evidence_summary', {'name': capture.name})
+            summary_limited_text = payload(summary_limited_result)
+            summary_limited = assert_evidence_summary_contract(
+                summary_limited_result, evidence_summary_schema, summary_limited_text)
+            assert summary_limited['status'] == 'limited'
+            assert summary_limited['observed'] == {'rpc_events': 0, 'process_relations': 0}
+            assert any(row['reason'] == 'semantic_rpc_extension_absent'
+                       and row.get('evidence') == 'artifact'
+                       for row in summary_limited['unresolved'])
+            summary_complete_result = await session.call_tool(
+                'get_evidence_summary', {'name': summary_complete_capture.name})
+            summary_complete_text = payload(summary_complete_result)
+            summary_complete = assert_evidence_summary_contract(
+                summary_complete_result, evidence_summary_schema, summary_complete_text)
+            assert summary_complete['status'] == 'complete'
+            assert summary_complete['observed'] == {'rpc_events': 1, 'process_relations': 0}
+            assert summary_complete['unresolved'] == []
             thread_trace_result = await session.call_tool('get_thread_trace', {
                 'name': thread_history.name})
             thread_trace_text = payload(thread_trace_result)
@@ -934,6 +986,7 @@ async def audit(root):
             invalid = [
                 ('open_fault', {'name': '../escape.fault'}),
                 ('open_fault', {'name': str(capture)}),
+                ('get_evidence_summary', {'name': '../escape.fault'}),
                 ('get_incident_report', {'names': ['../escape.fault']}),
                 ('get_incident_report', {'names': ['nested/fault-malformed.json']}),
                 ('get_thread_trace', {'name': capture.name, 'page': -1}),
@@ -1027,6 +1080,7 @@ async def audit(root):
             assert focused_tools['get_call_relations'].outputSchema == call_relations_schema
             assert focused_tools['get_thread_trace'].outputSchema == thread_trace_schema
             assert focused_tools['get_incident_slice'].outputSchema == incident_slice_schema
+            assert focused_tools['get_evidence_summary'].outputSchema == evidence_summary_schema
             assert all(tool.annotations and tool.annotations.readOnlyHint is True
                        for tool in focused_tools.values())
             focused_parameters = 0
@@ -1034,7 +1088,17 @@ async def audit(root):
                 for parameter, schema in tool.inputSchema.get('properties', {}).items():
                     assert schema.get('description', '').strip(), (tool.name, parameter)
                     focused_parameters += 1
-            assert focused_parameters == 44, focused_parameters
+            assert focused_parameters == 45, focused_parameters
+            focused_summary_result = await session.call_tool(
+                'get_evidence_summary', {'name': capture.name})
+            focused_summary_text = payload(focused_summary_result)
+            focused_summary = assert_evidence_summary_contract(
+                focused_summary_result,
+                focused_tools['get_evidence_summary'].outputSchema,
+                focused_summary_text)
+            assert focused_summary['status'] == 'limited'
+            assert any(row['reason'] == 'semantic_rpc_extension_absent'
+                       for row in focused_summary['unresolved'])
             focused_incidents_result = await session.call_tool('list_incidents', {})
             focused_incidents = payload(focused_incidents_result)
             assert validate_structured_payload(

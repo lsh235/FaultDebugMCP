@@ -62,6 +62,9 @@ Glama의 재평가 전까지 주장하지 않습니다.
 제외합니다.
 알파21은 읽기 전용 incident 목록의 성공/오류 응답 스키마를 추가합니다. 더 큰 동적
 incident evidence payload는 별도 검토 전까지 스키마 범위에서 제외합니다.
+알파22는 full 프로필의 `list_sessions`에 6개 필드의 typed 결과를 제공합니다. focused
+카탈로그 범위와 세션 도구 제외 정책은 유지합니다. 공식 Glama 점수는 재평가 전까지
+확인되지 않았습니다.
 [기존 프로젝트 적용 안내](docs/existing-project-adoption.md) ·
 [보고서 언어 검토](docs/integration-report-language-review.md) ·
 [이벤트 상한 검토](docs/integration-report-event-limit-review.md) ·
@@ -76,6 +79,9 @@ incident evidence payload는 별도 검토 전까지 스키마 범위에서 제�
 [source 출력 스키마 검토](docs/mcp-source-output-review.md) ·
 [incident 목록 출력 스키마 리서치](docs/mcp-incident-list-output-research.md) ·
 [incident 목록 출력 스키마 검토](docs/mcp-incident-list-output-review.md) ·
+[session 목록 출력 스키마 리서치](docs/mcp-session-list-output-research.md) ·
+[session 목록 출력 스키마 검토](docs/mcp-session-list-output-review.md) ·
+[알파22 범위와 검증](docs/releases/v1.3.0-alpha.22.md) ·
 [구현 범위와 검증](docs/releases/v1.3.0-alpha.21.md)
 
 정식 릴리스의 독립 최종 수락, 현재 revision의 전체 core/gRPC profile,

@@ -139,17 +139,18 @@ and set these fields:
     "mcp", "--root", "/app/artifacts", "--tool-profile", "focused"
   ],
   "nodeVersion": "24",
-  "pinnedCommit": "468efbb08af7acf5b2a4f1e9c84353486d28f550",
+  "pinnedCommit": "8b3a95a596d774f4cccb3a2dc96f776d2c099b94",
   "placeholderArguments": {},
   "pythonVersion": "3.12"
 }
 ```
 
-This full implementation SHA selects the alpha20 `focused` 15-tool first-line
-workflow, five structured response contracts, and descriptive titles; omit the
-profile argument for the complete 27-tool catalog. It includes a structured
-source result for verified function lookup. This
-repository example does not update the external Glama setting. The
+This full implementation SHA selects the alpha22 `focused` 15-tool first-line
+workflow, six structured response contracts, and descriptive titles; omit the
+profile argument for the complete 27-tool catalog, which exposes seven typed
+success contracts. It includes typed incident, source, and session-list
+results where those tools are present. This repository example does not update
+the external Glama setting. The
 previously documented
 `255395c86809cce886ce58cdc5736b2a4c0f8aaa` revision predates it and exposed 25
 tools with 76 described parameters. Alpha15 exposed 26 tools and 83 described
@@ -158,7 +159,9 @@ read-only `discover_bundles` tool; the full-profile audit exposes 27 tools and
 84 parameters. Alpha17 keeps that behavior while its focused profile publishes
 15 tools. Alpha18 adds four output schemas and structured results in both
 profiles. Alpha19 adds descriptive top-level titles to all 27 tool definitions.
-Alpha20 adds a typed source result for `get_function_source`.
+Alpha20 adds a typed source result for `get_function_source`. Alpha21 adds a
+typed incident-list result, and alpha22 adds a typed session-list result to the
+full profile.
 Check the
 generated Dockerfile's `git checkout` before deploying. A null pin alone
 does not prove that the generated checkout contains your latest changes.

@@ -2,6 +2,14 @@
 
 ## [Unreleased]
 
+## [1.3.0-alpha.22] - 2026-10-17
+
+- Publish a documented structured result for full-profile `list_sessions`,
+  distinguishing assigned/unassigned groups, monotonic start time, artifact
+  counts, identity source and aggregate trust state.
+- Keep profile membership, read-only store semantics and MCP query errors
+  unchanged; official Glama deployment, re-scan and score remain unverified.
+
 ## [1.3.0-alpha.21] - 2026-10-17
 
 - Publish validated structured success and query-error outputs for read-only

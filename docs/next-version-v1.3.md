@@ -198,6 +198,16 @@ contract. See the [research](mcp-incident-list-output-research.md),
 [review](mcp-incident-list-output-review.md), and
 [alpha21 record](releases/v1.3.0-alpha.21.md).
 
+### Alpha22 follow-up: type session inventory results
+
+`list_sessions` publishes a documented result schema for its fixed schema-v2
+SQLite projection, including the null-session group, monotonic process-start
+time, artifact counts, open identity-source label and aggregate trust state.
+It remains in the full profile; the focused 15-tool catalog and all query/error
+semantics are unchanged. See [research](mcp-session-list-output-research.md),
+[review](mcp-session-list-output-review.md), and
+[alpha22 record](releases/v1.3.0-alpha.22.md).
+
 ## 1. 목표와 출발 조건
 
 사용자가 HTTP 주문 실패를 선택하면 **어느 프로세스 세대의 어느 호출이 실패했는지,
